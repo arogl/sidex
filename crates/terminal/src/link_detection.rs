@@ -385,6 +385,7 @@ mod tests {
     // A path like /usr/local/bin is not absolute on Windows.
     #[cfg(unix)]
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn detect_absolute_path_unix() {
         let cells = cells_from_str("Error in /usr/local/bin/app.rs");
         let links = detect_links(&cells);
@@ -394,6 +395,19 @@ mod tests {
             .collect();
         assert!(!path_links.is_empty());
         assert!(path_links[0].url.starts_with("/usr/local/bin/app.rs"));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn detect_absolute_path_windows() {
+        let cells = cells_from_str("Error in C:\\usr\\local\\bin\\app.rs");
+        let links = detect_links(&cells);
+        let path_links: Vec<_> = links
+            .iter()
+            .filter(|l| l.kind == LinkKind::FilePath)
+            .collect();
+        assert!(!path_links.is_empty());
+        assert!(path_links[0].url.starts_with("C:\\usr\\local\\bin\\app.rs"));
     }
 
     #[test]
