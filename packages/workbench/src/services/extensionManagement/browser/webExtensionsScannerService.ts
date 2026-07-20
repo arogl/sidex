@@ -881,6 +881,18 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		// correctly by the marketplace proxy for both Microsoft and Open VSX sources)
 		// instead of constructing a URL from resourceUrlTemplate which may point to
 		// a version that doesn't exist on Open VSX.
+		let resolvedTargetPlatform: TargetPlatform | undefined;
+		if ((globalThis as any).__SIDEX_TAURI__ === true) {
+			const { getTargetPlatform } = await import('@sidex/platform/extensionManagement/common/extensionManagement.js');
+			const { isMacintosh, isWindows, Platform } = await import('@sidex/base/common/platform.js');
+			const { arch } = await import('@sidex/base/common/process.js');
+			const p = isMacintosh ? Platform.Mac : isWindows ? Platform.Windows : Platform.Linux;
+			resolvedTargetPlatform = getTargetPlatform(p, arch);
+		} else {
+			resolvedTargetPlatform =
+				galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? TargetPlatform.WEB : undefined;
+		}
+
 		let manifest: IExtensionManifest | undefined;
 		let extensionLocation: URI | undefined;
 
@@ -905,8 +917,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					publisher: galleryExtension.publisher,
 					name: galleryExtension.name,
 					version: galleryExtension.version,
-					targetPlatform:
-						galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? TargetPlatform.WEB : undefined
+					targetPlatform: resolvedTargetPlatform
 				},
 				'extension'
 			);
