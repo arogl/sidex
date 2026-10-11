@@ -21,6 +21,7 @@ import { ThemeColor } from '@sidex/base/common/themables.js';
 import { isThemeColor } from '@sidex/editor/common/editorCommon.js';
 import { addDisposableListener, EventType, hide, show, append, EventHelper, $ } from '@sidex/base/browser/dom.js';
 import { INotificationService } from '@sidex/platform/notification/common/notification.js';
+import { isHighContrast } from '@sidex/platform/theme/common/theme.js';
 import { assertReturnsDefined } from '@sidex/base/common/types.js';
 import { Command } from '@sidex/editor/common/languages.js';
 import { StandardKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
@@ -273,11 +274,24 @@ export class StatusbarEntryItem extends Disposable {
 			this.foregroundListener.clear();
 		}
 
+		// Sidex: suppress all background colors in non-HC themes so that
+		// kind items (warning, error, remote, etc.) stay monochrome.
+		// The CSS handles hover/active states with rgba values instead.
+		if (isBackground && !isHighContrast(this.themeService.getColorTheme().type)) {
+			container.style.backgroundColor = '';
+			return;
+		}
+
 		if (color) {
 			if (isThemeColor(color)) {
 				colorResult = this.themeService.getColorTheme().getColor(color.id)?.toString();
 
 				const listener = this.themeService.onDidColorThemeChange(theme => {
+					// Re-check HC on theme change
+					if (isBackground && !isHighContrast(theme.type)) {
+						container.style.backgroundColor = '';
+						return;
+					}
 					const colorValue = theme.getColor(color.id)?.toString();
 
 					if (isBackground) {

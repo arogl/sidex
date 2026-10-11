@@ -24,7 +24,6 @@ import {
 import { getListStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 import { editorBackground, focusBorder } from '@sidex/platform/theme/common/colorRegistry.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { settingsHeaderForeground, settingsHeaderHoverForeground } from '../common/settingsEditorColorRegistry.js';
 import { SettingsTreeFilter } from './settingsTree.js';
 import {
 	ISettingsEditorViewState,
@@ -159,7 +158,7 @@ class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement> {
 	}
 
 	getHeight(_element: SettingsTreeElement): number {
-		return 22;
+		return 28;
 	}
 }
 
@@ -258,20 +257,21 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 
 		this.style(
 			getListStyles({
-				listBackground: editorBackground,
-				listFocusOutline: focusBorder,
-				listActiveSelectionBackground: editorBackground,
-				listActiveSelectionForeground: settingsHeaderForeground,
-				listFocusAndSelectionBackground: editorBackground,
-				listFocusAndSelectionForeground: settingsHeaderForeground,
-				listFocusBackground: editorBackground,
-				listFocusForeground: settingsHeaderHoverForeground,
-				listHoverForeground: settingsHeaderHoverForeground,
-				listHoverBackground: editorBackground,
-				listInactiveSelectionBackground: editorBackground,
-				listInactiveSelectionForeground: settingsHeaderForeground,
-				listInactiveFocusBackground: editorBackground,
-				listInactiveFocusOutline: editorBackground,
+				listBackground: undefined,
+				listFocusOutline: undefined,
+				listActiveSelectionBackground: undefined,
+				listActiveSelectionForeground: undefined,
+				listFocusAndSelectionBackground: undefined,
+				listFocusAndSelectionForeground: undefined,
+				listFocusAndSelectionOutline: undefined,
+				listFocusBackground: undefined,
+				listFocusForeground: undefined,
+				listHoverForeground: undefined,
+				listHoverBackground: undefined,
+				listInactiveSelectionBackground: undefined,
+				listInactiveSelectionForeground: undefined,
+				listInactiveFocusBackground: undefined,
+				listInactiveFocusOutline: undefined,
 				treeIndentGuidesStroke: undefined,
 				treeInactiveIndentGuidesStroke: undefined
 			})

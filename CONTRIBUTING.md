@@ -44,6 +44,12 @@ Check [Issues](https://github.com/Sidenai/sidex/issues) for open tasks. If you d
 - Use `Result<T, String>` for command return types
 - Use `tokio` for async work
 
+### Go (`sidexai/sidex-server`)
+- This is the agent server: agent loop, tools, MCP, memory, context compression
+- Build with `go build -tags fts5 -o sidex-server ./cmd/server` from `sidexai/sidex-server`
+- It must keep working with no account and no hosted service — credentials come from its process environment only (`SIDEX_PROVIDER_<PROVIDER>_KEY` / `_BASE_URL` / `_AUTH`), never a config file
+- Test against a provider you have your own credentials for; there's no shared or hosted backend to test against
+
 ### General
 - Keep PRs focused — one feature or fix per PR when possible
 - If you're making a big architectural change, open an issue first to discuss
