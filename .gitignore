@@ -142,3 +142,4 @@ apps/workbench/public/builtin-extensions.js
 .superpowers/
 /sidex-site/
 /deploy/
+*.orig
