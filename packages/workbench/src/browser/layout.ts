@@ -1337,8 +1337,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 				// If we opened a view in the sidex, stop any restore there
 				if (locationsRestored[ViewContainerLocation.Sidex]) {
-					this.state.initialization.views.containerToRestore.sidex =
-						locationsRestored[ViewContainerLocation.Sidex].id;
+					this.state.initialization.views.containerToRestore.sidex = locationsRestored[ViewContainerLocation.Sidex].id;
 				}
 
 				mark('code/didOpenDefaultViews');
@@ -2366,8 +2365,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			: this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
 		const preMoveSidexSize = !this.isVisible(Parts.SIDEX_PART)
 			? Sizing.Invisible(
-					this.workbenchGrid.getViewCachedVisibleSize(this.sidexPartView) ??
-						this.sidexPartView.minimumWidth
+					this.workbenchGrid.getViewCachedVisibleSize(this.sidexPartView) ?? this.sidexPartView.minimumWidth
 				)
 			: this.workbenchGrid.getViewSize(this.sidexPartView).width;
 
@@ -2384,12 +2382,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				sideBarSiblingToEditor ? Direction.Left : Direction.Right
 			);
 			// Sidex between editor and auxiliary bar
-			this.workbenchGrid.moveView(
-				this.sidexPartView,
-				preMoveSidexSize,
-				this.editorPartView,
-				Direction.Right
-			);
+			this.workbenchGrid.moveView(this.sidexPartView, preMoveSidexSize, this.editorPartView, Direction.Right);
 			if (auxiliaryBarSiblingToEditor) {
 				this.workbenchGrid.moveView(
 					this.auxiliaryBarPartView,
@@ -2409,12 +2402,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				sideBarSiblingToEditor ? Direction.Right : Direction.Left
 			);
 			// Sidex between editor and auxiliary bar
-			this.workbenchGrid.moveView(
-				this.sidexPartView,
-				preMoveSidexSize,
-				this.editorPartView,
-				Direction.Left
-			);
+			this.workbenchGrid.moveView(this.sidexPartView, preMoveSidexSize, this.editorPartView, Direction.Left);
 			if (auxiliaryBarSiblingToEditor) {
 				this.workbenchGrid.moveView(
 					this.auxiliaryBarPartView,
@@ -3056,7 +3044,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private arrangeEditorNodes(
-		nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode; sidex?: ISerializedNode },
+		nodes: {
+			editor: ISerializedNode;
+			sideBar?: ISerializedNode;
+			auxiliaryBar?: ISerializedNode;
+			sidex?: ISerializedNode;
+		},
 		availableHeight: number,
 		availableWidth: number
 	): ISerializedNode {
@@ -3585,12 +3578,7 @@ const LayoutStateKeys = {
 		StorageTarget.MACHINE,
 		true
 	),
-	SIDEX_HIDDEN: new RuntimeStateKey<boolean>(
-		'sidex.hidden',
-		StorageScope.WORKSPACE,
-		StorageTarget.MACHINE,
-		false
-	),
+	SIDEX_HIDDEN: new RuntimeStateKey<boolean>('sidex.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>(
 		'statusBar.hidden',
 		StorageScope.WORKSPACE,

@@ -356,14 +356,14 @@ class TauriExtensionHostContribution extends Disposable implements IWorkbenchCon
 				if (this._modelContentListeners.has(key)) {
 					return;
 				}
-			let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+				let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 				const disposable = model.onDidChangeContent(() => {
 					wasmSyncDocument(model.uri.toString(), model.getLanguageId(), sanitizeForExtHost(model.getValue())).catch(
 						() => {}
 					);
-				debounceTimer = setTimeout(() => {
-					debounceTimer = undefined;
-				}, 300);
+					debounceTimer = setTimeout(() => {
+						debounceTimer = undefined;
+					}, 300);
 				});
 				this._modelContentListeners.set(key, disposable);
 			})

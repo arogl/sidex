@@ -2,7 +2,11 @@
  *  Sidex Complete — Registers the FIM inline-completion provider.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import {
+	IWorkbenchContribution,
+	registerWorkbenchContribution2,
+	WorkbenchPhase
+} from '../../../common/contributions.js';
 import { ILanguageFeaturesService } from '@sidex/editor/common/services/languageFeatures.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { SidexCompleteProvider } from './sidexCompleteProvider.js';
@@ -13,7 +17,7 @@ class SidexCompleteContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		// Defaults to the agent server the app runs locally; an explicit
 		// setting points completions somewhere else. Registration waits for

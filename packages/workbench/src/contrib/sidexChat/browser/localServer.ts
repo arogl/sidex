@@ -49,7 +49,13 @@ function isValidEndpoint(value: unknown): value is IServerEndpoint {
 	// malformed IPC reply from being handed straight to a WebSocket
 	// constructor as if it were a real port.
 	const ep = value as Partial<IServerEndpoint> | null | undefined;
-	return !!ep && typeof ep.wsUrl === 'string' && typeof ep.httpUrl === 'string' && typeof ep.port === 'number' && typeof ep.running === 'boolean';
+	return (
+		!!ep &&
+		typeof ep.wsUrl === 'string' &&
+		typeof ep.httpUrl === 'string' &&
+		typeof ep.port === 'number' &&
+		typeof ep.running === 'boolean'
+	);
 }
 
 let cached: IServerEndpoint = FALLBACK;
