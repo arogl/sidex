@@ -143,3 +143,5 @@ apps/workbench/public/builtin-extensions.js
 /sidex-site/
 /deploy/
 *.orig
+*.rej
+*.bundle

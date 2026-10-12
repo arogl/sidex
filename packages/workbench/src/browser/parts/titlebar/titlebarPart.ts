@@ -58,8 +58,8 @@ import { IInstantiationService, ServicesAccessor } from '@sidex/platform/instant
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { IStorageService, StorageScope } from '@sidex/platform/storage/common/storage.js';
 import { IAccountService } from '../../../contrib/sidexChat/browser/account/accountService.js';
-import { IUpdateService } from '../../../../platform/update/common/update.js';
-import { URI } from '../../../../base/common/uri.js';
+import { IUpdateService } from '@sidex/platform/update/common/update.js';
+import { URI } from '@sidex/base/common/uri.js';
 import {
 	Parts,
 	IWorkbenchLayoutService,
@@ -109,9 +109,9 @@ import { safeIntl } from '@sidex/base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '@sidex/platform/instantiation/common/serviceCollection.js';
 import { ISCMViewService } from '../../../contrib/scm/common/scm.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
+import { autorun, derived } from '@sidex/base/common/observable.js';
+import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
+import { ILabelService } from '@sidex/platform/label/common/label.js';
 
 export interface ITitleVariable {
 	readonly name: string;

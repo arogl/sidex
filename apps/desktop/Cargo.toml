@@ -110,7 +110,6 @@ sidex-git = { path = "../../crates/git" }
 sidex-workspace = { path = "../../crates/workspace" }
 
 # Internal crates
-<<<<<<< HEAD:apps/desktop/Cargo.toml
 sidex-text = { path = "../../crates/text" }
 sidex-syntax = { path = "../../crates/syntax" }
 sidex-tasks = { path = "../../crates/tasks" }
@@ -123,21 +122,8 @@ sidex-update = { path = "../../crates/update" }
 sidex-profiles = { path = "../../crates/profiles" }
 sidex-auth = { path = "../../crates/auth" }
 sidex-textmate = { path = "../../crates/textmate" }
-=======
-sidex-text = { path = "../crates/sidex-text" }
-sidex-syntax = { path = "../crates/sidex-syntax" }
-sidex-tasks = { path = "../crates/sidex-tasks" }
-sidex-extensions = { path = "../crates/sidex-extensions" }
-sidex-agent = { path = "../crates/sidex-agent" }
-sidex-lsp = { path = "../crates/sidex-lsp" }
-sidex-keymap = { path = "../crates/sidex-keymap" }
-sidex-extension-api = { path = "../crates/sidex-extension-api" }
-sidex-update = { path = "../crates/sidex-update" }
-sidex-profiles = { path = "../crates/sidex-profiles" }
-sidex-auth = { path = "../crates/sidex-auth" }
-sidex-textmate = { path = "../crates/sidex-textmate" }
-sidex-context = { path = "../crates/sidex-context" }
->>>>>>> upstream/main:src-tauri/Cargo.toml
+sidex-context = { path = "../../crates/context" }
+sidex-agent = { path = "../../crates/agent" }
 
 tree-sitter = "0.24"
 tree-sitter-rust = "0.23"

@@ -6102,6 +6102,7 @@ dependencies = [
  "sidex-settings",
  "sidex-syntax",
  "sidex-tasks",
+ "sidex-terminal",
  "sidex-text",
  "sidex-textmate",
  "sidex-theme",

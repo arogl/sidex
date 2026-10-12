@@ -19,6 +19,7 @@
     "setup:full": "bash scripts/setup-extensions.sh && bun run packages/build/src/extension-meta/cli.ts",
     "build:wasm": "bun run packages/build/src/wasm/build.ts",
     "build:wasm:test": "bun run packages/build/src/wasm/build-test-fixture.ts",
+    "server:build": "cd sidexai/sidex-server && go build -tags fts5 -o sidex-server ./cmd/server",
     "dev": "bun run setup && bun run build:wasm -- --optional && node --max-old-space-size=8192 node_modules/vite/bin/vite.js --config apps/workbench/vite.config.ts",
     "build": "bun run setup && bun run build:wasm && node --max-old-space-size=12288 node_modules/vite/bin/vite.js build --config apps/workbench/vite.config.ts",
     "postbuild": "bun run packages/build/src/postbuild/cli.ts",

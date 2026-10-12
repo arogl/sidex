@@ -17,7 +17,7 @@ export interface IUpdateProvider {
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
 import { IUpdateService, State, UpdateType } from '@sidex/platform/update/common/update.js';
-import { IUpdateService, State, StateType, UpdateType } from '../../../../platform/update/common/update.js';
+import { IUpdateService, State, StateType, UpdateType } from '@sidex/platform/update/common/update.js';
 
 const STATE_EVENT = 'sidex://update/state-change';
 

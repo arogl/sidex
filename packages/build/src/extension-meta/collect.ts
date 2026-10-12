@@ -16,6 +16,8 @@ export function collectDescriptors(extensionsDir: string): ExtensionDescriptor[]
 	const descriptors: ExtensionDescriptor[] = [];
 
 	for (const dirName of readdirSync(extensionsDir)) {
+		// Skip the Node.js Git extension: SideX uses its own Rust-native Git provider
+		if (dirName === 'git') {\n\t\t\tcontinue;\n\t\t}\n
 		const dirPath = join(extensionsDir, dirName);
 		if (!statSync(dirPath).isDirectory()) {
 			continue;

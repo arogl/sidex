@@ -2,8 +2,6 @@
 resolver = "2"
 members = ["crates/*", "apps/desktop"]
 exclude = ["extensions-wasm", "wasm"]
-  "crates/sidex-agent",
-  "crates/sidex-context",
 
 [workspace.package]
 version = "0.2.0"
@@ -35,6 +33,7 @@ sidex-update = { path = "crates/update" }
 sidex-profiles = { path = "crates/profiles" }
 sidex-auth = { path = "crates/auth" }
 sidex-textmate = { path = "crates/textmate" }
+sidex-context = { path = "crates/context" }
 
 # Core
 tokio = { version = "1", features = ["full"] }
