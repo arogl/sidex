@@ -50,8 +50,8 @@ pub fn create_session(db: &Database, session: &ChatSession) -> Result<()> {
                 session.mode,
                 session.workspace,
                 session.message_count,
-                session.pinned as i32,
-                session.archived as i32,
+                i32::from(session.pinned),
+                i32::from(session.archived),
             ],
         )
         .context("create chat session")?;
@@ -81,8 +81,8 @@ pub fn save_session(db: &Database, session: &ChatSession) -> Result<()> {
                 session.mode,
                 session.workspace,
                 session.message_count,
-                session.pinned as i32,
-                session.archived as i32,
+                i32::from(session.pinned),
+                i32::from(session.archived),
             ],
         )
         .context("save chat session")?;
@@ -271,7 +271,7 @@ pub fn update_session_pin(db: &Database, session_id: &str, pinned: bool) -> Resu
     db.conn()
         .execute(
             "UPDATE chat_sessions SET pinned = ?2 WHERE id = ?1",
-            params![session_id, pinned as i32],
+            params![session_id, i32::from(pinned)],
         )
         .context("update session pin")?;
     Ok(())
@@ -282,7 +282,7 @@ pub fn update_session_archive(db: &Database, session_id: &str, archived: bool) -
     db.conn()
         .execute(
             "UPDATE chat_sessions SET archived = ?2 WHERE id = ?1",
-            params![session_id, archived as i32],
+            params![session_id, i32::from(archived)],
         )
         .context("update session archive")?;
     Ok(())

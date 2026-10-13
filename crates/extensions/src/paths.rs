@@ -19,6 +19,7 @@ const APP_NAME: &str = "SideX";
 /// - Linux: `$XDG_CONFIG_HOME/SideX` (default `~/.config/SideX`)
 /// - macOS: `~/Library/Application Support/SideX`
 /// - Windows: `%APPDATA%/SideX`
+#[allow(clippy::map_unwrap_or)]
 pub fn sidex_config_dir() -> PathBuf {
     #[cfg(target_os = "linux")]
     {
@@ -90,9 +91,10 @@ pub fn user_data_dir() -> PathBuf {
     sidex_config_dir().join("data")
 }
 
-/// Base directory for extensions on Linux uses XDG_DATA_HOME to keep large
+/// Base directory for extensions on Linux uses `XDG_DATA_HOME` to keep large
 /// extension binaries separate from config. On other platforms, uses the
 /// same directory as config.
+#[allow(clippy::map_unwrap_or)]
 fn extensions_base_dir() -> PathBuf {
     #[cfg(target_os = "linux")]
     {

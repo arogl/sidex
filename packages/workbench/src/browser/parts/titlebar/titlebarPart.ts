@@ -88,7 +88,7 @@ import {
 } from '../globalCompositeBar.js';
 import { HoverPosition } from '@sidex/base/browser/ui/hover/hoverWidget.js';
 import { IEditorGroupsContainer, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ActionRunner, IAction } from '@sidex/base/common/actions.js';
+import { ActionRunner, IAction, Separator, toAction } from '@sidex/base/common/actions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '@sidex/base/browser/ui/actionbar/actionbar.js';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from '../editor/editorCommands.js';
@@ -110,7 +110,7 @@ import { IView } from '@sidex/base/browser/ui/grid/grid.js';
 import { createInstantHoverDelegate } from '@sidex/base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '@sidex/base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverDelegate } from '@sidex/base/browser/ui/hover/hoverDelegate.js';
-import { CommandsRegistry } from '@sidex/platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { safeIntl } from '@sidex/base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '@sidex/platform/instantiation/common/serviceCollection.js';

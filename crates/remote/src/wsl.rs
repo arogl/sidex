@@ -231,6 +231,7 @@ pub(crate) fn parse_wsl_list(text: &str) -> Result<Vec<WslDistro>> {
 #[cfg(target_os = "windows")]
 impl WslTransport {
     /// Connect to a named WSL distribution.
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     pub async fn connect(distro: &str) -> Result<Self> {
         let mut cmd = std::process::Command::new("wsl");
         cmd.args(["-d", distro, "--", "echo", "ok"]);

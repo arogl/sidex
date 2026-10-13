@@ -122,6 +122,7 @@ import { DeferredPromise, Promises } from '@sidex/base/common/async.js';
 import { IBannerService } from '../services/banner/browser/bannerService.js';
 import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
 import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
+import { SidexPart } from './parts/sidex/sidexPart.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '@sidex/base/browser/window.js';

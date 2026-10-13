@@ -1,3 +1,13 @@
+// TODO(ratchet): this code came from the upstream agent commit and has never been linted
+// under the workspace pedantic rules. Remove this attribute and fix the findings.
+#![allow(
+    clippy::pedantic,
+    clippy::style,
+    clippy::complexity,
+    clippy::perf,
+    clippy::suspicious
+)]
+
 pub mod chunker;
 pub mod embeddings;
 pub mod format;

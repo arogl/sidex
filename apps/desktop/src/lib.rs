@@ -1,5 +1,22 @@
+#[allow(
+    clippy::pedantic,
+    clippy::style,
+    clippy::complexity,
+    clippy::perf,
+    clippy::suspicious,
+    unused_imports
+)] // TODO(ratchet)
 mod app_dirs;
 mod commands;
+#[allow(
+    clippy::pedantic,
+    clippy::style,
+    clippy::complexity,
+    clippy::perf,
+    clippy::suspicious,
+    unused_imports,
+    dead_code
+)] // TODO(ratchet)
 mod server;
 
 use commands::auth::AuthState;
@@ -9,8 +26,10 @@ use commands::ext_host::ExtensionPlatformSupervisor;
 use commands::extension_diagnostics::ExtensionDiagnosticsStore;
 use commands::extension_wasm::WasmExtensionRuntime;
 use commands::index::IndexStore;
+use commands::logging::LoggerStore;
 use commands::lsp::LspState;
 use commands::orchestrate::OrchestrationStore;
+use commands::process::ProcessStore;
 use commands::remote::RemoteManagerStore;
 use commands::settings::SettingsStore;
 use commands::storage::StorageDb;
@@ -22,6 +41,7 @@ use commands::window::restore_and_show;
 use std::sync::Arc;
 #[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+#[allow(unused_imports)]
 use tauri::Listener;
 use tauri::Manager;
 
@@ -453,8 +473,10 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(AuthState::new())
         .manage(UpdateManagerState::new())
+        .manage(Arc::new(commands::textmate::TextMateStore::new()))
         .manage(Arc::new(commands::extensions::MarketplaceClientState::new()))
         .manage(Arc::new(TerminalStore::new()))
+        .manage(Arc::new(ProcessStore::new()))
         .manage(Arc::new(DebugAdapterStore::new()))
         .manage(Arc::new(DapClientStore::new()))
         .manage(Arc::new(LspState::new()))
@@ -466,6 +488,7 @@ pub fn run() {
         .manage(commands::hooks::HooksState::default_global())
         .manage(commands::next_gen_tools::CheckpointStore::new())
         .manage(Arc::new(IndexStore::new(false)))
+        .manage(Arc::new(LoggerStore::new()))
         .manage(ExtensionPlatformSupervisor::new())
         .manage(ExtensionDiagnosticsStore::new())
         .manage(Arc::new(SettingsStore::new()))
@@ -484,6 +507,7 @@ pub fn run() {
                 // Block path traversal, symlinks to sensitive files, and absolute paths
                 // outside the expected asset directories.
                 let path = std::path::Path::new(decoded.as_ref());
+                #[allow(clippy::manual_let_else, clippy::single_match_else)]
                 let canonical = match path.canonicalize() {
                     Ok(p) => p,
                     Err(_) => {
@@ -635,6 +659,9 @@ pub fn run() {
             };
             app.manage(Arc::new(SidexDbState::new(sidex_db)));
 
+            let process_store = app.state::<Arc<ProcessStore>>();
+            process_store.set_app_handle(app.handle().clone());
+
             if let Err(err) = commands::updater::initialize(app.handle()) {
                 log::warn!("update manager disabled: {err}");
             }
@@ -759,14 +786,35 @@ pub fn run() {
             commands::terminal_resize,
             commands::terminal_kill,
             commands::terminal_get_pid,
+            // High-performance process management
+            commands::term_spawn,
+            commands::term_write,
+            commands::term_resize,
+            commands::term_read,
+            commands::term_kill,
+            commands::term_info,
+            commands::term_list,
+            commands::term_is_alive,
+            commands::term_clear_buffer,
+            commands::term_signal,
+            commands::term_set_cwd,
+            commands::term_get_shells,
             commands::exec,
             commands::get_default_shell,
             commands::check_shell_exists,
             commands::get_available_shells,
             commands::get_shell_integration_dir,
             commands::setup_zsh_dotdir,
+            // sidex-terminal crate features
+            commands::terminal_detect_shell,
+            commands::terminal_get_profiles,
+            commands::terminal_find_in_buffer,
             commands::search_files,
             commands::search_text,
+            commands::search_workspace,
+            commands::search_workspace_grouped,
+            commands::search_workspace_replace_preview,
+            commands::search_workspace_replace_apply,
             commands::create_window,
             commands::close_window,
             commands::set_window_title,
@@ -787,13 +835,25 @@ pub fn run() {
             commands::secret_set,
             commands::secret_delete,
             commands::secret_keys,
+            commands::textmate_load_grammar,
+            commands::textmate_update_theme,
+            commands::textmate_tokenize_line,
+		commands::textmate_tokenize_line_binary,
+            commands::textmate_tokenize_document,
+            commands::textmate_release_stack,
             commands::get_os_info,
             commands::get_env,
             commands::get_all_env,
+            commands::get_shell,
             commands::get_user_data_dir,
             commands::storage_get,
             commands::storage_set,
             commands::storage_delete,
+            commands::storage_list,
+            commands::db_get_recent_files,
+            commands::db_get_recent_workspaces,
+            commands::db_get_workspace_state,
+            commands::db_save_workspace_state,
             // Chat session persistence
             commands::session_create,
             commands::session_list,
@@ -862,6 +922,8 @@ pub fn run() {
             commands::extension_platform_restart,
             commands::extension_platform_stop,
             commands::extension_platform_init_data,
+            commands::fetch_url,
+            commands::fetch_url_text,
             commands::proxy_request,
             commands::proxy_request_full,
             commands::clipboard_read_text,
@@ -929,6 +991,30 @@ pub fn run() {
             commands::wasm_provide_definition_all,
             commands::wasm_provide_document_symbols_all,
             commands::wasm_provide_formatting_all,
+            commands::wasm_provide_type_definition_all,
+            commands::wasm_provide_implementation_all,
+            commands::wasm_provide_declaration_all,
+            commands::wasm_provide_code_actions_all,
+            commands::wasm_provide_code_lenses_all,
+            commands::wasm_provide_signature_help_all,
+            commands::wasm_provide_document_highlights_all,
+            commands::wasm_provide_rename_all,
+            commands::wasm_provide_folding_ranges_all,
+            commands::wasm_provide_inlay_hints_all,
+            commands::wasm_provide_document_links_all,
+            commands::wasm_provide_selection_ranges_all,
+            commands::wasm_provide_semantic_tokens_all,
+            commands::wasm_provide_document_colors_all,
+            commands::wasm_provide_workspace_symbols_all,
+            commands::wasm_provide_range_formatting_all,
+            commands::wasm_execute_command_all,
+            commands::wasm_get_extension_metadata,
+            commands::wasm_on_document_opened,
+            commands::wasm_on_document_closed,
+            commands::wasm_on_document_saved,
+            commands::wasm_on_document_changed,
+            commands::wasm_on_configuration_changed,
+            commands::wasm_on_active_editor_changed,
             // Extension diagnostics
             commands::extension_report_activated,
             commands::extension_report_provider_call,
@@ -946,8 +1032,16 @@ pub fn run() {
             commands::extension_bisect_bad,
             commands::extension_bisect_reset,
             commands::extension_bisect_state,
+            // Logging
+            commands::log_create_logger,
+            commands::log_write,
+            commands::log_set_level,
+            commands::log_flush,
+            commands::log_drop,
             // Index search
             commands::index_build,
+            commands::index_search,
+            commands::index_update,
             commands::index_stats,
             commands::index_clear,
             // LSP management
@@ -963,6 +1057,7 @@ pub fn run() {
             commands::syntax_detect_from_content,
             commands::syntax_get_language_config,
             commands::syntax_tokenize,
+            commands::textmate_tokenize_lines,
             // Theme management
             commands::theme_list,
             commands::theme_get,

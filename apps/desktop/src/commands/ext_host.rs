@@ -16,6 +16,7 @@ use tauri::AppHandle;
 use std::os::windows::process::CommandExt;
 
 /// Strip the Windows `\\?\` prefix; Node's CJS resolver chokes on UNC paths.
+#[allow(clippy::needless_pass_by_value)]
 fn normalize_for_node(path: PathBuf) -> PathBuf {
     #[cfg(windows)]
     {
