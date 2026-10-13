@@ -96,6 +96,7 @@ impl RemotePty {
 ///
 /// Implementations must be `Send + Sync` so they can be stored in the
 /// connection manager and shared across tasks.
+#[allow(clippy::double_must_use)]
 #[async_trait::async_trait]
 pub trait RemoteTransport: Send + Sync {
     /// Execute a shell command on the remote and collect its output.
