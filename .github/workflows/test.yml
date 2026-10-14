@@ -20,21 +20,6 @@ on:
       - "packages/build/**"
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/test.yml"
-      - "crates/**"
-      - "apps/desktop/**"
-      - "crates/extension-sdk/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - "apps/**"
-      - "packages/**"
-      - "package.json"
-      - "bun.lock"
-      - "bunfig.toml"
-      - "wasm/**"
-      - "packages/build/**"
 
 env:
   RUST_BACKTRACE: 1
