@@ -8,7 +8,7 @@ import type { NormalizedExtension } from './types';
  *
  * Field names are a deliberate subset of what Open VSX actually
  * returns — enough for `OpenVsxSearchResponse` + `MarketplaceExtension`
- * in `crates/sidex-extensions/src/marketplace.rs` to deserialize.
+ * in `crates/extensions/src/marketplace.rs` to deserialize.
  */
 export interface OpenVsxCompatItem {
 	url: string;

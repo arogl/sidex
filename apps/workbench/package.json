@@ -1,0 +1,22 @@
+{
+  "name": "@sidex/app-workbench",
+  "version": "0.0.0",
+  "description": "Webview frontend — the Vite-built workbench UI.",
+  "keywords": ["workbench", "vite", "webview", "frontend"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidenai/sidex.git",
+    "directory": "apps/workbench"
+  },
+  "homepage": "https://github.com/sidenai/sidex#readme",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sidex/base": "workspace:*",
+    "@sidex/editor": "workspace:*",
+    "@sidex/platform": "workspace:*",
+    "@sidex/vscode-dts": "workspace:*",
+    "@sidex/workbench": "workspace:*"
+  }
+}

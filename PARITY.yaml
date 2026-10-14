@@ -1,0 +1,257 @@
+# Source of truth for the SideX ↔ VS Code parity matrix.
+# Render with `bun run parity:gen`; verify with `bun run parity:check`.
+entries:
+  - id: editor
+    area: Editor
+    status: done
+    summary: Monaco editor core (packages/editor, contrib/codeEditor)
+  - id: terminal
+    area: Terminal
+    status: done
+    summary: Full PTY via crates/terminal
+    signals:
+      contrib: contrib/terminal
+  - id: scm
+    area: Git / SCM
+    status: done
+    summary: ~55 git commands via crates/git
+    signals:
+      contrib: contrib/scm
+  - id: search
+    area: Search
+    status: done
+    summary: Workspace grep + replace via commands/search.rs
+    signals:
+      contrib: contrib/search
+  - id: debug
+    area: Debugging (DAP)
+    status: done
+    summary: DAP adapters via crates/dap
+    signals:
+      contrib: contrib/debug
+  - id: tasks
+    area: Tasks
+    status: done
+    summary: Detect/parse/spawn via crates/tasks
+    signals:
+      contrib: contrib/tasks
+  - id: extensions
+    area: Extensions
+    status: done
+    summary: Real Node ext host + WASM runtime
+    signals:
+      contrib: contrib/extensions
+  - id: settings
+    area: Settings / Config
+    status: done
+    summary: JSONC modify via crates/settings
+    signals:
+      contrib: contrib/preferences
+  - id: themes
+    area: Themes
+    status: done
+    summary: Theme resolution via crates/theme
+    signals:
+      contrib: contrib/themes
+  - id: keybindings
+    area: Keybindings
+    status: done
+    summary: Chord resolution via crates/keymap
+    signals:
+      contrib: contrib/keybindings
+  - id: snippets
+    area: Snippets
+    status: done
+    summary: contrib/snippets wired
+    signals:
+      contrib: contrib/snippets
+  - id: local-history
+    area: Local History
+    status: done
+    summary: Working-copy history service + timeline provider surfacing per-file snapshots
+    evidence:
+      - packages/workbench/src/services/workingCopy/browser/workingCopyHistoryService.ts
+      - packages/workbench/src/contrib/timeline/browser/localHistoryTimelineProvider.ts
+  - id: testing
+    area: Testing
+    status: partial
+    summary: UI + ext-host API wired; relies on extension adapters, no dedicated backend
+    signals:
+      contrib: contrib/testing
+  - id: remote
+    area: Remote / SSH
+    status: partial
+    summary: SSH/WSL/container connect+exec exist, but NullRemoteAgentService/NullRemoteExtensionsScannerService — no remote ext host
+    evidence:
+      - packages/workbench/src/services/remote/browser/nullRemoteAgentService.ts
+      - packages/workbench/src/services/remote/browser/nullRemoteExtensionsScannerService.ts
+  - id: notebooks
+    area: Notebooks
+    status: stubbed
+    summary: 8 Null* notebook services; contrib/notebook not directly imported by an entry file
+    signals:
+      stub_service:
+        - NullNotebookService
+        - NullNotebookEditorService
+        - NullNotebookEditorModelResolverService
+        - NullNotebookKernelService
+        - NullNotebookExecutionStateService
+        - NullNotebookRendererMessagingService
+        - NullNotebookCellStatusBarService
+        - NullNotebookDocumentService
+      contrib: contrib/notebook
+    evidence:
+      - packages/workbench/src/sidexNullServices.ts
+  - id: settings-sync
+    area: Settings Sync
+    status: stubbed
+    summary: NullUserDataSyncWorkbenchService + NullUserDataProfileImportExportService — no cross-device sync or profile import/export
+    signals:
+      stub_service:
+        - NullUserDataSyncWorkbenchService
+        - NullUserDataProfileImportExportService
+  - id: accounts
+    area: Accounts / Sign-in
+    status: stubbed
+    summary: nullDefaultAccount (packages/platform) — no sign-in
+  - id: issue-reporter
+    area: Issue Reporter
+    status: stubbed
+    summary: NullWorkbenchIssueService; contrib/issue import is commented out in workbench.web.main.ts
+    signals:
+      stub_service: NullWorkbenchIssueService
+      contrib: contrib/issue
+    evidence:
+      - packages/workbench/src/sidexNullServices.ts
+  - id: accessible-view
+    area: Accessible View
+    status: stubbed
+    summary: NullAccessibleViewService; contrib/accessibility ships only no-op MultiCommand stubs
+    signals:
+      stub_service: NullAccessibleViewService
+      contrib: contrib/accessibility
+    evidence:
+      - packages/workbench/src/sidexNullServices.ts
+  - id: comments
+    area: Comments
+    status: unwired
+    summary: contrib/comments exists but imported in no entry file
+    signals:
+      contrib: contrib/comments
+  - id: timeline
+    area: Timeline
+    status: done
+    summary: Native Timeline view + git and local-history providers (contrib/timeline wired)
+    signals:
+      contrib: contrib/timeline
+  - id: merge-editor
+    area: Merge Editor
+    status: done
+    summary: Three-way MergeEditor pane (verbatim port of contrib/mergeEditor); git opens UU/AA conflicts in it and git.acceptMerge stages the result
+    signals:
+      contrib: contrib/mergeEditor
+    evidence:
+      - packages/workbench/src/contrib/mergeEditor/browser/mergeEditor.contribution.ts
+      - packages/workbench/src/contrib/scm/browser/git.contribution.ts
+  - id: multi-diff
+    area: Multi-diff Editor
+    status: done
+    summary: MultiDiffEditor pane hosts the multi-diff widget; git.openAllChanges opens one multi-file diff
+    signals:
+      contrib: contrib/multiDiffEditor
+  - id: custom-editors
+    area: Custom Editors
+    status: unwired
+    summary: contrib/customEditor not imported
+    signals:
+      contrib: contrib/customEditor
+  - id: interactive
+    area: Interactive Window
+    status: unwired
+    summary: contrib/interactive not imported
+    signals:
+      contrib: contrib/interactive
+  - id: simple-browser
+    area: Simple Browser
+    status: unwired
+    summary: contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported
+    signals:
+      contrib: contrib/browserView
+  - id: call-hierarchy
+    area: Call Hierarchy
+    status: unwired
+    summary: contrib/callHierarchy has only the common type file — no browser/ peek UI or commands were ported
+    signals:
+      contrib: contrib/callHierarchy
+  - id: type-hierarchy
+    area: Type Hierarchy
+    status: unwired
+    summary: contrib/typeHierarchy has only the common type file — no browser/ peek UI or commands were ported
+    signals:
+      contrib: contrib/typeHierarchy
+  - id: external-uri-opener
+    area: External URI Opener
+    status: unwired
+    summary: contrib/externalUriOpener defines IExternalUriOpenerService but no implementation is ever registerSingleton'd; not imported by any entry file
+    signals:
+      contrib: contrib/externalUriOpener
+  - id: ai-chat
+    area: AI / Chat / Copilot
+    status: missing
+    summary: No chat contrib or chat/languageModel API at all
+
+# Intentional omissions the anti-rot checks should skip. Each needs a reason.
+# Populated from Task 6 Step 1: Null* stubs not covered by a row's stub_service,
+# and contrib dirs that are unimported-in-entries but load transitively / are internal.
+ignore:
+  - stub_service: NullExtensionService
+    reason: >-
+      Exported from services/extensions/common/extensions.ts as a ported VS Code
+      type-contract class but never registered via registerSingleton anywhere in
+      the tree — the real ExtensionService (services/extensions/browser/extensionService.ts)
+      is the active IExtensionService. Unused dead code, not a functioning stub.
+  - stub_service: NullRemoteAgentService
+    reason: >-
+      Instantiated directly in browser/web.main.ts as the active IRemoteAgentService
+      and already documented in the 'remote' row's evidence/summary. Not added as a
+      row signal because 'remote' is status partial: a partial row with a stub_service
+      signal that exists always trips the "claims partial but stub still registered"
+      check, which would be a false positive here (SSH/WSL/container work; only the
+      remote extension host is missing).
+  - stub_service: NullRemoteExtensionsScannerService
+    reason: >-
+      registerSingleton'd as the active IRemoteExtensionsScannerService — no remote
+      extension host to scan extensions on. Same reasoning as NullRemoteAgentService:
+      covered by the 'remote' row (status partial), can't be a tracked signal there
+      without a false violation.
+  - stub_service: NullWorkbenchAssignmentService
+    reason: >-
+      Internal A/B-testing / feature-flag assignment service (services/assignment),
+      registered as the active no-op IWorkbenchAssignmentService. Not a user-facing
+      VS Code feature area to compare parity against, so it has no matrix row.
+  - stub_service: NullApiDeprecationService
+    reason: >-
+      A `const` no-op (api/common/extHostApiDeprecationService.ts), never
+      registerSingleton'd or referenced anywhere else in the tree — the active
+      IExtHostApiDeprecationService is the real ExtHostApiDeprecationService,
+      wired via registerSingleton in api/common/extHost.common.services.ts.
+      Ext-host API-deprecation-warning infra, not a workbench parity feature area.
+  - contrib: contrib/codeEditor
+    reason: >-
+      Not imported by literal path in the 3 entry files, but genuinely loaded
+      transitively: common/languageConfigurationExtensionPoint.ts is imported by
+      api/browser/extensionHost.contribution.ts (imported by workbench.common.main.ts),
+      and the browser/ files are imported directly by many already-wired contribs
+      (debug, extensions, preferences, scm, search, terminalContrib/find, testing,
+      webview). Matches the 'editor: done' row's summary mention of contrib/codeEditor.
+  - contrib: contrib/terminalContrib
+    reason: >-
+      Terminal's own sub-contributions directory, not a separate feature area —
+      contrib/terminal/terminal.all.ts (imported by workbench.common.main.ts) imports
+      every terminalContrib/*/browser/terminal.*.contribution.js submodule directly.
+  - contrib: contrib/update
+    reason: >-
+      Contains only an unused constant (ShowCurrentReleaseNotesActionId in
+      common/update.ts); no update-checking UI was ported and nothing imports it.
+      Update checking/installing is handled natively by
+      apps/desktop/src/commands/updater.rs (Tauri's own updater), not this contrib.

@@ -5,20 +5,22 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/lint-js.yml"
-      - "src/**"
+      - "apps/**"
+      - "packages/**"
       - "tsconfig.json"
-      - "eslint.config.*"
+      - "biome.json"
       - "package.json"
-      - "package-lock.json"
+      - "bun.lock"
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/lint-js.yml"
-      - "src/**"
+      - "apps/**"
+      - "packages/**"
       - "tsconfig.json"
-      - "eslint.config.*"
+      - "biome.json"
       - "package.json"
-      - "package-lock.json"
+      - "bun.lock"
 
 concurrency:
   group: lint-js-${{ github.ref }}
@@ -32,33 +34,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: "24"
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
 
-  eslint:
-    name: ESLint
+  biome:
+    name: Biome
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: "24"
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Lint
-        run: npm run lint
+        run: bun run lint

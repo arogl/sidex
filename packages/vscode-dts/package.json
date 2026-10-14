@@ -1,0 +1,23 @@
+{
+  "name": "@sidex/vscode-dts",
+  "version": "0.0.0",
+  "description": "VS Code extension API type definitions",
+  "keywords": [
+    "vscode",
+    "types",
+    "extension-api",
+    "dts"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidenai/sidex.git",
+    "directory": "packages/vscode-dts"
+  },
+  "homepage": "https://github.com/sidenai/sidex#readme",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  }
+}

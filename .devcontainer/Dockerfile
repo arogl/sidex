@@ -23,4 +23,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
+RUN rustup target add wasm32-unknown-unknown \
+    && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+RUN curl -fsSL https://bun.sh/install | BUN_INSTALL=/usr/local bash
+
 WORKDIR /workspace

@@ -9,6 +9,8 @@ node_modules/
 dist/
 out/
 build/
+# @sidex/build is a workspace package, not build output.
+!packages/build/
 *.tsbuildinfo
 
 # ── Rust / Cargo ─────────────────────────────────────────────────────────────
@@ -17,14 +19,19 @@ build/
 # ── WASM build artifacts (wasm-pack output) ──────────────────────────────────
 **/pkg/
 
+# Generated wasm artifacts (built by build:wasm)
+apps/workbench/public/wasm/
+packages/build/test/fixtures/wasm-tfidf/
+
 # ── Extensions (auto-installed on first dev/build via npm run setup) ──────────
 /extensions/
 
 # ── Cargo.lock for library crates ───────────────────────────────────────────
 # Library lock files should not be committed (Cargo best practice).
-# The application lock (src-tauri/Cargo.lock) IS committed.
-sidex-extension-sdk/Cargo.lock
-extensions-rust/Cargo.lock
+# The application lock (apps/desktop/Cargo.lock) IS committed.
+crates/extension-sdk/Cargo.lock
+extensions-wasm/Cargo.lock
+wasm/Cargo.lock
 examples/**/Cargo.lock
 
 # ── Logs ─────────────────────────────────────────────────────────────────────
@@ -43,7 +50,12 @@ Desktop.ini
 ehthumbs.db
 
 # ── IDE / Editor ─────────────────────────────────────────────────────────────
-.vscode/
+# Personal .vscode files stay ignored; shared editor config is opted in below.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
@@ -61,7 +73,7 @@ aws-credentials.json
 sidexai/aws-credentials.json
 
 # ── Tauri generated ──────────────────────────────────────────────────────────
-src-tauri/gen/
+apps/desktop/gen/
 
 # ── Test / Coverage ──────────────────────────────────────────────────────────
 coverage/
@@ -88,21 +100,21 @@ venv/
 .parcel-cache/
 
 # ── Incomplete Rust WASM extensions (stubs, not yet LSP-backed) ──────────────
-extensions-rust/debug-auto-launch-extension/
-extensions-rust/debug-server-ready-extension/
-extensions-rust/emmet-extension/
-extensions-rust/git-extension/
-extensions-rust/grunt-extension/
-extensions-rust/gulp-extension/
-extensions-rust/html-language-extension/
-extensions-rust/jake-extension/
-extensions-rust/json-language-extension/
-extensions-rust/markdown-extension/
-extensions-rust/merge-conflict-extension/
-extensions-rust/npm-extension/
-extensions-rust/php-language-extension/
-extensions-rust/references-view-extension/
-extensions-rust/terminal-suggest-extension/
+extensions-wasm/debug-auto-launch-extension/
+extensions-wasm/debug-server-ready-extension/
+extensions-wasm/emmet-extension/
+extensions-wasm/git-extension/
+extensions-wasm/grunt-extension/
+extensions-wasm/gulp-extension/
+extensions-wasm/html-language-extension/
+extensions-wasm/jake-extension/
+extensions-wasm/json-language-extension/
+extensions-wasm/markdown-extension/
+extensions-wasm/merge-conflict-extension/
+extensions-wasm/npm-extension/
+extensions-wasm/php-language-extension/
+extensions-wasm/references-view-extension/
+extensions-wasm/terminal-suggest-extension/
 extensions-rust/css-language-extension/css-data.json
 extensions-rust/css-language-extension/css-builtin.json
 extensions-rust/css-language-extension/src/css_data.rs
@@ -122,11 +134,14 @@ infrastructure/marketplace-proxy/node_modules/
 MEMORY.md
 .kilo/
 
-# Private — not part of the public app repo.
-# /sidex-web = marketing site + dashboard (Next.js)
-# /deploy    = maintainer deploy scripts and prod env
+extensions-wasm/css-language-extension/css-data.json
+extensions-wasm/css-language-extension/css-builtin.json
+extensions-wasm/css-language-extension/src/css_data.rs
 /sidex-web/
-/website/
-/marketing/
+apps/workbench/public/builtin-extensions.js
+.superpowers/
 /sidex-site/
 /deploy/
+*.orig
+*.rej
+*.bundle

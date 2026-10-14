@@ -1,31 +1,7 @@
 [workspace]
 resolver = "2"
-members = [
-  "crates/sidex-text",
-  "crates/sidex-syntax",
-  "crates/sidex-lsp",
-  "crates/sidex-workspace",
-  "crates/sidex-terminal",
-  "crates/sidex-git",
-  "crates/sidex-extensions",
-  "crates/sidex-extension-api",
-  "crates/sidex-theme",
-  "crates/sidex-keymap",
-  "crates/sidex-settings",
-  "crates/sidex-db",
-  "crates/sidex-remote",
-  "crates/sidex-dap",
-  "crates/sidex-tasks",
-  "crates/sidex-update",
-  "crates/sidex-profiles",
-  "crates/sidex-auth",
-  "crates/sidex-textmate",
-  "crates/sidex-agent",
-  "crates/sidex-context",
-  "src-tauri",
-  "sidex-extension-sdk",
-]
-exclude = ["extensions-rust"]
+members = ["crates/*", "apps/desktop"]
+exclude = ["extensions-wasm", "wasm"]
 
 [workspace.package]
 version = "0.2.0"
@@ -33,12 +9,31 @@ edition = "2021"
 rust-version = "1.91.0"
 license = "MIT"
 repository = "https://github.com/sidenai/sidex"
+homepage = "https://github.com/sidenai/sidex"
 
 [workspace.dependencies]
 # Internal crates
-sidex-text = { path = "crates/sidex-text" }
-sidex-theme = { path = "crates/sidex-theme" }
-sidex-context = { path = "crates/sidex-context" }
+sidex-text = { path = "crates/text" }
+sidex-syntax = { path = "crates/syntax" }
+sidex-lsp = { path = "crates/lsp" }
+sidex-workspace = { path = "crates/workspace" }
+sidex-terminal = { path = "crates/terminal" }
+sidex-git = { path = "crates/git" }
+sidex-extensions = { path = "crates/extensions" }
+sidex-extension-api = { path = "crates/extension-api" }
+sidex-theme = { path = "crates/theme" }
+sidex-keymap = { path = "crates/keymap" }
+sidex-settings = { path = "crates/settings" }
+sidex-db = { path = "crates/db" }
+sidex-remote = { path = "crates/remote" }
+sidex-extension-sdk = { path = "crates/extension-sdk" }
+sidex-tasks = { path = "crates/tasks" }
+sidex-dap = { path = "crates/dap" }
+sidex-update = { path = "crates/update" }
+sidex-profiles = { path = "crates/profiles" }
+sidex-auth = { path = "crates/auth" }
+sidex-textmate = { path = "crates/textmate" }
+sidex-context = { path = "crates/context" }
 
 # Core
 tokio = { version = "1", features = ["full"] }

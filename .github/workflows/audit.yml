@@ -7,22 +7,20 @@ on:
       - ".github/workflows/audit.yml"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "src-tauri/Cargo.toml"
-      - "src-tauri/Cargo.lock"
+      - "apps/desktop/Cargo.toml"
       - "crates/**/Cargo.toml"
       - "package.json"
-      - "package-lock.json"
+      - "bun.lock"
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/audit.yml"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "src-tauri/Cargo.toml"
-      - "src-tauri/Cargo.lock"
+      - "apps/desktop/Cargo.toml"
       - "crates/**/Cargo.toml"
       - "package.json"
-      - "package-lock.json"
+      - "bun.lock"
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
@@ -45,22 +43,49 @@ jobs:
         run: cargo install cargo-audit --locked
 
       - name: Run cargo audit
-        run: cargo audit --file src-tauri/Cargo.lock --ignore RUSTSEC-2023-0071
+        # Audit the workspace-root Cargo.lock — the lockfile cargo actually
+        # resolves and builds from. apps/desktop is a workspace *member*, so its
+        # per-crate Cargo.lock was an unmaintained orphan (cargo ignored it) and
+        # has been removed; auditing it silently drifted from the real deps.
+        #
+        # Ignored advisories are accepted, tracked tech-debt:
+        #   RUSTSEC-2023-0071      rsa Marvin attack — no fixed upstream release
+        #   RUSTSEC-2026-0194/0195 quick-xml <0.41 via plist←tauri — blocked
+        #                          upstream; input is our bundled plist/tmLanguage
+        #                          (trusted), so real-world risk is low
+        #   RUSTSEC-2026-0153/0154 russh <0.60 (crates/remote) — breaking upgrade
+        #   RUSTSEC-2026-0114/0149/0182/0188 wasmtime 43 (apps/desktop extension
+        #                          host) — breaking major upgrade
+        run: >
+          cargo audit --file Cargo.lock
+          --ignore RUSTSEC-2023-0071
+          --ignore RUSTSEC-2026-0194
+          --ignore RUSTSEC-2026-0195
+          --ignore RUSTSEC-2026-0153
+          --ignore RUSTSEC-2026-0154
+          --ignore RUSTSEC-2026-0114
+          --ignore RUSTSEC-2026-0149
+          --ignore RUSTSEC-2026-0182
+          --ignore RUSTSEC-2026-0188
 
-  npm-audit:
-    name: npm audit
+  bun-audit:
+    name: bun audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: "24"
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: bun audit --audit-level=high

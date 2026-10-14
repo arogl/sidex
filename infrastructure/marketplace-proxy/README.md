@@ -76,7 +76,7 @@ npx wrangler deploy
 After deploy, grab your worker URL (e.g.
 `https://sidex-marketplace-proxy.<account>.workers.dev`) and set:
 
-- `crates/sidex-extensions/src/marketplace.rs` →
+- `crates/extensions/src/marketplace.rs` →
   `DEFAULT_BASE_URL = "https://<worker>"`
 - `src/vs/platform/product/common/product.ts` →
   `extensionsGallery.serviceUrl = "https://<worker>/api/search"`

@@ -46,6 +46,62 @@ Extension Host               →       Sidecar process (in progress)
 └─────────────────────────────────────────────┘
 ```
 
+## Workspace Layout
+
+The JavaScript side is a Bun workspace. Package boundaries follow the layering
+above, and the dependency direction is enforced by module resolution rather than
+convention — `@sidex/base` declares no layer dependencies, so an upward import
+fails to resolve instead of silently working.
+
+| Package | Path | Depends on |
+| --- | --- | --- |
+| `@sidex/base` | `packages/base` | — |
+| `@sidex/platform` | `packages/platform` | base |
+| `@sidex/editor` | `packages/editor` | base, platform |
+| `@sidex/workbench` | `packages/workbench` | base, platform, editor |
+| `@sidex/app-workbench` | `apps/workbench` | all of the above |
+| `@sidex/build` | `packages/build` | — (build tooling; the `bun test` target) |
+| `@sidex/vscode-dts` | `packages/vscode-dts` | — (extension API typings) |
+
+Cross-layer imports are written as `@sidex/<layer>/...`; imports within a layer
+stay relative. Vite resolves the package names through `resolve.alias` and
+TypeScript through `compilerOptions.paths`, both defined once in
+`apps/workbench/vite.config.ts` and `tsconfig.json`.
+
+Rust spans three separate Cargo workspaces, each with its own build target and
+release profile (Cargo's `[profile.release]` is workspace-global, and wasm
+crates cannot build for the native host):
+
+| Workspace | Members | Target |
+| --- | --- | --- |
+| native (repo-root `Cargo.toml`) | `apps/desktop` + `crates/*` (incl. `extension-sdk`) | native |
+| `wasm/` | wasm-bindgen modules | wasm32 |
+| `extensions-wasm/` | wit-bindgen component extensions | wasm32 |
+
+### WebAssembly acceleration (`wasm/`)
+
+`wasm/` is a Cargo workspace of `wasm-bindgen` crates compiled by `wasm-pack`
+and served at `/wasm/<crate>/` (built into `apps/workbench/public/wasm/`,
+gitignored). Currently one member: `tfidf`, which accelerates Command Palette
+and Settings search scoring. Consumers load the module at runtime with a
+graceful fall back to a JS implementation, so the app never hard-depends on
+wasm; `bun run build` compiles it, `bun run dev` falls back if the toolchain
+is absent.
+
+**Adding a wasm module:**
+1. New crate under `wasm/<name>/` (`crate-type = ["cdylib"]`, `wasm-bindgen`), add it to `wasm/Cargo.toml` members.
+2. Extend `packages/build/src/wasm/build.ts` to emit it to `apps/workbench/public/wasm/<name>/`.
+3. Consumer: dynamic-import `/wasm/<name>/…​.js`, pass the explicit `…_bg.wasm` URL to init, wrap in try/catch with a JS fallback.
+4. If it replaces existing JS behavior, add a parity test (`packages/build/test/…-parity.test.ts`) gating that results match the JS reference.
+
+Crate directories drop the `sidex-` prefix (`crates/text`), but crate names keep
+it (`sidex-text`), so `use sidex_text::…` is unchanged. Rust is otherwise
+unaffected by the JavaScript layout.
+
+**Both Bun and Node.js are required.** Bun is the package manager, script
+runner, and test runner; Node.js executes Vite, because the production build
+needs `--max-old-space-size=12288`, a V8 flag with no Bun equivalent.
+
 ## Electron API Replacement Map
 
 | Electron API | Tauri Replacement | Status |
@@ -54,7 +110,7 @@ Extension Host               →       Sidecar process (in progress)
 | `ipcMain/ipcRenderer` | `invoke()` / `emit()` / `listen()` | Ported |
 | `Menu/MenuItem` | `tauri::menu::Menu` | Ported |
 | `dialog.*` | `@tauri-apps/plugin-dialog` | Ported |
-| `clipboard` | `@tauri-apps/plugin-clipboard-manager` | Ported |
+| `clipboard` | Web Clipboard API (`navigator.clipboard`) | Ported |
 | `shell.openExternal` | `@tauri-apps/plugin-opener` | Ported |
 | `Notification` | `@tauri-apps/plugin-notification` | Ported |
 | `safeStorage` | Rust keyring crate | Partial |
@@ -102,7 +158,7 @@ Extension Host               →       Sidecar process (in progress)
 | `log` | Rust tracing backend | Partial |
 | `terminal` | Rust portable-pty | Done |
 | `dialogs` | Tauri dialog plugin | Done |
-| `clipboard` | Tauri clipboard plugin | Done |
+| `clipboard` | Web Clipboard API (`navigator.clipboard`) | Done |
 | `native` | Rust OS integration | Partial |
 | `encryption` | Rust keyring | Partial |
 
@@ -131,7 +187,7 @@ Extension Host               →       Sidecar process (in progress)
 
 ## Rust Backend Commands
 
-All Tauri commands are registered in `src-tauri/src/lib.rs`. The table below
+All Tauri commands are registered in `apps/desktop/src/lib.rs`.
 covers the modules most central to this doc's architecture story — the
 command surface has grown well past what fits here (MCP client, hooks, LSP
 management, WASM extensions, remote development, browser automation, DAP,
@@ -147,7 +203,7 @@ is the source of truth for the full, current list.
 | **os** | `get_os_info`, `get_env`, `get_all_env`, `get_shell` |
 | **storage** | `storage_get`, `storage_set`, `storage_delete` |
 | **git** | `git_status`, `git_diff`, `git_log`, `git_log_graph`, `git_add`, `git_commit`, `git_checkout`, `git_branches`, `git_create_branch`, `git_delete_branch`, `git_push`, `git_pull`, `git_fetch`, `git_stash`, `git_reset`, `git_show`, `git_init`, `git_is_repo`, `git_clone`, `git_remote_list`, `git_run` |
-| **extension_platform** | `extension_platform_bootstrap`, `extension_platform_status`, `extension_platform_restart`, `extension_platform_stop`, `extension_platform_init_data` |
+| **ext_host** | `extension_platform_bootstrap`, `extension_platform_status`, `extension_platform_restart`, `extension_platform_stop`, `extension_platform_init_data` |
 | **network** | `proxy_request`, `proxy_request_full` |
 | **debug** | `debug_spawn_adapter`, `debug_send`, `debug_kill`, `debug_list_adapters` |
 | **tasks** | `task_spawn`, `task_kill`, `task_list` |

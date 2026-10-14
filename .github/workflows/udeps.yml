@@ -7,8 +7,7 @@ on:
       - ".github/workflows/udeps.yml"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "src-tauri/Cargo.toml"
-      - "src-tauri/Cargo.lock"
+      - "apps/desktop/Cargo.toml"
       - "crates/**/Cargo.toml"
 
 env:
@@ -42,7 +41,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: "./apps/desktop -> target"
 
       - name: Install cargo-udeps
         uses: taiki-e/install-action@v2
@@ -50,4 +49,4 @@ jobs:
           tool: cargo-udeps
 
       - name: Check for unused dependencies
-        run: cargo udeps --manifest-path src-tauri/Cargo.toml --all-targets --all-features
+        run: cargo udeps --manifest-path apps/desktop/Cargo.toml --all-targets --all-features

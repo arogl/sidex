@@ -1,0 +1,22 @@
+{
+  "name": "@sidex/editor",
+  "version": "0.0.0",
+  "description": "Editor layer — the text editor core (ported from VS Code).",
+  "keywords": ["editor", "vscode", "monaco"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidenai/sidex.git",
+    "directory": "packages/editor"
+  },
+  "homepage": "https://github.com/sidenai/sidex#readme",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@sidex/base": "workspace:*",
+    "@sidex/platform": "workspace:*"
+  }
+}

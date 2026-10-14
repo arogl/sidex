@@ -1,0 +1,2 @@
+# "SideX" is a product name; the ".." keeps clippy's default list.
+doc-valid-idents = ["SideX", ".."]

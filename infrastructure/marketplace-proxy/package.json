@@ -1,16 +1,23 @@
 {
-	"name": "sidex-marketplace-proxy",
-	"version": "0.1.0",
-	"private": true,
-	"description": "Edge-cached dual-backend (Microsoft Marketplace + Open VSX) proxy for SideX.",
-	"scripts": {
-		"dev": "wrangler dev",
-		"deploy": "wrangler deploy",
-		"tail": "wrangler tail"
-	},
-	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20250601.0",
-		"typescript": "^5.5.0",
-		"wrangler": "^4.0.0"
-	}
+  "name": "sidex-marketplace-proxy",
+  "version": "0.1.0",
+  "description": "Edge-cached dual-backend (Microsoft Marketplace + Open VSX) proxy for SideX.",
+  "keywords": ["sidex", "marketplace", "cloudflare", "proxy", "open-vsx"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidenai/sidex.git",
+    "directory": "infrastructure/marketplace-proxy"
+  },
+  "homepage": "https://github.com/sidenai/sidex#readme",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260722.1",
+    "wrangler": "^4.113.0"
+  }
 }

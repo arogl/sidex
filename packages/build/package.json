@@ -1,0 +1,23 @@
+{
+  "name": "@sidex/build",
+  "version": "0.0.0",
+  "description": "Build tooling — NLS, WASM, and postbuild plugins and generators.",
+  "keywords": ["sidex", "build", "vite", "tooling", "wasm"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidenai/sidex.git",
+    "directory": "packages/build"
+  },
+  "homepage": "https://github.com/sidenai/sidex#readme",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./nls": "./src/nls/plugin.ts",
+    "./chunk-manifest": "./src/chunk-manifest/manifest.ts",
+    "./codemod": "./src/codemod/rewrite-imports.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  }
+}

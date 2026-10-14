@@ -1,0 +1,25 @@
+# Fast checks on commit; slow checks (that compile) on push.
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{js,ts,jsonc,json}"
+      run: bunx biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    rustfmt:
+      glob: "*.rs"
+      run: rustfmt --edition 2021 {staged_files}
+      stage_fixed: true
+    taplo:
+      glob: "*.toml"
+      run: bunx @taplo/cli fmt {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    clippy:
+      run: bun run rust:clippy
+    test:
+      run: bun test
+    parity:
+      run: bun run parity:check

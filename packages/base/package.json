@@ -1,0 +1,18 @@
+{
+  "name": "@sidex/base",
+  "version": "0.0.0",
+  "description": "Base layer — core utilities with no cross-layer dependencies (ported from VS Code).",
+  "keywords": ["base", "vscode", "utilities"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidenai/sidex.git",
+    "directory": "packages/base"
+  },
+  "homepage": "https://github.com/sidenai/sidex#readme",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@sidex/platform",
+  "version": "0.0.0",
+  "description": "Platform layer — services built on the base layer (ported from VS Code).",
+  "keywords": ["platform", "vscode", "services"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sidenai/sidex.git",
+    "directory": "packages/platform"
+  },
+  "homepage": "https://github.com/sidenai/sidex#readme",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "@sidex/base": "workspace:*"
+  }
+}

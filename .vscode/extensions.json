@@ -1,0 +1,11 @@
+{
+	"recommendations": [
+		"biomejs.biome",
+		"rust-lang.rust-analyzer",
+		"tauri-apps.tauri-vscode",
+		"vadimcn.vscode-lldb",
+		"tamasfe.even-better-toml",
+		"editorconfig.editorconfig"
+	],
+	"unwantedRecommendations": ["esbenp.prettier-vscode", "dbaeumer.vscode-eslint"]
+}

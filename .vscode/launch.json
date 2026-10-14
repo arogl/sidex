@@ -1,0 +1,15 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Tauri Dev (debug)",
+			"cargo": {
+				"args": ["build", "--manifest-path=apps/desktop/Cargo.toml", "--bin=SideX"],
+				"filter": { "name": "SideX", "kind": "bin" }
+			},
+			"preLaunchTask": "ui:dev"
+		}
+	]
+}

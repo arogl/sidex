@@ -21,12 +21,22 @@
     "allowJs": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": false,
-    "baseUrl": "src",
     "paths": {
-      "vs/*": ["vs/*"]
+      "@sidex/base/*": ["./packages/base/src/*"],
+      "@sidex/platform/*": ["./packages/platform/src/*"],
+      "@sidex/editor/*": ["./packages/editor/src/*"],
+      "@sidex/workbench/*": ["./packages/workbench/src/*"],
+      "@sidex/vscode-dts/*": ["./packages/vscode-dts/src/*"]
     },
     "types": ["vite/client", "@webgpu/types", "trusted-types"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "src-tauri", "dist", "**/test/**"]
+  "include": [
+    "apps/*/src/**/*",
+    "packages/base/src/**/*",
+    "packages/platform/src/**/*",
+    "packages/editor/src/**/*",
+    "packages/workbench/src/**/*",
+    "packages/vscode-dts/src/**/*"
+  ],
+  "exclude": ["node_modules", "apps/desktop", "dist", "**/test/**", "packages/build"]
 }

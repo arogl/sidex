@@ -1,0 +1,220 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+	"vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+	"files": {
+		"includes": [
+			"**",
+			"!dist/**",
+			"!node_modules/**",
+			"!apps/desktop/**",
+			"!extensions/**",
+			"!packages/vscode-dts/**",
+			"!apps/workbench/src/typings/**",
+			"!**/test/**/fixtures/**",
+			"!**/*.min.js",
+			"!**/*.min.css",
+			"!crates/**",
+			"!wasm/**",
+			"!target/**",
+			"!packages/platform/src/extensionManagement/common/extensionNls.ts"
+		]
+	},
+	"formatter": {
+		"enabled": true,
+		"formatWithErrors": false,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineEnding": "lf",
+		"lineWidth": 120,
+		"attributePosition": "auto",
+		"bracketSameLine": false,
+		"bracketSpacing": true,
+		"expand": "auto",
+		"useEditorconfig": true,
+		"includes": [
+			"**",
+			"!**/dist/",
+			"!**/node_modules/",
+			"!apps/desktop/**",
+			"!**/*.min.js",
+			"!**/*.min.css",
+			"!**/extensions/",
+			"!packages/vscode-dts/",
+			"!apps/workbench/src/typings/",
+			"!**/test/**/fixtures/"
+		]
+	},
+	"linter": {
+		"enabled": true,
+		"rules": { "preset": "none" },
+		"includes": [
+			"**",
+			"!dist/**",
+			"!node_modules/**",
+			"!apps/desktop/**",
+			"!extensions/**",
+			"!packages/vscode-dts/**",
+			"!apps/workbench/src/typings/**",
+			"!**/test/**/fixtures/**"
+		]
+	},
+	"javascript": {
+		"parser": {
+			"unsafeParameterDecoratorsEnabled": true
+		},
+		"formatter": {
+			"jsxQuoteStyle": "double",
+			"quoteProperties": "asNeeded",
+			"trailingCommas": "none",
+			"semicolons": "always",
+			"arrowParentheses": "asNeeded",
+			"bracketSameLine": false,
+			"quoteStyle": "single",
+			"attributePosition": "auto",
+			"bracketSpacing": true
+		}
+	},
+	"css": {
+		"formatter": {
+			"enabled": false
+		}
+	},
+	"html": {
+		"formatter": {
+			"indentScriptAndStyle": false,
+			"selfCloseVoidElements": "always"
+		}
+	},
+	"overrides": [
+		{ "includes": ["**/*.ts", "**/*.tsx"], "javascript": { "globals": [] } },
+		{
+			"includes": ["**/*.ts", "**/*.tsx"],
+			"linter": {
+				"rules": {
+					"complexity": { "noArguments": "error" },
+					"correctness": {
+						"noConstAssign": "off",
+						"noGlobalObjectCalls": "off",
+						"noInvalidBuiltinInstantiation": "off",
+						"noInvalidConstructorSuper": "off",
+						"noSetterReturn": "off",
+						"noUndeclaredVariables": "off",
+						"noUnreachable": "off",
+						"noUnreachableSuper": "off"
+					},
+					"style": { "useConst": "error", "useSpreadOverApply": "error" },
+					"suspicious": {
+						"noClassAssign": "off",
+						"noDuplicateClassMembers": "off",
+						"noDuplicateObjectKeys": "off",
+						"noDuplicateParameters": "off",
+						"noFunctionAssign": "off",
+						"noImportAssign": "off",
+						"noRedeclare": "off",
+						"noUnsafeNegation": "off",
+						"noVar": "error",
+						"noWith": "off",
+						"useGetterReturn": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/*.ts", "**/*.tsx"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noBannedTypes": "error",
+						"noUselessThisAlias": "error",
+						"noUselessTypeConstraint": "error"
+					},
+					"correctness": { "noUnusedVariables": "error" },
+					"style": {
+						"noCommonJs": "error",
+						"noNamespace": "error",
+						"useArrayLiterals": "error",
+						"useAsConstAssertion": "error"
+					},
+					"suspicious": {
+						"noDuplicateEnumValues": "error",
+						"noExplicitAny": "error",
+						"noExtraNonNullAssertion": "error",
+						"noMisleadingInstantiator": "error",
+						"noNonNullAssertedOptionalChain": "error",
+						"noTsIgnore": "error",
+						"noUnsafeDeclarationMerging": "error",
+						"noUnusedExpressions": "off",
+						"useNamespaceKeyword": "error"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/*.ts", "**/*.tsx"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noArguments": "off",
+						"noBannedTypes": "off",
+						"noUselessThisAlias": "off"
+					},
+					"correctness": { "noUnusedVariables": "warn" },
+					"security": { "noGlobalEval": "warn" },
+					"style": {
+						"noCommonJs": "off",
+						"noNamespace": "off",
+						"noRestrictedGlobals": {
+							"level": "warn",
+							"options": {
+								"deniedGlobals": {
+									"length": "TODO: Add a custom message here.",
+									"status": "TODO: Add a custom message here.",
+									"origin": "TODO: Add a custom message here.",
+									"event": "TODO: Add a custom message here.",
+									"name": "TODO: Add a custom message here.",
+									"closed": "TODO: Add a custom message here."
+								}
+							}
+						},
+						"useArrayLiterals": "warn",
+						"useAsConstAssertion": "warn",
+						"useBlockStatements": "warn",
+						"useConsistentBuiltinInstantiation": "warn",
+						"useConst": "warn",
+						"useNamingConvention": "off",
+						"useSpreadOverApply": "off",
+						"useThrowOnlyError": "warn"
+					},
+					"suspicious": {
+						"noDebugger": "warn",
+						"noDoubleEquals": "warn",
+						"noDuplicateEnumValues": "off",
+						"noExplicitAny": "off",
+						"noNonNullAssertedOptionalChain": "warn",
+						"noTsIgnore": "off",
+						"noUnsafeDeclarationMerging": "off",
+						"noVar": "warn"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/*.cjs"],
+			"linter": {
+				"rules": {
+					"security": { "noGlobalEval": "warn" },
+					"style": { "useBlockStatements": "warn" },
+					"suspicious": {
+						"noDebugger": "warn",
+						"noDoubleEquals": "warn",
+						"noVar": "warn"
+					}
+				}
+			}
+		}
+	],
+	"assist": {
+		"enabled": true,
+		"actions": { "source": { "organizeImports": "on" } }
+	}
+}

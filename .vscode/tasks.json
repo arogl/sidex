@@ -1,0 +1,29 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{ "label": "tauri dev", "type": "shell", "command": "bun run tauri dev", "problemMatcher": [], "group": "build" },
+		{ "label": "dev", "type": "shell", "command": "bun run dev", "problemMatcher": [] },
+		{ "label": "build", "type": "shell", "command": "bun run build", "problemMatcher": [], "group": "build" },
+		{ "label": "test", "type": "shell", "command": "bun test", "problemMatcher": [], "group": "test" },
+		{ "label": "lint", "type": "shell", "command": "bun run lint", "problemMatcher": [] },
+		{ "label": "format", "type": "shell", "command": "bun run format", "problemMatcher": [] },
+		{ "label": "rust:check", "type": "shell", "command": "bun run rust:check", "problemMatcher": ["$rustc"] },
+		{ "label": "rust:clippy", "type": "shell", "command": "bun run rust:clippy", "problemMatcher": ["$rustc"] },
+		{
+			"label": "ui:dev",
+			"type": "shell",
+			"command": "bun run dev",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "vite",
+				"pattern": { "regexp": "^$" },
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": ".*(ready in|Local:).*"
+				}
+			}
+		},
+		{ "label": "ui:build", "type": "shell", "command": "bun run build", "problemMatcher": [] }
+	]
+}
