@@ -2,6 +2,32 @@ import { defineConfig } from 'vite';
 import * as path from 'path';
 import { nlsPlugin } from '../../packages/build/src/nls/plugin';
 
+import * as fs from 'fs';
+
+function serveExtensions() {
+	const dir = path.resolve(__dirname, '../../extensions');
+	const types: Record<string, string> = {
+		'.json': 'application/json', '.js': 'text/javascript',
+		'.md': 'text/markdown', '.svg': 'image/svg+xml', '.png': 'image/png'
+	};
+	return {
+		name: 'sidex-serve-extensions',
+		configureServer(server: import('vite').ViteDevServer) {
+			server.middlewares.use('/extensions', (req, res, next) => {
+				const rel = decodeURIComponent((req.url ?? '/').split('?')[0]);
+				const file = path.join(dir, rel);
+				const inside = path.relative(dir, file);
+				if (inside.startsWith('..') || path.isAbsolute(inside) ||
+					!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+					return next();
+				}
+				res.setHeader('Content-Type', types[path.extname(file)] ?? 'application/octet-stream');
+				fs.createReadStream(file).pipe(res);
+			});
+		}
+	};
+}
+
 function quietMissingSourceMaps() {
 	const skip = [/\/vscode-textmate\/.*\.js\.map$/];
 	return {
@@ -36,7 +62,8 @@ export default defineConfig({
 				path.resolve(__dirname, '../../packages', p, 'src')
 			)
 		}),
-		quietMissingSourceMaps()
+		quietMissingSourceMaps(),
+		serveExtensions()
 	],
 	server: {
 		port: 1420,
