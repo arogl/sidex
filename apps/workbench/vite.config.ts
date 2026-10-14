@@ -7,8 +7,11 @@ import * as fs from 'fs';
 function serveExtensions() {
 	const dir = path.resolve(__dirname, '../../extensions');
 	const types: Record<string, string> = {
-		'.json': 'application/json', '.js': 'text/javascript',
-		'.md': 'text/markdown', '.svg': 'image/svg+xml', '.png': 'image/png'
+		'.json': 'application/json',
+		'.js': 'text/javascript',
+		'.md': 'text/markdown',
+		'.svg': 'image/svg+xml',
+		'.png': 'image/png'
 	};
 	return {
 		name: 'sidex-serve-extensions',
@@ -17,8 +20,7 @@ function serveExtensions() {
 				const rel = decodeURIComponent((req.url ?? '/').split('?')[0]);
 				const file = path.join(dir, rel);
 				const inside = path.relative(dir, file);
-				if (inside.startsWith('..') || path.isAbsolute(inside) ||
-					!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+				if (inside.startsWith('..') || path.isAbsolute(inside) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
 					return next();
 				}
 				res.setHeader('Content-Type', types[path.extname(file)] ?? 'application/octet-stream');
