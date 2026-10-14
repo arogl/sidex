@@ -1,0 +1,6 @@
+# Commands invoked from TypeScript that are intentionally not in generate_handler!.
+# One name per line. Always say why, and delete the entry when the cause is fixed.
+
+# Dead code: tauriExtensionHostBridge.ts is not imported anywhere. The extension
+# host is started natively by ExtensionPlatformSupervisor in apps/desktop.
+start_extension_host
