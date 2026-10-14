@@ -13,14 +13,6 @@ on:
       - "bun.lock"
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/lint-js.yml"
-      - "apps/**"
-      - "packages/**"
-      - "tsconfig.json"
-      - "biome.json"
-      - "package.json"
-      - "bun.lock"
 
 concurrency:
   group: lint-js-${{ github.ref }}
@@ -30,7 +22,6 @@ jobs:
   typecheck:
     name: TypeScript
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +44,6 @@ jobs:
   biome:
     name: Biome
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
