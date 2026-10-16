@@ -38,7 +38,8 @@
   },
   "overrides": {
     "@nevware21/ts-utils": "^0.16.0",
-    "sharp": "^0.35.0"
+    "sharp": "^0.35.0",
+    "undici": "7.29.1"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^4.4.3",
