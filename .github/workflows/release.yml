@@ -175,7 +175,7 @@ jobs:
 
       - name: Sign Windows installers (Azure Trusted Signing)
         if: runner.os == 'Windows'
-        uses: Azure/artifact-signing-action@87c2e83e6868da99d3380aa309851b32ed9a8346 # v1.1.0
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
