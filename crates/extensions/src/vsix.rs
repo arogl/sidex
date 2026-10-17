@@ -263,7 +263,7 @@ fn apply_file_mode(path: &Path, mode: Option<u32>, rel: &str) {
         || rel.ends_with(".command");
 
     let target_mode = match mode {
-        Some(m) if m != 0 => m & 0o7777,
+        Some(m) if m != 0 => m & 0o777,
         _ if is_script_like => 0o755,
         _ => return,
     };
