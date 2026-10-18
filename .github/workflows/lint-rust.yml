@@ -15,16 +15,6 @@ on:
       - "rustfmt.toml"
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/lint-rust.yml"
-      - "crates/**"
-      - "apps/desktop/**"
-      - "extensions-wasm/**"
-      - "crates/extension-sdk/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - "rustfmt.toml"
 
 env:
   RUST_BACKTRACE: 1
@@ -35,8 +25,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect Rust changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          rust=true  # fail open: any error below leaves Clippy running
+          if [ -n "$BASE_SHA" ] && git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+            if files=$(git diff --name-only "$BASE_SHA" HEAD); then
+              if echo "$files" | grep -qE '^(\.github/workflows/lint-rust\.yml|crates/|apps/desktop/|extensions-wasm/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|rustfmt\.toml$)'; then
+                rust=true
+              else
+                rust=false
+              fi
+            fi
+          fi
+          echo "rust=$rust" >> "$GITHUB_OUTPUT"
+          echo "Rust changes: $rust"
+
   clippy:
     name: Clippy
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
