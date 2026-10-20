@@ -330,11 +330,7 @@ pub enum KnownHostStatus {
 }
 
 /// Check a host key against `~/.ssh/known_hosts`.
-pub fn check_known_host(
-    hostname: &str,
-    port: u16,
-    _server_key: &PublicKey,
-) -> KnownHostStatus {
+pub fn check_known_host(hostname: &str, port: u16, _server_key: &PublicKey) -> KnownHostStatus {
     let path = match dirs::home_dir() {
         Some(h) => h.join(".ssh/known_hosts"),
         None => {
