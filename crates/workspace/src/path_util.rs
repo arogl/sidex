@@ -168,6 +168,8 @@ pub fn common_parent(paths: &[&Path]) -> Option<PathBuf> {
 mod tests {
     use super::*;
 
+    // These three use Unix-style absolute paths, which are not absolute on Windows.
+    #[cfg(unix)]
     #[test]
     fn parse_path_works() {
         let info = parse_path("/home/user/file.rs");
@@ -177,12 +179,14 @@ mod tests {
         assert!(info.is_absolute);
     }
 
+    #[cfg(unix)]
     #[test]
     fn normalize_removes_dots() {
         let n = normalize_path("/a/b/../c/./d");
         assert_eq!(n, "/a/c/d");
     }
 
+    #[cfg(unix)]
     #[test]
     fn join_paths_works() {
         let joined = join_paths("/home", &["user", "file.txt"]);
