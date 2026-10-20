@@ -14,7 +14,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, Context, Result};
 use russh::client;
-use russh_keys::key;
+use russh::keys::{PrivateKey, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
@@ -330,11 +330,7 @@ pub enum KnownHostStatus {
 }
 
 /// Check a host key against `~/.ssh/known_hosts`.
-pub fn check_known_host(
-    hostname: &str,
-    port: u16,
-    _server_key: &key::PublicKey,
-) -> KnownHostStatus {
+pub fn check_known_host(hostname: &str, port: u16, _server_key: &PublicKey) -> KnownHostStatus {
     let path = match dirs::home_dir() {
         Some(h) => h.join(".ssh/known_hosts"),
         None => {
@@ -479,15 +475,15 @@ pub fn parse_ssh_config(path: &Path) -> Result<Vec<SshHostConfig>> {
 
 pub struct ClientHandler;
 
-#[async_trait::async_trait]
 impl client::Handler for ClientHandler {
     type Error = anyhow::Error;
 
-    async fn check_server_key(
+    // TODO: verify the host key against known_hosts. Until then every key is accepted.
+    fn check_server_key(
         &mut self,
-        _server_public_key: &key::PublicKey,
-    ) -> Result<bool, Self::Error> {
-        Ok(true)
+        _server_public_key: &PublicKeyOrCertificate,
+    ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
+        std::future::ready(Ok(true))
     }
 }
 
@@ -560,10 +556,9 @@ impl SshConnectionPool {
                 ref path,
                 ref passphrase,
             } => {
-                let pair = russh_keys::load_secret_key(path, passphrase.as_deref())
+                let pair = russh::keys::load_secret_key(path, passphrase.as_deref())
                     .with_context(|| format!("loading SSH key {}", path.display()))?;
-                session
-                    .authenticate_publickey(user, Arc::new(pair))
+                Self::auth_with_key(&mut session, user, pair)
                     .await
                     .context("SSH pubkey auth")?
             }
@@ -574,10 +569,9 @@ impl SshConnectionPool {
                 let Some(kp) = default_key.filter(|p| p.exists()) else {
                     bail!("SSH agent auth: no default key found in ~/.ssh/");
                 };
-                let pair = russh_keys::load_secret_key(&kp, None)
+                let pair = russh::keys::load_secret_key(&kp, None)
                     .with_context(|| format!("loading SSH key {}", kp.display()))?;
-                session
-                    .authenticate_publickey(user, Arc::new(pair))
+                Self::auth_with_key(&mut session, user, pair)
                     .await
                     .context("SSH agent auth")?
             }
@@ -585,10 +579,23 @@ impl SshConnectionPool {
                 bail!("keyboard-interactive auth not yet supported in batch mode")
             }
         };
-        if !ok {
+        if !ok.success() {
             bail!("SSH authentication failed for {user}@{host}:{port}");
         }
         Ok(session)
+    }
+
+    /// Authenticate with a private key. RSA keys need a signature hash, so ask
+    /// the server which one it supports. Other key types ignore it.
+    async fn auth_with_key(
+        session: &mut client::Handle<ClientHandler>,
+        user: &str,
+        pair: PrivateKey,
+    ) -> Result<client::AuthResult> {
+        let hash_alg = session.best_supported_rsa_hash().await?.flatten();
+        Ok(session
+            .authenticate_publickey(user, PrivateKeyWithHashAlg::new(Arc::new(pair), hash_alg))
+            .await?)
     }
 
     pub async fn evict_idle(&self) {
@@ -1090,11 +1097,12 @@ Host *.example.com
 
     #[test]
     fn known_host_unknown() {
-        let fake_key = key::KeyPair::generate_ed25519()
-            .clone_public_key()
-            .expect("derive public key");
+        let fake_key = PublicKey::from_openssh(
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8g",
+        )
+        .expect("parse test public key");
         let status = check_known_host("nonexistent.test", 22, &fake_key);
-        matches!(status, KnownHostStatus::Unknown { .. });
+        assert!(matches!(status, KnownHostStatus::Unknown { .. }));
     }
 
     #[test]
