@@ -57,7 +57,7 @@ Formatting/linting: **Biome** for JS/TS/JSON, **rustfmt** + **clippy** for Rust,
 
 One Bun workspace (`apps/*`, `packages/*`, `infrastructure/*`) plus **three separate Cargo workspaces**:
 
-```
+```text
 apps/desktop/          Rust — the Tauri binary (crate name `sidex`); src/commands/ = the Rust backend
 apps/workbench/        TS  — the webview frontend (@sidex/app-workbench); index.html, vite.config.ts
 packages/{base,platform,editor,workbench,vscode-dts}/   TS layer libraries (@sidex/*)
@@ -88,7 +88,6 @@ Three Cargo workspaces exist by necessity, not tidiness: Cargo's `[profile.relea
 - `extensions/` (gitignored, generated) is unrelated to `extensions-wasm/` (Rust source); don't confuse them.
 - **`extensions-wasm/Cargo.toml` lists 20 members, but only 6 directories exist** (cpp, css, go, python, rust, typescript language extensions). The other 14 are absent in a normal checkout, so `cargo build`/`cargo metadata` in that workspace fail on the first missing member (e.g. `grunt-extension`). Don't "fix" this inside an unrelated change; it is tracked as its own task. To build one extension meanwhile, work from a copy of the manifest trimmed to the existing members and don't commit that trim.
 - **`examples/` is in neither the root `members` nor `exclude` list**, and `examples/hello-extension` is stale against the current `crates/extension-sdk` trait (it does not compile). Use `extensions-wasm/rust-language-extension` as the working reference.
-- **WASM runtime fragility (known bug):** `download_lsp_binary` in `apps/desktop/src/commands/extension_wasm.rs` uses `reqwest::blocking` inside async Tauri commands. It panics ("Cannot drop a runtime in a context where blocking is not allowed"), and a panic while the `std::sync::Mutex` is held poisons it, after which every WASM command fails with "poisoned lock" until restart. Never use `reqwest::blocking` in async paths and never hold a lock across network I/O. (Delete this note once fixed.)
 - **WASM command shapes:** `wasm_load_extension` instantiates and calls `activate`; the `wasm_provide_*` and `wasm_sync_document` commands take a single `params` struct with camelCase fields. The `__sidex.lsp` host command downloads rust-analyzer. The WIT world in `crates/extension-sdk/wit/world.wit` must stay identical to the copy `apps/desktop` binds via `bindgen!`.
 - **Dependency notes:** wasmtime is 49.x (`default-features = false`, features `runtime, component-model, cranelift, async`) and `zip` is 9.x (`ZipFile::name()` returns a `Result`; `vsix.rs` masks modes with `0o777`). Extraction is done manually with `enclosed_name()`; never call `ZipArchive::extract()`. `cargo audit` runs with 9 documented ignores; don't add more without asking.
 - **CI gotchas:** never add a `paths:` filter to a required workflow's `pull_request` trigger (a required check that never reports sticks at "Expected"); skip work with an `if:` on a job instead, as the Clippy workflow does. Required-check names embed matrix values, so editing a matrix renames the check. Actions are pinned to full SHAs with a version comment; keep that when editing workflows. Dependabot config belongs at `.github/dependabot.yml`; any `.yml` under `.github/workflows/` is parsed as a workflow.
