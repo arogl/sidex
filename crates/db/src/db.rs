@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use rusqlite::Connection;
 
 /// Current schema version. Bump when adding migrations.
-pub const CURRENT_SCHEMA_VERSION: u32 = 4;
+pub const CURRENT_SCHEMA_VERSION: u32 = 5;
 
 /// Wraps a `SQLite` connection and ensures schema migrations run on open.
 pub struct Database {
@@ -102,6 +102,9 @@ impl Database {
         }
         if current < 4 {
             self.migration_v4()?;
+        }
+        if current < 5 {
+            self.migration_v5()?;
         }
 
         self.conn
@@ -356,6 +359,99 @@ impl Database {
         Ok(())
     }
 
+    /// V5: chat session tables, and the window layout columns that
+    /// `window_state.rs` reads and writes.
+    ///
+    /// Before this migration nothing created `chat_sessions` or
+    /// `chat_messages`, and v4 rebuilt `window_state` without `sidebar_width`,
+    /// `panel_height` and `active_editor`. Every chat and layout query failed.
+    ///
+    /// `chat_messages.session_id` has no foreign key on purpose: the code
+    /// deletes a session's messages itself, and a constraint here would make a
+    /// message that arrives before its session fail to save instead of waiting.
+    fn migration_v5(&self) -> Result<()> {
+        let conn = &self.conn;
+
+        conn.execute_batch("BEGIN IMMEDIATE")
+            .context("begin migration v5")?;
+
+        let migration_result = (|| -> Result<()> {
+            conn.execute_batch(
+                "
+                CREATE TABLE IF NOT EXISTS chat_sessions (
+                    id              TEXT PRIMARY KEY,
+                    title           TEXT NOT NULL,
+                    created_at      INTEGER NOT NULL,
+                    updated_at      INTEGER NOT NULL,
+                    model           TEXT NOT NULL DEFAULT '',
+                    mode            TEXT NOT NULL DEFAULT 'agent',
+                    workspace       TEXT NOT NULL DEFAULT '',
+                    message_count   INTEGER NOT NULL DEFAULT 0,
+                    pinned          INTEGER NOT NULL DEFAULT 0,
+                    archived        INTEGER NOT NULL DEFAULT 0
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_chat_sessions_workspace
+                    ON chat_sessions (workspace, pinned DESC, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id              TEXT PRIMARY KEY,
+                    session_id      TEXT NOT NULL,
+                    role            TEXT NOT NULL,
+                    content         TEXT NOT NULL,
+                    tool_calls      TEXT,
+                    tool_call_id    TEXT,
+                    created_at      INTEGER NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_session
+                    ON chat_messages (session_id, created_at);
+                ",
+            )
+            .context("create chat tables")?;
+
+            // SQLite has no ADD COLUMN IF NOT EXISTS, so check first. That keeps
+            // the migration safe to re-run on a database that already has them.
+            for (name, definition) in [
+                ("sidebar_width", "REAL NOT NULL DEFAULT 260.0"),
+                ("panel_height", "REAL NOT NULL DEFAULT 200.0"),
+                ("active_editor", "TEXT"),
+            ] {
+                if !Self::column_exists(conn, "window_state", name)? {
+                    conn.execute_batch(&format!(
+                        "ALTER TABLE window_state ADD COLUMN {name} {definition};"
+                    ))
+                    .with_context(|| format!("add window_state.{name}"))?;
+                }
+            }
+
+            Ok(())
+        })();
+
+        match migration_result {
+            Ok(()) => conn
+                .execute_batch("COMMIT")
+                .context("commit migration v5")?,
+            Err(e) => {
+                let _ = conn.execute_batch("ROLLBACK");
+                return Err(e).context("migration v5");
+            }
+        }
+
+        Ok(())
+    }
+
+    fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2",
+                [table, column],
+                |row| row.get(0),
+            )
+            .context("query table_info")?;
+        Ok(count > 0)
+    }
+
     fn table_exists(conn: &Connection, name: &str) -> Result<bool> {
         let count: i64 = conn
             .query_row(
@@ -473,5 +569,118 @@ mod tests {
             )
             .unwrap();
         assert_eq!(val, "dark");
+    }
+
+    fn column_names(db: &Database, table: &str) -> Vec<String> {
+        let mut stmt = db
+            .conn()
+            .prepare("SELECT name FROM pragma_table_info(?1)")
+            .unwrap();
+        stmt.query_map([table], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    }
+
+    #[test]
+    fn migration_v5_creates_chat_tables_and_window_columns() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let db = Database::open(&tmp.path().join("test.db")).unwrap();
+
+        assert!(Database::table_exists(db.conn(), "chat_sessions").unwrap());
+        assert!(Database::table_exists(db.conn(), "chat_messages").unwrap());
+
+        let columns = column_names(&db, "window_state");
+        for expected in ["sidebar_width", "panel_height", "active_editor"] {
+            assert!(
+                columns.iter().any(|c| c == expected),
+                "window_state is missing {expected}, has {columns:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn migration_v5_upgrades_a_v4_database_and_keeps_window_state() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("test.db");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "
+            PRAGMA user_version = 4;
+            CREATE TABLE window_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                x INTEGER NOT NULL,
+                y INTEGER NOT NULL,
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                is_maximized INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT INTO window_state (id, x, y, width, height, is_maximized)
+            VALUES (1, 10, 20, 800, 600, 1);
+            ",
+        )
+        .unwrap();
+        drop(conn);
+
+        let db = Database::open(&path).unwrap();
+        assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+
+        let (x, width, maximized, sidebar, panel, editor): (
+            i64,
+            i64,
+            i64,
+            f64,
+            f64,
+            Option<String>,
+        ) = db
+            .conn()
+            .query_row(
+                "SELECT x, width, is_maximized, sidebar_width, panel_height, active_editor
+                 FROM window_state WHERE id = 1",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!((x, width, maximized), (10, 800, 1));
+        assert!((sidebar - 260.0).abs() < f64::EPSILON);
+        assert!((panel - 200.0).abs() < f64::EPSILON);
+        assert!(editor.is_none());
+        assert!(Database::table_exists(db.conn(), "chat_sessions").unwrap());
+    }
+
+    #[test]
+    fn migration_v5_tolerates_columns_that_already_exist() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("test.db");
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "
+            PRAGMA user_version = 4;
+            CREATE TABLE window_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                x INTEGER NOT NULL,
+                y INTEGER NOT NULL,
+                width INTEGER NOT NULL,
+                height INTEGER NOT NULL,
+                is_maximized INTEGER NOT NULL DEFAULT 0,
+                sidebar_width REAL NOT NULL DEFAULT 260.0
+            );
+            ",
+        )
+        .unwrap();
+        drop(conn);
+
+        let db = Database::open(&path).unwrap();
+        assert_eq!(db.schema_version().unwrap(), CURRENT_SCHEMA_VERSION);
+        assert!(column_names(&db, "window_state").contains(&"panel_height".to_string()));
     }
 }

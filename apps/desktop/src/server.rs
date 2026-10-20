@@ -679,10 +679,22 @@ mod tests {
     #[test]
     fn is_running_reaps_a_child_that_already_exited() {
         let server = LocalServer::new();
-        let child = spawn_short_lived();
-        // Give the trivial process time to actually exit; try_wait (unlike
-        // wait) does not block, so without this the check could race it.
-        std::thread::sleep(Duration::from_millis(300));
+        let mut child = spawn_short_lived();
+        // Wait until the OS reports that the process has really exited.
+        // try_wait (unlike wait) does not block, and a fixed sleep is a guess:
+        // on a busy Windows machine cmd.exe can take longer than that to start.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while child
+            .try_wait()
+            .expect("try_wait on the test child")
+            .is_none()
+        {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the short-lived test child did not exit within 10 seconds"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
         server.with_proc(|p| p.child = Some(child));
 
         assert!(

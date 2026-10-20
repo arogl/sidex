@@ -1090,8 +1090,9 @@ Host *.example.com
 
     #[test]
     fn known_host_unknown() {
-        let fake_key =
-            key::PublicKey::Ed25519(russh_keys::key::ed25519::PublicKey::from_bytes(&[0u8; 32]));
+        let fake_key = key::KeyPair::generate_ed25519()
+            .clone_public_key()
+            .expect("derive public key");
         let status = check_known_host("nonexistent.test", 22, &fake_key);
         matches!(status, KnownHostStatus::Unknown { .. });
     }

@@ -382,6 +382,8 @@ mod tests {
         assert_eq!(links[0].url, "http://localhost:3000/api");
     }
 
+    // A path like /usr/local/bin is not absolute on Windows.
+    #[cfg(unix)]
     #[test]
     fn detect_absolute_path_unix() {
         let cells = cells_from_str("Error in /usr/local/bin/app.rs");
