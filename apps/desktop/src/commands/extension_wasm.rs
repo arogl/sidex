@@ -404,7 +404,7 @@ fn platform_target() -> Option<&'static str> {
 /// `url_template` may contain `{target}` which is replaced with the platform
 /// triple. The URL must point to a gzip-compressed binary. Returns the path
 /// to the cached binary, or `None` on failure.
-fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> {
+async fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> {
     let target = platform_target()?;
     let url = url_template.replace("{target}", target);
 
@@ -413,6 +413,19 @@ fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> 
         .join("com.sidex.app")
         .join("lsp-servers")
         .join(server_name);
+    install_lsp_binary(server_name, &url, server_dir).await
+}
+
+/// Fetch `url`, gunzip it and install it as `<server_dir>/<server_name>`.
+///
+/// Uses async `reqwest` (never `reqwest::blocking`, which panics when it is
+/// created or dropped on a thread that already runs a tokio runtime). The
+/// CPU- and disk-heavy part runs on tokio's blocking pool.
+async fn install_lsp_binary(
+    server_name: &str,
+    url: &str,
+    server_dir: std::path::PathBuf,
+) -> Option<String> {
     let bin_name = if cfg!(target_os = "windows") {
         format!("{server_name}.exe")
     } else {
@@ -426,7 +439,7 @@ fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> 
 
     log::info!("[lsp:{server_name}] downloading from {url}");
 
-    let response = match reqwest::blocking::get(&url) {
+    let response = match reqwest::get(url).await {
         Ok(r) if r.status().is_success() => r,
         Ok(r) => {
             log::error!("[lsp:{server_name}] download failed: HTTP {}", r.status());
@@ -438,7 +451,7 @@ fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> 
         }
     };
 
-    let compressed = match response.bytes() {
+    let compressed = match response.bytes().await {
         Ok(b) => b,
         Err(e) => {
             log::error!("[lsp:{server_name}] failed to read response: {e}");
@@ -451,18 +464,39 @@ fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> 
         compressed.len()
     );
 
-    let mut decoder = flate2::read::GzDecoder::new(&compressed[..]);
+    let name = server_name.to_string();
+    match tokio::task::spawn_blocking(move || {
+        write_lsp_binary(&name, &compressed, &server_dir, &bin_path)
+    })
+    .await
+    {
+        Ok(path) => path,
+        Err(e) => {
+            log::error!("[lsp:{server_name}] install task failed: {e}");
+            None
+        }
+    }
+}
+
+/// Blocking half of the install: gunzip `compressed` and write the binary.
+fn write_lsp_binary(
+    server_name: &str,
+    compressed: &[u8],
+    server_dir: &Path,
+    bin_path: &Path,
+) -> Option<String> {
+    let mut decoder = flate2::read::GzDecoder::new(compressed);
     let mut decompressed = Vec::new();
     if let Err(e) = std::io::Read::read_to_end(&mut decoder, &mut decompressed) {
         log::error!("[lsp:{server_name}] decompression failed: {e}");
         return None;
     }
 
-    if let Err(e) = std::fs::create_dir_all(&server_dir) {
+    if let Err(e) = std::fs::create_dir_all(server_dir) {
         log::error!("[lsp:{server_name}] mkdir failed: {e}");
         return None;
     }
-    if let Err(e) = std::fs::write(&bin_path, &decompressed) {
+    if let Err(e) = std::fs::write(bin_path, &decompressed) {
         log::error!("[lsp:{server_name}] write failed: {e}");
         return None;
     }
@@ -470,8 +504,7 @@ fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if let Err(e) = std::fs::set_permissions(&bin_path, std::fs::Permissions::from_mode(0o755))
-        {
+        if let Err(e) = std::fs::set_permissions(bin_path, std::fs::Permissions::from_mode(0o755)) {
             log::error!("[lsp:{server_name}] chmod failed: {e}");
             return None;
         }
@@ -479,6 +512,32 @@ fn download_lsp_binary(server_name: &str, url_template: &str) -> Option<String> 
 
     log::info!("[lsp:{server_name}] installed to {}", bin_path.display());
     Some(bin_path.to_string_lossy().to_string())
+}
+
+/// Drive `fut` to completion from synchronous code that is already running on
+/// a tokio worker thread (the wasmtime host-import path:
+/// async Tauri command -> wasm call -> `__sidex.lsp` -> here).
+///
+/// `block_in_place` tells tokio this worker is about to block so its other
+/// tasks move to another worker, and `Handle::block_on` then reuses the
+/// *existing* runtime instead of creating (and later dropping) a second one.
+///
+/// Known limitation: the caller still holds the WASM runtime lock for the
+/// whole download, so other WASM commands wait. Moving the download to a
+/// background task outside the lock is the proper follow-up.
+///
+/// Returns `None` (and logs) if there is no runtime or it is single-threaded,
+/// because `block_in_place` panics on a current-thread runtime.
+fn block_on_in_runtime<F: std::future::Future>(what: &str, fut: F) -> Option<F::Output> {
+    let Ok(handle) = tokio::runtime::Handle::try_current() else {
+        log::error!("{what}: no tokio runtime available");
+        return None;
+    };
+    if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread {
+        log::error!("{what}: cannot block inside a current-thread tokio runtime");
+        return None;
+    }
+    Some(tokio::task::block_in_place(|| handle.block_on(fut)))
 }
 
 #[allow(unsafe_code, clippy::all, unused)]
@@ -1801,7 +1860,9 @@ impl WasmHostState {
                 .map_or_else(|| "file:///tmp".to_string(), |f| format!("file://{f}"));
             let binary = download_url
                 .as_deref()
-                .and_then(|url| download_lsp_binary(&cmd, url))
+                .and_then(|url| {
+                    block_on_in_runtime("lsp download", download_lsp_binary(&cmd, url)).flatten()
+                })
                 .or_else(|| {
                     find_binary(
                         &cmd,
@@ -2080,6 +2141,22 @@ impl WasmExtensionRuntime {
         })
     }
 
+    /// Lock the runtime state, recovering if an earlier panic poisoned the lock.
+    ///
+    /// A poisoned `std::sync::Mutex` used to disable every WASM command until
+    /// the app restarted. The state holds the engine, linker and extension
+    /// stores; a panic elsewhere does not corrupt those invariants, so we log,
+    /// clear the poison flag and carry on. (The original trigger, a
+    /// `reqwest::blocking` panic in the LSP download, is also fixed.)
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, WasmRuntimeState> {
+        self.inner.lock().unwrap_or_else(|poisoned| {
+            log::warn!("WASM runtime lock was poisoned by an earlier panic; recovering");
+            let guard = poisoned.into_inner();
+            self.inner.clear_poison();
+            guard
+        })
+    }
+
     pub fn load_extension(&self, manifest: &ExtensionManifest) -> Result<(), String> {
         let wasm_file = manifest
             .wasm_binary
@@ -2093,7 +2170,7 @@ impl WasmExtensionRuntime {
             wasm_path.display()
         );
 
-        let mut guard = self.inner.lock().map_err(|e| e.to_string())?;
+        let mut guard = self.lock_state();
 
         let component = Component::from_file(&guard.engine, &wasm_path)
             .map_err(|e| format!("failed to load wasm component {}: {e}", wasm_path.display()))?;
@@ -2139,8 +2216,8 @@ impl WasmExtensionRuntime {
         Ok(())
     }
 
-    pub fn unload_extension(&self, id: &str) -> Result<(), String> {
-        let mut guard = self.inner.lock().map_err(|e| e.to_string())?;
+    pub fn unload_extension(&self, id: &str) {
+        let mut guard = self.lock_state();
         if let Some(mut ext) = guard.extensions.remove(id) {
             let _ = ext
                 .bindings
@@ -2148,19 +2225,16 @@ impl WasmExtensionRuntime {
                 .call_deactivate(&mut ext.store);
             log::info!("unloaded WASM extension: {id}");
         }
-        Ok(())
     }
 
     pub fn loaded_extension_ids(&self) -> Vec<String> {
-        let guard = self
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = self.lock_state();
         guard.extensions.keys().cloned().collect()
     }
 
     pub fn sync_document(&self, uri: &str, language_id: &str, text: &str) {
-        if let Ok(mut guard) = self.inner.lock() {
+        {
+            let mut guard = self.lock_state();
             guard.shared_documents.insert(
                 uri.to_string(),
                 DocumentData {
@@ -2186,7 +2260,8 @@ impl WasmExtensionRuntime {
     }
 
     pub fn close_document(&self, uri: &str) {
-        if let Ok(mut guard) = self.inner.lock() {
+        {
+            let mut guard = self.lock_state();
             guard.shared_documents.remove(uri);
             for ext in guard.extensions.values_mut() {
                 ext.store.data_mut().documents.remove(uri);
@@ -2195,7 +2270,8 @@ impl WasmExtensionRuntime {
     }
 
     pub fn sync_workspace_folders(&self, folders: &[String]) {
-        if let Ok(mut guard) = self.inner.lock() {
+        {
+            let mut guard = self.lock_state();
             guard.shared_workspace_folders = folders.to_vec();
             for ext in guard.extensions.values_mut() {
                 ext.store.data_mut().workspace_folders = folders.to_vec();
@@ -2272,7 +2348,7 @@ pub async fn wasm_provide_completion(
     params: WasmProviderParams,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Option<WasmCompletionResult>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ext = guard
         .extensions
         .get_mut(&params.extension_id)
@@ -2312,7 +2388,7 @@ pub async fn wasm_provide_hover(
     params: WasmProviderParams,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Option<WasmHoverResult>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ext = guard
         .extensions
         .get_mut(&params.extension_id)
@@ -2338,7 +2414,7 @@ pub async fn wasm_provide_definition(
     params: WasmProviderParams,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ext = guard
         .extensions
         .get_mut(&params.extension_id)
@@ -2361,7 +2437,7 @@ pub async fn wasm_provide_references(
     params: WasmProviderParams,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ext = guard
         .extensions
         .get_mut(&params.extension_id)
@@ -2384,7 +2460,7 @@ pub async fn wasm_provide_document_symbols(
     params: WasmProviderParams,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ext = guard
         .extensions
         .get_mut(&params.extension_id)
@@ -2419,7 +2495,7 @@ pub async fn wasm_provide_formatting(
     insert_spaces: bool,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ext = guard
         .extensions
         .get_mut(&params.extension_id)
@@ -2484,7 +2560,8 @@ pub async fn wasm_unload_extension(
     extension_id: String,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<(), String> {
-    state.unload_extension(&extension_id)
+    state.unload_extension(&extension_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -2533,7 +2610,7 @@ pub async fn wasm_provide_completion_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Option<WasmCompletionResult>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
 
@@ -2591,7 +2668,7 @@ pub async fn wasm_provide_hover_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Option<WasmHoverResult>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
 
@@ -2629,7 +2706,7 @@ pub async fn wasm_provide_definition_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
 
@@ -2664,7 +2741,7 @@ pub async fn wasm_provide_document_symbols_all(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
 
     let mut all_symbols = Vec::new();
@@ -2706,7 +2783,7 @@ pub async fn wasm_provide_formatting_all(
     insert_spaces: bool,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
 
     let ext_ids: Vec<String> = guard.extensions.keys().cloned().collect();
@@ -2749,7 +2826,7 @@ pub async fn wasm_on_document_opened(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<(), String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     for ext in guard.extensions.values_mut() {
         let _ = ext
@@ -2767,7 +2844,7 @@ pub async fn wasm_on_document_closed(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<(), String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     for ext in guard.extensions.values_mut() {
         let _ = ext
@@ -2786,7 +2863,7 @@ pub async fn wasm_on_document_saved(
     reason: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<(), String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     for ext in guard.extensions.values_mut() {
         let _ = ext
@@ -2804,7 +2881,7 @@ pub async fn wasm_on_document_changed(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<(), String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     for ext in guard.extensions.values_mut() {
         let _ = ext
@@ -2820,7 +2897,7 @@ pub async fn wasm_on_configuration_changed(
     section: String,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<(), String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     for ext in guard.extensions.values_mut() {
         let _ = ext
             .bindings
@@ -2835,7 +2912,8 @@ pub async fn wasm_on_active_editor_changed(
     uri: Option<String>,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<(), String> {
-    if let Ok(mut guard) = state.inner.lock() {
+    {
+        let mut guard = state.lock_state();
         for ext in guard.extensions.values_mut() {
             ext.store.data_mut().active_editor_uri.clone_from(&uri);
             let _ = ext
@@ -2860,7 +2938,7 @@ pub async fn wasm_provide_type_definition_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
     let mut all = Vec::new();
@@ -2890,7 +2968,7 @@ pub async fn wasm_provide_implementation_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
     let mut all = Vec::new();
@@ -2920,7 +2998,7 @@ pub async fn wasm_provide_declaration_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
     let mut all = Vec::new();
@@ -2953,7 +3031,7 @@ pub async fn wasm_provide_code_actions_all(
     end_character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let range = wit_types::Range {
         start: make_position(start_line, start_character),
@@ -2988,7 +3066,7 @@ pub async fn wasm_provide_code_lenses_all(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let mut all = Vec::new();
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
@@ -3020,7 +3098,7 @@ pub async fn wasm_provide_signature_help_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Option<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
@@ -3055,7 +3133,7 @@ pub async fn wasm_provide_document_highlights_all(
     character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
     let mut all = Vec::new();
@@ -3088,7 +3166,7 @@ pub async fn wasm_provide_rename_all(
     new_name: String,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Option<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let pos = make_position(line, character);
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
@@ -3118,7 +3196,7 @@ pub async fn wasm_provide_folding_ranges_all(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let mut all = Vec::new();
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
@@ -3150,7 +3228,7 @@ pub async fn wasm_provide_inlay_hints_all(
     end_character: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let range = wit_types::Range {
         start: make_position(start_line, start_character),
@@ -3187,7 +3265,7 @@ pub async fn wasm_provide_document_links_all(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let mut all = Vec::new();
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
@@ -3215,7 +3293,7 @@ pub async fn wasm_provide_selection_ranges_all(
     positions: Vec<(u32, u32)>,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let wit_positions: Vec<wit_types::Position> = positions
         .iter()
@@ -3246,7 +3324,7 @@ pub async fn wasm_provide_semantic_tokens_all(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Option<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
     for id in &ids {
@@ -3272,7 +3350,7 @@ pub async fn wasm_provide_document_colors_all(
     version: u32,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let mut all = Vec::new();
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
@@ -3300,7 +3378,7 @@ pub async fn wasm_provide_workspace_symbols_all(
     query: String,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let mut all = Vec::new();
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
     for id in &ids {
@@ -3339,7 +3417,7 @@ pub async fn wasm_provide_range_formatting_all(
     insert_spaces: bool,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ctx = make_doc_ctx(&uri, &language_id, version);
     let range = wit_types::Range {
         start: make_position(start_line, start_character),
@@ -3376,7 +3454,7 @@ pub async fn wasm_execute_command_all(
     args: String,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let mut results = Vec::new();
     let ids: Vec<String> = guard.extensions.keys().cloned().collect();
     for id in &ids {
@@ -3402,7 +3480,7 @@ pub async fn wasm_get_extension_metadata(
     extension_id: String,
     state: State<'_, Arc<WasmExtensionRuntime>>,
 ) -> Result<serde_json::Value, String> {
-    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    let mut guard = state.lock_state();
     let ext = guard
         .extensions
         .get_mut(&extension_id)
@@ -3436,4 +3514,132 @@ pub async fn wasm_get_extension_metadata(
             "tokenModifiers": l.token_modifiers,
         })),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("sidex-lsp-test-{}-{tag}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    fn gzip(bytes: &[u8]) -> Vec<u8> {
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        enc.write_all(bytes).unwrap();
+        enc.finish().unwrap()
+    }
+
+    /// Serve exactly one HTTP response on localhost and return its URL.
+    async fn serve_once(status: &'static str, body: Vec<u8>) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((mut sock, _)) = listener.accept().await {
+                let mut buf = [0u8; 1024];
+                let _ = sock.read(&mut buf).await;
+                let head = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = sock.write_all(head.as_bytes()).await;
+                let _ = sock.write_all(&body).await;
+                let _ = sock.shutdown().await;
+            }
+        });
+        format!("http://{addr}/server.gz")
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn install_writes_decompressed_binary() {
+        let dir = temp_dir("ok");
+        let url = serve_once("200 OK", gzip(b"fake-binary")).await;
+        let path = install_lsp_binary("fake-lsp", &url, dir.clone())
+            .await
+            .expect("install should succeed");
+        assert_eq!(std::fs::read(&path).unwrap(), b"fake-binary");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn install_returns_none_on_http_error() {
+        let dir = temp_dir("404");
+        let url = serve_once("404 Not Found", Vec::new()).await;
+        assert!(install_lsp_binary("fake-lsp", &url, dir.clone())
+            .await
+            .is_none());
+        assert!(!dir.exists(), "nothing should be written on failure");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn install_returns_none_when_unreachable() {
+        let dir = temp_dir("refused");
+        assert!(
+            install_lsp_binary("fake-lsp", "http://127.0.0.1:1/x.gz", dir)
+                .await
+                .is_none()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn install_returns_none_on_corrupt_gzip() {
+        let dir = temp_dir("corrupt");
+        let url = serve_once("200 OK", b"definitely not gzip".to_vec()).await;
+        assert!(install_lsp_binary("fake-lsp", &url, dir.clone())
+            .await
+            .is_none());
+    }
+
+    /// The production shape: sync code running on a tokio worker thread
+    /// (inside an async context) drives the async download. With
+    /// `reqwest::blocking` this panicked ("Cannot drop a runtime ...").
+    #[tokio::test(flavor = "multi_thread")]
+    async fn block_on_in_runtime_works_inside_async_context() {
+        let dir = temp_dir("blockon");
+        let url = serve_once("200 OK", gzip(b"abc")).await;
+        let out = block_on_in_runtime("test", install_lsp_binary("fake-lsp", &url, dir.clone()));
+        let path = out.flatten().expect("download should succeed");
+        assert_eq!(std::fs::read(path).unwrap(), b"abc");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn block_on_in_runtime_refuses_current_thread_runtime() {
+        // Must return None, not panic.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async { assert!(block_on_in_runtime("test", async { 1 }).is_none()) });
+    }
+
+    #[test]
+    fn block_on_in_runtime_without_runtime_returns_none() {
+        assert!(block_on_in_runtime("test", async { 1 }).is_none());
+    }
+
+    #[test]
+    fn runtime_lock_recovers_after_poison() {
+        let rt = Arc::new(WasmExtensionRuntime::new().expect("create runtime"));
+        let rt2 = Arc::clone(&rt);
+        let joined = std::thread::spawn(move || {
+            let _guard = rt2.inner.lock().unwrap();
+            panic!("simulated panic while holding the runtime lock");
+        })
+        .join();
+        assert!(joined.is_err());
+        assert!(rt.inner.is_poisoned());
+
+        // Previously these were silently skipped / returned "poisoned lock".
+        rt.sync_workspace_folders(&["/x".to_string()]);
+        assert_eq!(
+            rt.lock_state().shared_workspace_folders,
+            vec!["/x".to_string()]
+        );
+        assert_eq!(rt.loaded_extension_ids(), Vec::<String>::new());
+        assert!(!rt.inner.is_poisoned());
+    }
 }
