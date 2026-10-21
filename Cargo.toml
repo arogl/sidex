@@ -53,13 +53,13 @@ memchr = "2"
 tree-sitter = "0.24"
 
 # File system
-notify = { version = "7", features = ["macos_fsevent"] }
+notify = { version = "8", features = ["macos_fsevent"] }
 walkdir = "2"
 globset = "0.4"
 ignore = "0.4"
 
 # Terminal
-portable-pty = "0.8"
+portable-pty = "0.9"
 vte = "0.13"
 
 # Database
