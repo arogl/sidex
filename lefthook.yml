@@ -18,8 +18,9 @@ pre-commit:
 pre-push:
   commands:
     clippy:
+      glob: "*.{rs,toml}"
       run: bun run rust:clippy
     test:
-      run: bun test
+      run: bun test ./packages
     parity:
       run: bun run parity:check
