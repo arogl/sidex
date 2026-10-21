@@ -1,30 +1,35 @@
 import { describe, expect, test } from 'bun:test';
+import * as path from 'node:path';
 import { type Layer, layerOf, rewriteRelocatedRoots, rewriteSource } from '../src/codemod/rewrite-imports';
 
+// Resolve fixture paths the way the code under test does, so a Windows drive letter
+// (E:\repo) appears on both sides. Unchanged on Linux and macOS.
+const abs = (p: string): string => path.resolve(p);
+
 const ROOTS: Record<Layer, string> = {
-	base: '/repo/packages/base/src',
-	platform: '/repo/packages/platform/src',
-	editor: '/repo/packages/editor/src',
-	workbench: '/repo/packages/workbench/src'
+	base: abs('/repo/packages/base/src'),
+	platform: abs('/repo/packages/platform/src'),
+	editor: abs('/repo/packages/editor/src'),
+	workbench: abs('/repo/packages/workbench/src')
 };
 
 describe('layerOf', () => {
 	test('identifies the owning layer', () => {
-		expect(layerOf('/repo/packages/base/src/common/event.ts', ROOTS)).toBe('base');
-		expect(layerOf('/repo/packages/workbench/src/browser/x.ts', ROOTS)).toBe('workbench');
+		expect(layerOf(abs('/repo/packages/base/src/common/event.ts'), ROOTS)).toBe('base');
+		expect(layerOf(abs('/repo/packages/workbench/src/browser/x.ts'), ROOTS)).toBe('workbench');
 	});
 
 	test('returns null outside every layer', () => {
-		expect(layerOf('/repo/apps/workbench/src/main.ts', ROOTS)).toBeNull();
+		expect(layerOf(abs('/repo/apps/workbench/src/main.ts'), ROOTS)).toBeNull();
 	});
 
 	test('does not match a path that merely shares a prefix', () => {
-		expect(layerOf('/repo/packages/baseline/src/x.ts', ROOTS)).toBeNull();
+		expect(layerOf(abs('/repo/packages/baseline/src/x.ts'), ROOTS)).toBeNull();
 	});
 });
 
 describe('rewriteSource', () => {
-	const workbenchFile = '/repo/packages/workbench/src/browser/parts/editor/editor.ts';
+	const workbenchFile = abs('/repo/packages/workbench/src/browser/parts/editor/editor.ts');
 
 	test('rewrites a cross-layer import to a package specifier', () => {
 		const out = rewriteSource("import { Event } from '../../../../../base/src/common/event.js';", workbenchFile, ROOTS);
@@ -98,14 +103,14 @@ describe('rewriteSource', () => {
 		// the src/vs layout, so the codemod must run against those roots — after
 		// the move they resolve outside every layer and get silently skipped.
 		const VS: Record<Layer, string> = {
-			base: '/repo/src/vs/base',
-			platform: '/repo/src/vs/platform',
-			editor: '/repo/src/vs/editor',
-			workbench: '/repo/src/vs/workbench'
+			base: abs('/repo/src/vs/base'),
+			platform: abs('/repo/src/vs/platform'),
+			editor: abs('/repo/src/vs/editor'),
+			workbench: abs('/repo/src/vs/workbench')
 		};
 		const out = rewriteSource(
 			"import { Event } from '../../base/common/event.js';",
-			'/repo/src/vs/workbench/browser/foo.ts',
+			abs('/repo/src/vs/workbench/browser/foo.ts'),
 			VS
 		);
 		expect(out).toBe("import { Event } from '@sidex/base/common/event.js';");
@@ -115,7 +120,7 @@ describe('rewriteSource', () => {
 		// platform/dnd/browser/dnd.ts imports '../../editor/common/editor.js',
 		// which resolves to platform/editor/ — a directory inside platform, not
 		// the editor layer. A grep-based codemod would corrupt these four files.
-		const platformFile = '/repo/packages/platform/src/dnd/browser/dnd.ts';
+		const platformFile = abs('/repo/packages/platform/src/dnd/browser/dnd.ts');
 		const code = "import { IEditorOptions } from '../../editor/common/editor.js';";
 		expect(rewriteSource(code, platformFile, ROOTS)).toBeNull();
 	});
@@ -129,13 +134,13 @@ describe('rewriteSource', () => {
  * them. This pass therefore runs before the move, while paths still resolve.
  */
 describe('rewriteRelocatedRoots', () => {
-	const vsRoot = '/repo/src/vs';
+	const vsRoot = abs('/repo/src/vs');
 	const RELOCATED = { 'nls.ts': 'nls.js', 'amdX.ts': 'amdX.js', 'sidex-bridge.ts': 'sidex-bridge.js' };
 
 	test('rewrites an import of a relocated root file', () => {
 		const out = rewriteRelocatedRoots(
 			"import { localize } from '../../nls.js';",
-			'/repo/src/vs/editor/common/foo.ts',
+			abs('/repo/src/vs/editor/common/foo.ts'),
 			vsRoot,
 			RELOCATED
 		);
@@ -145,7 +150,7 @@ describe('rewriteRelocatedRoots', () => {
 	test('rewrites from any depth', () => {
 		const out = rewriteRelocatedRoots(
 			"import { localize } from '../../../../../nls.js';",
-			'/repo/src/vs/workbench/contrib/a/b/c/foo.ts',
+			abs('/repo/src/vs/workbench/contrib/a/b/c/foo.ts'),
 			vsRoot,
 			RELOCATED
 		);
@@ -153,7 +158,7 @@ describe('rewriteRelocatedRoots', () => {
 	});
 
 	test('rewrites amdX and sidex-bridge too', () => {
-		const file = '/repo/src/vs/platform/x/common/y.ts';
+		const file = abs('/repo/src/vs/platform/x/common/y.ts');
 		expect(rewriteRelocatedRoots("import { a } from '../../../amdX.js';", file, vsRoot, RELOCATED)).toBe(
 			"import { a } from '@sidex/base/amdX.js';"
 		);
@@ -166,7 +171,7 @@ describe('rewriteRelocatedRoots', () => {
 		// resolves to src/vs/editor/nls.js, not src/vs/nls.js
 		const out = rewriteRelocatedRoots(
 			"import { x } from './nls.js';",
-			'/repo/src/vs/editor/common/foo.ts',
+			abs('/repo/src/vs/editor/common/foo.ts'),
 			vsRoot,
 			RELOCATED
 		);
@@ -176,7 +181,7 @@ describe('rewriteRelocatedRoots', () => {
 	test('leaves unrelated imports alone', () => {
 		const out = rewriteRelocatedRoots(
 			"import { Event } from '../common/event.js';",
-			'/repo/src/vs/editor/common/foo.ts',
+			abs('/repo/src/vs/editor/common/foo.ts'),
 			vsRoot,
 			RELOCATED
 		);
@@ -184,13 +189,13 @@ describe('rewriteRelocatedRoots', () => {
 	});
 
 	test('returns null when nothing changes', () => {
-		expect(rewriteRelocatedRoots('const x = 1;', '/repo/src/vs/editor/a.ts', vsRoot, RELOCATED)).toBeNull();
+		expect(rewriteRelocatedRoots('const x = 1;', abs('/repo/src/vs/editor/a.ts'), vsRoot, RELOCATED)).toBeNull();
 	});
 
 	test('does not rewrite a sibling nls.js inside a layer', () => {
 		const out = rewriteRelocatedRoots(
 			"import { localize } from './nls.js';",
-			'/repo/src/vs/base/common/foo.ts',
+			abs('/repo/src/vs/base/common/foo.ts'),
 			vsRoot,
 			RELOCATED
 		);
