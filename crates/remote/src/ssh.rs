@@ -12,11 +12,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, Context, Result};
-use russh::client;
 use russh::keys::known_hosts::{known_host_keys_path, learn_known_hosts_path};
 use russh::keys::{HashAlg, PrivateKey, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
+use russh::{client, ChannelMsg};
 use serde::{Deserialize, Serialize};
-use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
@@ -869,27 +868,35 @@ impl SshTransport {
         let full_cmd = format!("{env_prefix}{command}");
 
         let session = self.session.lock().await;
-        let channel = session.channel_open_session().await?;
+        let mut channel = session.channel_open_session().await?;
         channel.exec(true, full_cmd.as_bytes()).await?;
         drop(session);
 
         let mut stdout = Vec::new();
-        let stderr = Vec::new();
-        let exit_code: i32 = -1;
+        let mut stderr = Vec::new();
+        let mut exit_code: Option<i32> = None;
 
-        let mut stream = channel.into_stream();
-        let mut buf = [0u8; 8192];
-        loop {
-            match stream.read(&mut buf).await {
-                Ok(0) | Err(_) => break,
-                Ok(n) => stdout.extend_from_slice(&buf[..n]),
+        // Read protocol messages, not a raw byte stream, so stderr and the
+        // exit status are not lost. The server may send the exit status after
+        // the output, so keep reading until the channel closes.
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                ChannelMsg::Data { data } => stdout.extend_from_slice(&data),
+                ChannelMsg::ExtendedData { data, ext: 1 } => stderr.extend_from_slice(&data),
+                ChannelMsg::ExitStatus { exit_status } => {
+                    exit_code = Some(i32::try_from(exit_status).unwrap_or(i32::MAX));
+                }
+                // Killed by a signal, which carries no numeric status.
+                ChannelMsg::ExitSignal { .. } => exit_code = exit_code.or(Some(255)),
+                _ => {}
             }
         }
 
         Ok(ExecOutput {
             stdout: String::from_utf8_lossy(&stdout).into_owned(),
             stderr: String::from_utf8_lossy(&stderr).into_owned(),
-            exit_code,
+            // The server closed the channel without reporting a status.
+            exit_code: exit_code.unwrap_or(-1),
         })
     }
 }
