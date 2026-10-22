@@ -81,7 +81,10 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: "./apps/desktop -> target"
+          workspaces: ". -> target"
 
-      - name: Clippy
-        run: cargo clippy --manifest-path apps/desktop/Cargo.toml --all-targets --all-features -- -D warnings
+      - name: Clippy (all workspace crates, non-test targets)
+        run: cargo clippy --workspace --lib --bins --all-features -- -D warnings
+
+      - name: Clippy (desktop app, all targets)
+        run: cargo clippy -p sidex --all-targets --all-features -- -D warnings

@@ -32,7 +32,7 @@
     "format": "biome format --write apps packages",
     "format:check": "biome format apps packages",
     "rust:check": "cd apps/desktop && cargo check",
-    "rust:clippy": "cd apps/desktop && cargo clippy --all-targets --all-features -- -D warnings",
+    "rust:clippy": "cargo clippy --workspace --lib --bins --all-features -- -D warnings && cargo clippy -p sidex --all-targets --all-features -- -D warnings",
     "rust:fmt": "cd apps/desktop && cargo fmt --all -- --check",
     "rust:fmt:fix": "cd apps/desktop && cargo fmt --all"
   },

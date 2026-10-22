@@ -215,3 +215,6 @@ pub use db_state::*;
 pub use logging::*;
 pub use sidex_terminal::*;
 pub use textmate::*;
+
+#[cfg(test)]
+mod command_tests;

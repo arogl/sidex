@@ -3643,3 +3643,6 @@ mod tests {
         assert!(!rt.inner.is_poisoned());
     }
 }
+
+#[cfg(test)]
+mod e2e;
