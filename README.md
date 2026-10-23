@@ -20,7 +20,7 @@
 <br>
 
 <p align="center">
-  <a href="#why">Why</a> · <a href="#whats-working">What's Working</a> · <a href="#ai-agent">AI Agent</a> · <a href="#getting-started">Getting Started</a> · <a href="#how-its-built">How It's Built</a> · <a href="#contributing">Contributing</a> · <a href="https://discord.gg/8CUCnEAC4J">Discord</a>
+  <a href="#about-this-fork">About This Fork</a> · <a href="#why">Why</a> · <a href="#whats-working">What's Working</a> · <a href="#roadmap">Roadmap</a> · <a href="#ai-agent">AI Agent</a> · <a href="#getting-started">Getting Started</a> · <a href="#how-its-built">How It's Built</a> · <a href="#contributing">Contributing</a> · <a href="https://discord.gg/8CUCnEAC4J">Discord</a>
 </p>
 
 ---
@@ -28,6 +28,16 @@
 SideX is a port of Visual Studio Code that replaces Electron with [Tauri](https://tauri.app/) — a Rust backend and OS's native webview. The same TypeScript workbench, the same editor, terminal, and Git integration, running without a bundled browser.
 
 > **Early release.** Core editing and the terminal are solid. The extension host and debugger are still in progress. See [What's Working](#whats-working) for the full picture.
+
+---
+
+## About this fork
+
+This repository is a fork of [Sidenai/sidex](https://github.com/Sidenai/sidex), the original SideX project. It is maintained by [@arogl](https://github.com/arogl) and keeps the original MIT license and credit.
+
+The aim is to gather good work from several SideX forks and the original project in one place that is tested and kept stable. Changes arrive one at a time, each as its own pull request with tests, and the original author stays credited on every commit that is brought in.
+
+The Discord server and contact details further down belong to the original project.
 
 ---
 
@@ -57,6 +67,20 @@ RAM savings are most tested on macOS, WKWebView is shared with Safari. On Window
 - File watching, file search, full-text search, Rust-backed search index
 - SQLite storage, document management (autosave, undo/redo, encoding)
 - Built-in AI agent — chat, inline diffs, shell commands, multi-file edits; bring your own model provider, no account needed (see [AI Agent](#ai-agent))
+
+---
+
+## Roadmap
+
+Work on this fork follows three tracks.
+
+1. **Fix reported issues.** Go through the issues reported on the [original project](https://github.com/Sidenai/sidex/issues), reproduce each one here, and fix the ones that still happen. Each fix gets a test where one is practical.
+2. **Review the original project's pull requests.** Read its [open pull requests](https://github.com/Sidenai/sidex/pulls), bring in the ones that are sound, and keep the author's commits so credit carries over. Where a pull request needs changes, make them here.
+3. **Merge in other forks.** Compare other SideX forks, pick the changes that fit, and bring them in the same way. Overlapping changes are resolved before they land, not after.
+
+Alongside these, the fork keeps tightening its own foundations, such as CI checks, tests, and security fixes for the remote and extension code.
+
+Fixes are made here first. Whether any of them go back to the original project is a separate decision.
 
 ---
 
@@ -210,7 +234,7 @@ This was released early to get outside contributors involved.
 ### How to Contribute
 
 1. Fork the repo and create a branch
-2. Pick something — check [Issues](https://github.com/Sidenai/sidex/issues) or grab something from the Known Gaps list above
+2. Pick something. Check the [Roadmap](#roadmap), the [original project's issues](https://github.com/Sidenai/sidex/issues), or this repository's issues
 3. Submit a PR — contributors get credited
 
 ### Dev Notes
