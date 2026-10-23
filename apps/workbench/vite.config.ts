@@ -1,8 +1,8 @@
-import { defineConfig } from 'vite';
-import * as path from 'path';
-import { nlsPlugin } from '../../packages/build/src/nls/plugin';
-
 import * as fs from 'fs';
+import * as path from 'path';
+import { defineConfig } from 'vite';
+import { amdNodeModulesPlugin } from '../../packages/build/src/amd-node-modules/plugin';
+import { nlsPlugin } from '../../packages/build/src/nls/plugin';
 
 function serveExtensions() {
 	const dir = path.resolve(__dirname, '../../extensions');
@@ -65,7 +65,9 @@ export default defineConfig({
 			)
 		}),
 		quietMissingSourceMaps(),
-		serveExtensions()
+		serveExtensions(),
+		// Files that importAMDNodeModule loads as scripts at runtime (iconv-lite, jschardet).
+		amdNodeModulesPlugin({ nodeModulesDir: path.resolve(__dirname, '../../node_modules') })
 	],
 	server: {
 		port: 1420,
