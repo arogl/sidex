@@ -6,7 +6,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Write;
-use std::io::BufRead;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -14,7 +13,8 @@ use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{bail, Context, Result};
 use russh::client;
-use russh::keys::{PrivateKey, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
+use russh::keys::known_hosts::{known_host_keys_path, learn_known_hosts_path};
+use russh::keys::{HashAlg, PrivateKey, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
@@ -329,48 +329,70 @@ pub enum KnownHostStatus {
     },
 }
 
+/// Default location of the user's known-hosts file.
+fn default_known_hosts_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".ssh").join("known_hosts"))
+}
+
+/// SHA-256 fingerprint in the same `SHA256:...` form OpenSSH prints.
+fn fingerprint_of(key: &PublicKey) -> String {
+    key.fingerprint(HashAlg::Sha256).to_string()
+}
+
 /// Check a host key against `~/.ssh/known_hosts`.
-pub fn check_known_host(hostname: &str, port: u16, _server_key: &PublicKey) -> KnownHostStatus {
-    let path = match dirs::home_dir() {
-        Some(h) => h.join(".ssh/known_hosts"),
-        None => {
-            return KnownHostStatus::Unknown {
-                fingerprint: "unknown".into(),
-            }
-        }
+///
+/// Never fails: if the file cannot be located or read, the host counts as
+/// unknown. Connection code uses [`check_known_host_at`] so it can refuse a
+/// file it cannot parse.
+pub fn check_known_host(hostname: &str, port: u16, server_key: &PublicKey) -> KnownHostStatus {
+    let unknown = || KnownHostStatus::Unknown {
+        fingerprint: fingerprint_of(server_key),
     };
-
-    let target = if port == 22 {
-        hostname.to_string()
-    } else {
-        format!("[{hostname}]:{port}")
+    let Some(path) = default_known_hosts_path() else {
+        return unknown();
     };
+    check_known_host_at(&path, hostname, port, server_key).unwrap_or_else(|e| {
+        log::warn!("known_hosts check failed: {e:#}");
+        unknown()
+    })
+}
 
-    let fp = "SHA256:<key>".to_string();
+/// Compare `server_key` with the entries for `hostname:port` in the file at `path`.
+///
+/// Like OpenSSH, a host is trusted when any recorded key of the same
+/// algorithm matches. It is "changed" when keys of that algorithm are
+/// recorded but none match. A missing file means nothing is recorded.
+///
+/// # Errors
+///
+/// Returns an error when the file exists but a line for this host cannot be
+/// parsed. Callers should refuse the connection in that case.
+pub fn check_known_host_at(
+    path: &Path,
+    hostname: &str,
+    port: u16,
+    server_key: &PublicKey,
+) -> Result<KnownHostStatus> {
+    let recorded = known_host_keys_path(hostname, port, path)
+        .with_context(|| format!("reading {}", path.display()))?;
+    let same_algorithm: Vec<&PublicKey> = recorded
+        .iter()
+        .map(|(_, key)| key)
+        .filter(|key| key.algorithm() == server_key.algorithm())
+        .collect();
 
-    let Ok(file) = std::fs::File::open(&path) else {
-        return KnownHostStatus::Unknown { fingerprint: fp };
-    };
-
-    for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
-        let line = line.trim().to_string();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let parts: Vec<&str> = line.splitn(3, ' ').collect();
-        if parts.len() < 3 {
-            continue;
-        }
-        let hosts = parts[0];
-        if hosts
-            .split(',')
-            .any(|h| h.trim() == target || h.trim() == hostname)
-        {
-            return KnownHostStatus::Trusted;
-        }
+    if same_algorithm.contains(&server_key) {
+        return Ok(KnownHostStatus::Trusted);
     }
-
-    KnownHostStatus::Unknown { fingerprint: fp }
+    Ok(match same_algorithm.first() {
+        Some(old) => KnownHostStatus::Changed {
+            old_fingerprint: fingerprint_of(old),
+            new_fingerprint: fingerprint_of(server_key),
+        },
+        None => KnownHostStatus::Unknown {
+            fingerprint: fingerprint_of(server_key),
+        },
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -473,17 +495,81 @@ pub fn parse_ssh_config(path: &Path) -> Result<Vec<SshHostConfig>> {
 // Client handler
 // ---------------------------------------------------------------------------
 
-pub struct ClientHandler;
+/// SSH client handler. Verifies the server's host key against `known_hosts`.
+///
+/// Policy, matching OpenSSH `StrictHostKeyChecking=accept-new`:
+/// - a known key is accepted;
+/// - an unknown host is accepted on first use and its key is saved;
+/// - a changed key is always refused.
+pub struct ClientHandler {
+    host: String,
+    port: u16,
+    known_hosts: Option<PathBuf>,
+}
+
+impl ClientHandler {
+    pub fn new(host: &str, port: u16) -> Self {
+        Self::with_known_hosts(host, port, default_known_hosts_path())
+    }
+
+    fn with_known_hosts(host: &str, port: u16, known_hosts: Option<PathBuf>) -> Self {
+        Self {
+            host: host.to_string(),
+            port,
+            known_hosts,
+        }
+    }
+
+    fn verify_server_key(&self, presented: &PublicKeyOrCertificate) -> Result<bool> {
+        let (host, port) = (&self.host, self.port);
+        let PublicKeyOrCertificate::PublicKey { key, .. } = presented else {
+            bail!("{host}:{port} presented a host certificate, which is not supported");
+        };
+        let path = self
+            .known_hosts
+            .as_deref()
+            .context("cannot locate ~/.ssh/known_hosts (no home directory)")?;
+
+        match check_known_host_at(path, host, port, key)? {
+            KnownHostStatus::Trusted => Ok(true),
+            KnownHostStatus::Unknown { fingerprint } => {
+                match learn_known_hosts_path(host, port, key, path) {
+                    Ok(()) => log::warn!(
+                        "SSH: trusting new host {host}:{port} ({fingerprint}); saved to {}",
+                        path.display()
+                    ),
+                    // Trust-on-first-use still applies for this session. Saving only
+                    // affects later connections.
+                    Err(e) => log::warn!(
+                        "SSH: trusting new host {host}:{port} ({fingerprint}) but could not \
+                         save it to {}: {e}",
+                        path.display()
+                    ),
+                }
+                Ok(true)
+            }
+            KnownHostStatus::Changed {
+                old_fingerprint,
+                new_fingerprint,
+            } => bail!(
+                "REMOTE HOST IDENTIFICATION HAS CHANGED for {host}:{port}. \
+                 Recorded {old_fingerprint}, server presented {new_fingerprint}. \
+                 This could be a man-in-the-middle attack. If the host key was \
+                 changed on purpose, remove the old entry from {} and reconnect.",
+                path.display()
+            ),
+        }
+    }
+}
 
 impl client::Handler for ClientHandler {
     type Error = anyhow::Error;
 
-    // TODO: verify the host key against known_hosts. Until then every key is accepted.
     fn check_server_key(
         &mut self,
-        _server_public_key: &PublicKeyOrCertificate,
+        server_public_key: &PublicKeyOrCertificate,
     ) -> impl std::future::Future<Output = Result<bool, Self::Error>> + Send {
-        std::future::ready(Ok(true))
+        std::future::ready(self.verify_server_key(server_public_key))
     }
 }
 
@@ -542,7 +628,7 @@ impl SshConnectionPool {
         user: &str,
     ) -> Result<client::Handle<ClientHandler>> {
         let config = Arc::new(client::Config::default());
-        let handler = ClientHandler;
+        let handler = ClientHandler::new(host, port);
         let mut session = client::connect(config, (host, port), handler)
             .await
             .with_context(|| format!("SSH connect to {host}:{port}"))?;
@@ -1095,14 +1181,127 @@ Host *.example.com
         assert!(config.resolve("staging").is_none());
     }
 
+    const KEY_A: &str =
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8g";
+    const KEY_B: &str =
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9A";
+
+    fn key(openssh: &str) -> PublicKey {
+        PublicKey::from_openssh(openssh).expect("parse test public key")
+    }
+
+    fn known_hosts_with(lines: &str) -> NamedTempFile {
+        write_config(lines)
+    }
+
+    fn presented(key: &PublicKey) -> PublicKeyOrCertificate {
+        PublicKeyOrCertificate::PublicKey {
+            key: key.clone(),
+            hash_alg: None,
+        }
+    }
+
     #[test]
     fn known_host_unknown() {
-        let fake_key = PublicKey::from_openssh(
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8g",
-        )
-        .expect("parse test public key");
-        let status = check_known_host("nonexistent.test", 22, &fake_key);
-        assert!(matches!(status, KnownHostStatus::Unknown { .. }));
+        // A path that does not exist means nothing is recorded.
+        let missing = std::env::temp_dir().join("sidex-no-such-known-hosts-file");
+        let status = check_known_host_at(&missing, "nonexistent.test", 22, &key(KEY_A)).unwrap();
+        let KnownHostStatus::Unknown { fingerprint } = status else {
+            panic!("expected Unknown, got {status:?}");
+        };
+        assert!(fingerprint.starts_with("SHA256:"), "{fingerprint}");
+        assert_ne!(fingerprint, "SHA256:<key>");
+    }
+
+    #[test]
+    fn known_host_trusted_when_key_matches() {
+        let file = known_hosts_with(&format!("example.test {KEY_A}\n"));
+        let status = check_known_host_at(file.path(), "example.test", 22, &key(KEY_A)).unwrap();
+        assert_eq!(status, KnownHostStatus::Trusted);
+    }
+
+    #[test]
+    fn known_host_changed_when_key_differs() {
+        let file = known_hosts_with(&format!("example.test {KEY_A}\n"));
+        let status = check_known_host_at(file.path(), "example.test", 22, &key(KEY_B)).unwrap();
+        let KnownHostStatus::Changed {
+            old_fingerprint,
+            new_fingerprint,
+        } = status
+        else {
+            panic!("expected Changed, got {status:?}");
+        };
+        assert_ne!(old_fingerprint, new_fingerprint);
+    }
+
+    #[test]
+    fn known_host_matches_by_host_and_port() {
+        let file = known_hosts_with(&format!("[example.test]:2222 {KEY_A}\n"));
+        let a = key(KEY_A);
+        assert_eq!(
+            check_known_host_at(file.path(), "example.test", 2222, &a).unwrap(),
+            KnownHostStatus::Trusted
+        );
+        // The same host on the default port has no entry.
+        assert!(matches!(
+            check_known_host_at(file.path(), "example.test", 22, &a).unwrap(),
+            KnownHostStatus::Unknown { .. }
+        ));
+        // Another host has no entry either.
+        assert!(matches!(
+            check_known_host_at(file.path(), "other.test", 2222, &a).unwrap(),
+            KnownHostStatus::Unknown { .. }
+        ));
+    }
+
+    #[test]
+    fn known_host_unparseable_entry_is_an_error() {
+        let file = known_hosts_with("example.test ssh-ed25519 not-valid-base64!!\n");
+        assert!(check_known_host_at(file.path(), "example.test", 22, &key(KEY_A)).is_err());
+    }
+
+    #[test]
+    fn handler_learns_unknown_host_then_trusts_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".ssh").join("known_hosts");
+        let handler = ClientHandler::with_known_hosts("new.test", 22, Some(path.clone()));
+
+        // First contact: accepted and saved.
+        assert!(handler.verify_server_key(&presented(&key(KEY_A))).unwrap());
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            saved
+                .lines()
+                .any(|l| l.starts_with("new.test ssh-ed25519 ")),
+            "{saved}"
+        );
+
+        // Second contact with the same key is trusted without another write.
+        assert!(handler.verify_server_key(&presented(&key(KEY_A))).unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), saved);
+    }
+
+    #[test]
+    fn handler_refuses_changed_key_and_leaves_file_alone() {
+        let file = known_hosts_with(&format!("example.test {KEY_A}\n"));
+        let before = std::fs::read_to_string(file.path()).unwrap();
+        let handler =
+            ClientHandler::with_known_hosts("example.test", 22, Some(file.path().to_path_buf()));
+
+        let err = handler
+            .verify_server_key(&presented(&key(KEY_B)))
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("HOST IDENTIFICATION HAS CHANGED"),
+            "{err}"
+        );
+        assert_eq!(std::fs::read_to_string(file.path()).unwrap(), before);
+    }
+
+    #[test]
+    fn handler_fails_closed_without_a_known_hosts_location() {
+        let handler = ClientHandler::with_known_hosts("example.test", 22, None);
+        assert!(handler.verify_server_key(&presented(&key(KEY_A))).is_err());
     }
 
     #[test]
