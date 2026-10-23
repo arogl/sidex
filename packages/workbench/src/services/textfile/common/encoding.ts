@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, ReadableStream, newWriteableStream, listenStream } from '@sidex/base/common/stream.js';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '@sidex/base/common/buffer.js';
 import { importAMDNodeModule } from '@sidex/base/amdX.js';
-import { CancellationTokenSource } from '@sidex/base/common/cancellation.js';
 import { coalesce } from '@sidex/base/common/arrays.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '@sidex/base/common/buffer.js';
+import { CancellationTokenSource } from '@sidex/base/common/cancellation.js';
+import { listenStream, newWriteableStream, Readable, ReadableStream } from '@sidex/base/common/stream.js';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -68,8 +68,10 @@ export interface IDecoderStream {
 class DecoderStream implements IDecoderStream {
 	/**
 	 * This stream will only load iconv-lite lazily if the encoding
-	 * is not UTF-8. This ensures that for most common cases we do
-	 * not pay the price of loading the module from disk.
+	 * is not UTF-8 (with or without BOM). This ensures that for most
+	 * common cases we do not pay the price of loading the module from
+	 * disk, and that UTF-8 files open even where the module is not
+	 * available. `TextDecoder` removes a leading BOM by itself.
 	 *
 	 * We still need to be careful when converting UTF-8 to a string
 	 * though because we read the file in chunks of Buffer and thus
@@ -78,7 +80,7 @@ class DecoderStream implements IDecoderStream {
 	 */
 	static async create(encoding: string): Promise<DecoderStream> {
 		let decoder: IDecoderStream | undefined = undefined;
-		if (encoding !== UTF8) {
+		if (encoding !== UTF8 && encoding !== UTF8_with_bom) {
 			const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>(
 				'@vscode/iconv-lite-umd',
 				'lib/iconv-lite-umd.js'
@@ -225,16 +227,78 @@ export function toDecodeStream(
 	});
 }
 
+interface IEncoderStream {
+	write(str: string): Uint8Array;
+	end(): Uint8Array | undefined;
+}
+
+/**
+ * Encodes text to UTF-8 in chunks without iconv-lite. It can add a BOM before
+ * the first bytes, and it holds back a high surrogate at the end of a chunk so
+ * a character split across two chunks is not replaced.
+ */
+class Utf8EncoderStream implements IEncoderStream {
+	private readonly encoder = new TextEncoder();
+	private pendingHighSurrogate = '';
+	private bomPending: boolean;
+
+	constructor(addBOM: boolean) {
+		this.bomPending = addBOM;
+	}
+
+	write(str: string): Uint8Array {
+		let text = this.pendingHighSurrogate + str;
+		this.pendingHighSurrogate = '';
+
+		const last = text.charCodeAt(text.length - 1);
+		if (last >= 0xd800 && last <= 0xdbff) {
+			this.pendingHighSurrogate = text.slice(-1);
+			text = text.slice(0, -1);
+		}
+
+		return this.withBOM(this.encoder.encode(text));
+	}
+
+	end(): Uint8Array | undefined {
+		if (!this.pendingHighSurrogate) {
+			return undefined;
+		}
+
+		// A lone high surrogate becomes U+FFFD, as TextEncoder does for any lone surrogate.
+		const bytes = this.encoder.encode(this.pendingHighSurrogate);
+		this.pendingHighSurrogate = '';
+		return bytes;
+	}
+
+	private withBOM(bytes: Uint8Array): Uint8Array {
+		if (!this.bomPending) {
+			return bytes;
+		}
+
+		this.bomPending = false;
+		const withBom = new Uint8Array(UTF8_BOM.length + bytes.length);
+		withBom.set(UTF8_BOM, 0);
+		withBom.set(bytes, UTF8_BOM.length);
+		return withBom;
+	}
+}
+
 export async function toEncodeReadable(
 	readable: Readable<string>,
 	encoding: string,
 	options?: { addBOM?: boolean }
 ): Promise<VSBufferReadable> {
-	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>(
-		'@vscode/iconv-lite-umd',
-		'lib/iconv-lite-umd.js'
-	);
-	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
+	let encoder: IEncoderStream;
+	if (encoding === UTF8 || encoding === UTF8_with_bom) {
+		// UTF-8 needs no iconv-lite, so it works where the module is not available.
+		encoder = new Utf8EncoderStream(options?.addBOM ?? false);
+	} else {
+		const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>(
+			'@vscode/iconv-lite-umd',
+			'lib/iconv-lite-umd.js'
+		);
+		encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
+	}
 
 	let bytesWritten = false;
 	let done = false;
