@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { resolveAmdNodeModulePath } from '@sidex/base/amdX.js';
 import { build, createServer } from 'vite';
+import { resolveAmdNodeModulePath } from '../../base/src/amdX';
 import { AMD_NODE_MODULES, matchRequest, servedPath, sourcePath } from '../src/amd-node-modules/modules';
 import { amdNodeModulesPlugin } from '../src/amd-node-modules/plugin';
 
