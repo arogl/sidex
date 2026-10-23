@@ -75,9 +75,6 @@ re-evaluate when the blocker clears rather than re-litigating.
   the `manualChunks` worker-isolation walk in `apps/workbench/vite.config.ts`
   (it relies on `getModuleInfo().isEntry` / `.importers`). Revisit when the
   Rolldown chunking API covers that walk.
-- **typescript 6 → 7** — TypeScript 7 is the native Go compiler (`tsgo`),
-  still preview-grade; editor, type-aware lint, and CI toolchains are not
-  ready. Revisit when `tsgo` reaches a stable release with mature tooling.
 - **@xterm/xterm 5 → 6** — the runtime core lags at 5.5.0 while `@xterm/headless`
   and the addons are already on the 6 generation. Bumping the core is not a
   version bump but a terminal-internals port: xterm 6 (#5096) removed the private
