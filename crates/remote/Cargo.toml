@@ -27,6 +27,7 @@ futures-util = "0.3"
 winapi = { version = "0.3", features = ["processthreadsapi"] }
 
 [dev-dependencies]
+rand = { version = "0.10", features = ["thread_rng"] }
 tempfile = "3"
 
 [lints]
