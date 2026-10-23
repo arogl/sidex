@@ -5,8 +5,8 @@
     "": {
       "name": "sidex",
       "dependencies": {
-        "@microsoft/1ds-core-js": "^4.4.3",
-        "@microsoft/1ds-post-js": "^4.4.3",
+        "@microsoft/1ds-core-js": "^4.4.5",
+        "@microsoft/1ds-post-js": "^4.4.5",
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-shell": "^2",
         "@vscode/codicons": "^0.0.45",
@@ -21,7 +21,7 @@
         "@xterm/addon-unicode11": "^0.9.0",
         "@xterm/addon-webgl": "^0.19.0",
         "@xterm/xterm": "^5.5.0",
-        "tas-client": "^0.4.1",
+        "tas-client": "^0.4.6",
         "vscode-oniguruma": "^2.0.1",
         "vscode-textmate": "^9.3.2",
       },
@@ -33,7 +33,7 @@
         "@types/bun": "1.3.14",
         "@types/katex": "^0.16.8",
         "@types/trusted-types": "^2.0.7",
-        "@webgpu/types": "^0.1.71",
+        "@webgpu/types": "^0.1.74",
         "@xterm/headless": "^6.0.0",
         "jschardet": "^3.1.4",
         "lefthook": "2.1.10",
@@ -253,11 +253,11 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.9", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.0.3", "@jridgewell/sourcemap-codec": "^1.4.10" } }, "sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ=="],
 
-    "@microsoft/1ds-core-js": ["@microsoft/1ds-core-js@4.4.3", "", { "dependencies": { "@microsoft/applicationinsights-core-js": "3.4.3", "@microsoft/applicationinsights-shims": "3.0.1", "@microsoft/dynamicproto-js": "^2.0.3", "@nevware21/ts-async": ">= 0.5.5 < 0.6.0", "@nevware21/ts-utils": ">= 0.14.0 < 2.x" } }, "sha512-lKMKpXh39c8fB47O6g3rFyVDUb+nweoJuxwZbnOLKkmE7+LrCVGbS+wpJ6Ylwqh2HeUeWoa2Sv/hg/TKcAxHJQ=="],
+    "@microsoft/1ds-core-js": ["@microsoft/1ds-core-js@4.4.5", "", { "dependencies": { "@microsoft/applicationinsights-core-js": "3.4.5", "@microsoft/applicationinsights-shims": "3.0.1", "@microsoft/dynamicproto-js": "^2.0.3", "@nevware21/ts-async": ">= 0.5.5 < 0.6.0", "@nevware21/ts-utils": ">= 0.14.0 < 2.x" } }, "sha512-3C6damPBgjNFYx89Gve1cBWbASC0bWnkvVm/Ex+nTSht4uDTpcA3HTk0JPg2YQF+07WAsp8CKbEUreo1dSmjfw=="],
 
-    "@microsoft/1ds-post-js": ["@microsoft/1ds-post-js@4.4.3", "", { "dependencies": { "@microsoft/applicationinsights-core-js": "3.4.3", "@microsoft/applicationinsights-shims": "3.0.1", "@microsoft/dynamicproto-js": "^2.0.3", "@nevware21/ts-async": ">= 0.5.5 < 0.6.0", "@nevware21/ts-utils": ">= 0.14.0 < 2.x" } }, "sha512-qKHEU9rtB60b0q2W48hYJZ0mj9u13EuECq3xOCM0GwVIqWuLMxzCAh1PsK4TUvCsINohf135Lrf3c0IXSw4R3w=="],
+    "@microsoft/1ds-post-js": ["@microsoft/1ds-post-js@4.4.5", "", { "dependencies": { "@microsoft/applicationinsights-core-js": "3.4.5", "@microsoft/applicationinsights-shims": "3.0.1", "@microsoft/dynamicproto-js": "^2.0.3", "@nevware21/ts-async": ">= 0.5.5 < 0.6.0", "@nevware21/ts-utils": ">= 0.14.0 < 2.x" } }, "sha512-WmkL8UpBei/8eFWNmwsryxmeAXjvY02MSgzF0Ryl2ur0cQPQio6lztWnMbjsnPVS0WOfdi0ke2r1xu0SdWX5oA=="],
 
-    "@microsoft/applicationinsights-core-js": ["@microsoft/applicationinsights-core-js@3.4.3", "", { "dependencies": { "@microsoft/applicationinsights-shims": "3.0.1", "@microsoft/dynamicproto-js": "^2.0.3", "@nevware21/ts-async": ">= 0.5.5 < 0.6.0", "@nevware21/ts-utils": ">= 0.14.0 < 2.x" }, "peerDependencies": { "tslib": ">= 1.0.0" } }, "sha512-A+wkMLodF4JJsLoEvovgF3jyhKhbh9FNzO97sM7KQkbWUzdK47z4V/NDIETgwbaxw1O1u8mnP2qnp/2Bj9A0Uw=="],
+    "@microsoft/applicationinsights-core-js": ["@microsoft/applicationinsights-core-js@3.4.5", "", { "dependencies": { "@microsoft/applicationinsights-shims": "3.0.1", "@microsoft/dynamicproto-js": "^2.0.3", "@nevware21/ts-async": ">= 0.5.5 < 0.6.0", "@nevware21/ts-utils": ">= 0.14.0 < 2.x" }, "peerDependencies": { "tslib": ">= 1.0.0" } }, "sha512-SFDhIkiiilPszx0u0o9MAzwEZ0gyUmH8NTT1i6fgOeAeqcdLNxwuEznjd3tyekU9/cmByFa4ftiKgxEPBRD7aQ=="],
 
     "@microsoft/applicationinsights-shims": ["@microsoft/applicationinsights-shims@3.0.1", "", { "dependencies": { "@nevware21/ts-utils": ">= 0.9.4 < 2.x" } }, "sha512-DKwboF47H1nb33rSUfjqI6ryX29v+2QWcTrRvcQDA32AZr5Ilkr7whOOSsD1aBzwqX0RJEIP1Z81jfE3NBm/Lg=="],
 
@@ -389,7 +389,7 @@
 
     "@vscode/tree-sitter-wasm": ["@vscode/tree-sitter-wasm@0.3.1", "", {}, "sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ=="],
 
-    "@webgpu/types": ["@webgpu/types@0.1.71", "", {}, "sha512-mMy8/ODcKhab808co15eW+yN+HgXoQxRQHTiBV9Mrvl1r0ufnid7YOcI+gi4eUWSWl9ezD6TW2KXccrL8HCh2A=="],
+    "@webgpu/types": ["@webgpu/types@0.1.74", "", {}, "sha512-lgiI4hbuLcI9unnm2cL/tvCaQU45dp0xcLWJh5uB/9MBGvIA4F8XIk7nSiBeg+K4xWGYwgZKn80LmERI5CxoTA=="],
 
     "@xterm/addon-clipboard": ["@xterm/addon-clipboard@0.2.0", "", { "dependencies": { "js-base64": "^3.7.5" } }, "sha512-Dl31BCtBhLaUEECUbEiVcCLvLBbaeGYdT7NofB8OJkGTD3MWgBsaLjXvfGAD4tQNHhm6mbKyYkR7XD8kiZsdNg=="],
 
@@ -493,7 +493,7 @@
 
     "supports-color": ["supports-color@10.2.2", "", {}, "sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g=="],
 
-    "tas-client": ["tas-client@0.4.1", "", {}, "sha512-cNwPitLm+VvWtUYyZu6YOfP1qwgwRzqTHC7StkhCcI4zHp3l/uRAG+29LV4SpRnagd+jAEKmJFOIV6KwZDiA6w=="],
+    "tas-client": ["tas-client@0.4.6", "", {}, "sha512-mmefC5nu8YZ5zGY4IyeXWnvK6YWv2YCz60/7q5banNU+R8JGZT2Q4lOS4g4xJyvnQIbqBFXzMFPsIitI8kVXqA=="],
 
     "tiny-inflate": ["tiny-inflate@1.0.3", "", {}, "sha512-pkY1fj1cKHb2seWDy0B16HeWyczlJA9/WW3u3c4z/NiWDsO3DOU5D7nhTLE9CF0yXv/QZFY7sEJmj24dK+Rrqw=="],
 
