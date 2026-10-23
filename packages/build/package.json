@@ -14,6 +14,7 @@
   "type": "module",
   "exports": {
     "./nls": "./src/nls/plugin.ts",
+    "./amd-node-modules": "./src/amd-node-modules/plugin.ts",
     "./chunk-manifest": "./src/chunk-manifest/manifest.ts",
     "./codemod": "./src/codemod/rewrite-imports.ts"
   },
