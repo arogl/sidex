@@ -45,7 +45,7 @@ import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
 import { ResourceSet } from '@sidex/base/common/map.js';
 
 export class AITextSearchHeadingImpl extends TextSearchHeadingImpl<IAITextQuery> {
-	public declare hidden: boolean;
+	declare public hidden: boolean;
 	constructor(
 		parent: ISearchResult,
 		@IInstantiationService instantiationService: IInstantiationService,

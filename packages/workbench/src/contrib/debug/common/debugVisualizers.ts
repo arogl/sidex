@@ -120,7 +120,7 @@ export interface IDebugVisualizerService {
 const emptyRef: IReference<DebugVisualizer[]> = { object: [], dispose: () => {} };
 
 export class DebugVisualizerService implements IDebugVisualizerService {
-	public declare readonly _serviceBrand: undefined;
+	declare public readonly _serviceBrand: undefined;
 
 	private readonly handles = new Map</* extId + \0 + vizId */ string, VisualizerHandle>();
 	private readonly trees = new Map</* extId + \0 + treeId */ string, VisualizerTreeHandle>();

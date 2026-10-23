@@ -167,7 +167,7 @@ class CachedDecorations {
 }
 
 export class TestingDecorationService extends Disposable implements ITestingDecorationsService {
-	public declare _serviceBrand: undefined;
+	declare public _serviceBrand: undefined;
 
 	private generation = 0;
 	private readonly changeEmitter = this._register(new Emitter<void>());

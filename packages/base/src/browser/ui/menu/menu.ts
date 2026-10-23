@@ -480,7 +480,7 @@ interface IMenuItemOptions extends IActionViewItemOptions {
 class BaseMenuActionViewItem extends BaseActionViewItem {
 	public container: HTMLElement | undefined;
 
-	protected declare options: IMenuItemOptions;
+	declare protected options: IMenuItemOptions;
 	protected item: HTMLElement | undefined;
 
 	private runOnceToEnableMouseUp: RunOnceScheduler;

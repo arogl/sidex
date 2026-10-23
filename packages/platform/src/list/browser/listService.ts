@@ -931,7 +931,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 }
 
 class ListResourceNavigator<T> extends ResourceNavigator<T> {
-	protected declare readonly widget: List<T> | PagedList<T>;
+	declare protected readonly widget: List<T> | PagedList<T>;
 
 	constructor(widget: List<T> | PagedList<T>, options: IResourceNavigatorOptions) {
 		super(widget, options);
@@ -944,7 +944,7 @@ class ListResourceNavigator<T> extends ResourceNavigator<T> {
 }
 
 class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
-	protected declare readonly widget: Table<TRow>;
+	declare protected readonly widget: Table<TRow>;
 
 	constructor(widget: Table<TRow>, options: IResourceNavigatorOptions) {
 		super(widget, options);
@@ -956,7 +956,7 @@ class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
 }
 
 class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
-	protected declare readonly widget:
+	declare protected readonly widget:
 		| ObjectTree<T, TFilterData>
 		| CompressibleObjectTree<T, TFilterData>
 		| DataTree<any, T, TFilterData>
