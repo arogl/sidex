@@ -626,8 +626,19 @@ impl SshConnectionPool {
         auth: &SshAuth,
         user: &str,
     ) -> Result<client::Handle<ClientHandler>> {
+        Self::do_connect_with(ClientHandler::new(host, port), host, port, auth, user).await
+    }
+
+    /// Connect with an explicit handler, so tests can point host-key checks at a
+    /// temporary `known_hosts` file instead of the real one.
+    async fn do_connect_with(
+        handler: ClientHandler,
+        host: &str,
+        port: u16,
+        auth: &SshAuth,
+        user: &str,
+    ) -> Result<client::Handle<ClientHandler>> {
         let config = Arc::new(client::Config::default());
-        let handler = ClientHandler::new(host, port);
         let mut session = client::connect(config, (host, port), handler)
             .await
             .with_context(|| format!("SSH connect to {host}:{port}"))?;
@@ -1315,5 +1326,249 @@ Host *.example.com
     fn pool_creation() {
         let pool = SshConnectionPool::new(300);
         assert_eq!(pool.max_idle, Duration::from_secs(300));
+    }
+
+    // -----------------------------------------------------------------------
+    // Loopback tests: a real russh server on 127.0.0.1 and the real client code.
+    // -----------------------------------------------------------------------
+
+    use russh::server::{self, Msg, Server as _, Session};
+    use russh::{Channel, ChannelId};
+
+    #[derive(Clone)]
+    struct TestServer {
+        /// Accepted (user, password), if password login is allowed.
+        password: Option<(&'static str, &'static str)>,
+        /// The only public key accepted for key login, if any.
+        authorized_key: Option<PublicKey>,
+    }
+
+    impl server::Server for TestServer {
+        type Handler = Self;
+
+        fn new_client(&mut self, _peer: Option<SocketAddr>) -> Self {
+            self.clone()
+        }
+    }
+
+    impl server::Handler for TestServer {
+        type Error = russh::Error;
+
+        async fn auth_password(
+            &mut self,
+            user: &str,
+            password: &str,
+        ) -> Result<server::Auth, Self::Error> {
+            Ok(match self.password {
+                Some((u, p)) if u == user && p == password => server::Auth::Accept,
+                _ => server::Auth::reject(),
+            })
+        }
+
+        async fn auth_publickey(
+            &mut self,
+            _user: &str,
+            key: &PublicKey,
+        ) -> Result<server::Auth, Self::Error> {
+            Ok(if self.authorized_key.as_ref() == Some(key) {
+                server::Auth::Accept
+            } else {
+                server::Auth::reject()
+            })
+        }
+
+        async fn channel_open_session(
+            &mut self,
+            _channel: Channel<Msg>,
+            reply: server::ChannelOpenHandle,
+            _session: &mut Session,
+        ) -> Result<(), Self::Error> {
+            reply.accept().await;
+            Ok(())
+        }
+
+        async fn exec_request(
+            &mut self,
+            channel: ChannelId,
+            data: &[u8],
+            session: &mut Session,
+        ) -> Result<(), Self::Error> {
+            session.channel_success(channel)?;
+            let reply = format!("ran: {}\n", String::from_utf8_lossy(data));
+            session.data(channel, reply.into_bytes())?;
+            session.exit_status_request(channel, 0)?;
+            session.eof(channel)?;
+            session.close(channel)?;
+            Ok(())
+        }
+    }
+
+    fn new_key() -> PrivateKey {
+        PrivateKey::random(&mut rand::rng(), russh::keys::Algorithm::Ed25519)
+            .expect("generate test key")
+    }
+
+    /// Start a server on a free local port and return that port.
+    async fn start_server(server: TestServer, host_key: PrivateKey) -> u16 {
+        let config = Arc::new(server::Config {
+            keys: vec![host_key],
+            auth_rejection_time: Duration::ZERO,
+            auth_rejection_time_initial: Some(Duration::ZERO),
+            ..Default::default()
+        });
+        let socket = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = socket.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let mut server = server;
+            let _ = server.run_on_socket(config, &socket).await;
+        });
+        port
+    }
+
+    fn password_server() -> TestServer {
+        TestServer {
+            password: Some(("tester", "s3cret")),
+            authorized_key: None,
+        }
+    }
+
+    async fn connect_to(
+        port: u16,
+        auth: &SshAuth,
+        known_hosts: &Path,
+    ) -> Result<client::Handle<ClientHandler>> {
+        let handler =
+            ClientHandler::with_known_hosts("127.0.0.1", port, Some(known_hosts.to_path_buf()));
+        SshConnectionPool::do_connect_with(handler, "127.0.0.1", port, auth, "tester").await
+    }
+
+    fn transport_for(handle: client::Handle<ClientHandler>, port: u16) -> SshTransport {
+        SshTransport {
+            session: Arc::new(Mutex::new(handle)),
+            host: "127.0.0.1".to_string(),
+            port,
+            user: "tester".to_string(),
+            env_vars: Arc::new(Mutex::new(HashMap::new())),
+            keepalive_handle: None,
+        }
+    }
+
+    fn password(pw: &str) -> SshAuth {
+        SshAuth::Password(pw.to_string())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn password_login_then_exec_returns_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let known_hosts = dir.path().join("known_hosts");
+        let port = start_server(password_server(), new_key()).await;
+
+        let handle = connect_to(port, &password("s3cret"), &known_hosts)
+            .await
+            .expect("login should succeed");
+        let out = transport_for(handle, port).exec("echo hi").await.unwrap();
+        assert_eq!(out.stdout, "ran: echo hi\n");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn wrong_password_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let known_hosts = dir.path().join("known_hosts");
+        let port = start_server(password_server(), new_key()).await;
+
+        let err = connect_to(port, &password("wrong"), &known_hosts)
+            .await
+            .err()
+            .expect("login should fail");
+        assert!(
+            format!("{err:#}").contains("authentication failed"),
+            "{err:#}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn key_file_login_works_for_the_authorized_key_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let known_hosts = dir.path().join("known_hosts");
+        let client_key = new_key();
+        let server = TestServer {
+            password: None,
+            authorized_key: Some(client_key.public_key().clone()),
+        };
+        let port = start_server(server, new_key()).await;
+
+        let write_key = |name: &str, key: &PrivateKey| {
+            let path = dir.path().join(name);
+            let pem = key
+                .to_openssh(russh::keys::ssh_key::LineEnding::LF)
+                .unwrap();
+            std::fs::write(&path, pem.as_bytes()).unwrap();
+            SshAuth::KeyFile {
+                path,
+                passphrase: None,
+            }
+        };
+
+        connect_to(port, &write_key("good", &client_key), &known_hosts)
+            .await
+            .expect("authorized key should log in");
+
+        let err = connect_to(port, &write_key("other", &new_key()), &known_hosts)
+            .await
+            .err()
+            .expect("an unknown key must be rejected");
+        assert!(
+            format!("{err:#}").contains("authentication failed"),
+            "{err:#}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn first_connection_saves_the_host_key_and_the_second_trusts_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let known_hosts = dir.path().join("known_hosts");
+        let port = start_server(password_server(), new_key()).await;
+
+        connect_to(port, &password("s3cret"), &known_hosts)
+            .await
+            .expect("first connection");
+        let saved = std::fs::read_to_string(&known_hosts).unwrap();
+        // russh starts a new file with a blank line, so look for the entry, not the start.
+        assert!(
+            saved
+                .lines()
+                .any(|l| l.starts_with(&format!("[127.0.0.1]:{port} ssh-ed25519 "))),
+            "{saved}"
+        );
+
+        connect_to(port, &password("s3cret"), &known_hosts)
+            .await
+            .expect("second connection");
+        assert_eq!(std::fs::read_to_string(&known_hosts).unwrap(), saved);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn changed_host_key_is_refused_before_any_login() {
+        let dir = tempfile::tempdir().unwrap();
+        let known_hosts = dir.path().join("known_hosts");
+        let port = start_server(password_server(), new_key()).await;
+
+        // Record a different key for this host, as if the server had been replaced.
+        let recorded = format!(
+            "[127.0.0.1]:{port} {}\n",
+            new_key().public_key().to_openssh().unwrap()
+        );
+        std::fs::write(&known_hosts, &recorded).unwrap();
+
+        // The password is correct, so only the host key can cause the failure.
+        let err = connect_to(port, &password("s3cret"), &known_hosts)
+            .await
+            .err()
+            .expect("a changed host key must be refused");
+        assert!(
+            format!("{err:#}").contains("HOST IDENTIFICATION HAS CHANGED"),
+            "{err:#}"
+        );
+        assert_eq!(std::fs::read_to_string(&known_hosts).unwrap(), recorded);
     }
 }
