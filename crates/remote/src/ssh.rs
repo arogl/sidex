@@ -1394,9 +1394,17 @@ Host *.example.com
             session: &mut Session,
         ) -> Result<(), Self::Error> {
             session.channel_success(channel)?;
-            let reply = format!("ran: {}\n", String::from_utf8_lossy(data));
-            session.data(channel, reply.into_bytes())?;
-            session.exit_status_request(channel, 0)?;
+            let command = String::from_utf8_lossy(data);
+            if command.contains("fail") {
+                // A failing command writes to both streams and exits non-zero.
+                session.data(channel, b"partial\n".to_vec())?;
+                session.extended_data(channel, 1, b"boom\n".to_vec())?;
+                session.exit_status_request(channel, 3)?;
+            } else {
+                let reply = format!("ran: {command}\n");
+                session.data(channel, reply.into_bytes())?;
+                session.exit_status_request(channel, 0)?;
+            }
             session.eof(channel)?;
             session.close(channel)?;
             Ok(())
@@ -1468,6 +1476,7 @@ Host *.example.com
             .expect("login should succeed");
         let out = transport_for(handle, port).exec("echo hi").await.unwrap();
         assert_eq!(out.stdout, "ran: echo hi\n");
+        assert_eq!(out.exit_code, 0);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1570,5 +1579,41 @@ Host *.example.com
             "{err:#}"
         );
         assert_eq!(std::fs::read_to_string(&known_hosts).unwrap(), recorded);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn exec_reports_the_exit_code_and_stderr_of_a_failing_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let known_hosts = dir.path().join("known_hosts");
+        let port = start_server(password_server(), new_key()).await;
+        let handle = connect_to(port, &password("s3cret"), &known_hosts)
+            .await
+            .unwrap();
+        let transport = transport_for(handle, port);
+
+        let out = transport.exec("fail please").await.unwrap();
+        assert_eq!(out.exit_code, 3);
+        assert_eq!(out.stdout, "partial\n");
+        assert_eq!(out.stderr, "boom\n");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn file_operations_succeed_on_exit_zero_and_report_stderr_on_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let known_hosts = dir.path().join("known_hosts");
+        let port = start_server(password_server(), new_key()).await;
+        let handle = connect_to(port, &password("s3cret"), &known_hosts)
+            .await
+            .unwrap();
+        let transport = transport_for(handle, port);
+
+        // The fake server answers `ran: <command>`, so a successful read
+        // returns that text. Before the exit-code fix every read failed.
+        let ok = transport.read_file("/etc/hostname").await.unwrap();
+        assert!(String::from_utf8(ok).unwrap().starts_with("ran: "));
+        transport.write_file("/tmp/x", b"data").await.unwrap();
+
+        let err = transport.read_file("/fail/me").await.unwrap_err();
+        assert!(format!("{err:#}").contains("boom"), "{err:#}");
     }
 }
