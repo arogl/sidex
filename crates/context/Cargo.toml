@@ -16,7 +16,8 @@ tokio = { workspace = true }
 ignore = { workspace = true }
 reqwest = { workspace = true, features = ["blocking", "json"] }
 rusqlite = { workspace = true }
-sha2 = "0.10"
+sha2 = "0.11"
+hex = "0.4"
 notify = { workspace = true }
 
 tree-sitter-rust = "0.23"
