@@ -52,23 +52,10 @@ jobs:
         #
         # Ignored advisories are accepted, tracked tech-debt:
         #   RUSTSEC-2023-0071      rsa Marvin attack — no fixed upstream release
-        #   RUSTSEC-2026-0194/0195 quick-xml <0.41 via plist←tauri — blocked
-        #                          upstream; input is our bundled plist/tmLanguage
-        #                          (trusted), so real-world risk is low
-        #   RUSTSEC-2026-0153/0154 russh <0.60 (crates/remote) — breaking upgrade
-        #   RUSTSEC-2026-0114/0149/0182/0188 wasmtime 43 (apps/desktop extension
-        #                          host) — breaking major upgrade
+        #                          (reached through russh and ssh-key)
         run: >
           cargo audit --file Cargo.lock
           --ignore RUSTSEC-2023-0071
-          --ignore RUSTSEC-2026-0194
-          --ignore RUSTSEC-2026-0195
-          --ignore RUSTSEC-2026-0153
-          --ignore RUSTSEC-2026-0154
-          --ignore RUSTSEC-2026-0114
-          --ignore RUSTSEC-2026-0149
-          --ignore RUSTSEC-2026-0182
-          --ignore RUSTSEC-2026-0188
 
   bun-audit:
     name: bun audit
