@@ -75,17 +75,6 @@ re-evaluate when the blocker clears rather than re-litigating.
   the `manualChunks` worker-isolation walk in `apps/workbench/vite.config.ts`
   (it relies on `getModuleInfo().isEntry` / `.importers`). Revisit when the
   Rolldown chunking API covers that walk.
-- **@xterm/xterm 5 → 6** — the runtime core lags at 5.5.0 while `@xterm/headless`
-  and the addons are already on the 6 generation. Bumping the core is not a
-  version bump but a terminal-internals port: xterm 6 (#5096) removed the private
-  `Viewport` internals this codebase reaches through `_core` — `_innerRefresh()`
-  (our `forceRefresh()` caller is dead code) and `scrollBarWidth` (a live consumer
-  in `terminalStickyScrollOverlay.ts` uses it for layout, with no public
-  replacement). Downgrading `@xterm/headless` back to 5.x is also not viable — the
-  terminal capability layer already depends on headless-6-only APIs
-  (`onWriteParsed`, `scrollOnEraseInDisplay`). Revisit as a scoped port mirroring
-  upstream VS Code's xterm-6 adoption (`Viewport.queueSync()` plus the
-  scrollbar-width handling).
 
 ## Runtime smoke checklist
 
