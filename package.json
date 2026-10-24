@@ -1,7 +1,7 @@
 {
   "name": "sidex",
   "version": "0.1.3",
-  "packageManager": "bun@1.3.14",
+  "packageManager": "bun@1.4.4",
   "private": true,
   "description": "VS Code's workbench ported to Tauri (Rust backend + OS-native webview).",
   "keywords": ["editor", "ide", "tauri", "vscode", "webview"],
