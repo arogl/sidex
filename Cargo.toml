@@ -63,7 +63,7 @@ portable-pty = "0.9"
 vte = "0.13"
 
 # Database
-rusqlite = { version = "0.31", features = ["bundled", "backup"] }
+rusqlite = { version = "0.40", features = ["bundled", "backup"] }
 
 # Remote
 russh = "0.64.1"
