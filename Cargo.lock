@@ -7609,7 +7609,7 @@ dependencies = [
  "native-tls",
  "rand",
  "sha1",
- "thiserror 2.0.18",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -7706,12 +7706,6 @@ dependencies = [
  "serde",
  "url",
 ]
-
-[[package]]
-name = "utf-8"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
 name = "utf8_iter"
@@ -8233,7 +8227,7 @@ dependencies = [
  "bytes",
  "cap-primitives",
  "futures",
- "rand 0.10.3",
+ "rand",
  "rustix 1.1.5",
  "rustix-linux-procfs",
  "thiserror 2.0.21",
