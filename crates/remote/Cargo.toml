@@ -18,7 +18,7 @@ russh = { workspace = true }
 bollard = { workspace = true }
 tokio-tungstenite = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
-dirs = "5"
+dirs = "7"
 async-trait = "0.1"
 tar = "0.4"
 futures-util = "0.3"

@@ -19,10 +19,10 @@ reqwest = { workspace = true, features = ["json", "gzip", "brotli"] }
 zip = "9"
 tempfile = "3"
 toml = "0.8"
-dirs = "6"
+dirs = "7"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
-which = "7"
+which = "8"
 
 [lints]
 workspace = true
