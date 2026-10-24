@@ -89,13 +89,13 @@ open = "5"
 url = "2"
 
 # WASM extension runtime
-wasmtime = { version = "49", default-features = false, features = [
+wasmtime = { version = "50", default-features = false, features = [
   "runtime",
   "component-model",
   "cranelift",
   "async",
 ] }
-wasmtime-wasi = "49"
+wasmtime-wasi = "50"
 toml = "0.8"
 anyhow = "1"
 sidex-db = { path = "../../crates/db" }
@@ -133,10 +133,10 @@ libc = "0.2"
 
 [dev-dependencies]
 # Used by the WASM runtime tests to build extension components from the WIT world.
-wasm-encoder = "0.258"
-wasmparser = "0.258"
-wit-component = { version = "0.258", features = ["dummy-module"] }
-wit-parser = "0.258"
+wasm-encoder = "0.262"
+wasmparser = "0.262"
+wit-component = { version = "0.262", features = ["dummy-module"] }
+wit-parser = "0.262"
 
 [lints.rust]
 unsafe_code = "deny"

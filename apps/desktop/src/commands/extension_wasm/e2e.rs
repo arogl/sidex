@@ -46,7 +46,7 @@ fn build_component(trapping: &[&str]) -> Vec<u8> {
 
     let dummy = dummy_module(&resolve, world, ManglingAndAbi::Standard32);
     let mut core = default_bodies(&dummy, trapping);
-    embed_component_metadata(&mut core, &resolve, world, StringEncoding::UTF8)
+    embed_component_metadata(&mut core, &resolve, world, StringEncoding::UTF8, false)
         .expect("embed component metadata");
     ComponentEncoder::default()
         .module(&core)
