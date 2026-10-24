@@ -1,6 +1,6 @@
 use crate::commands::extension_platform::{read_extension_manifest, ExtensionManifest};
-use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
+use base64::Engine as _;
 use serde::Serialize;
 use sidex_extensions::contributions::{parse_contributions, ContributionPoint};
 use sidex_extensions::installer::{
@@ -84,7 +84,7 @@ pub async fn install_extension(vsix_path: String) -> Result<InstalledExtension, 
 /// This is the authoritative fallback for platform detection. The frontend
 /// resolves `targetPlatform` at runtime from `navigator.userAgent` and a
 /// WebGL-based architecture probe (see `index.html` / `public/sidex-env.js`),
-/// which can be wrong in WKWebView - e.g. when `WEBGL_debug_renderer_info` is
+/// which can be wrong in `WKWebView` - e.g. when `WEBGL_debug_renderer_info` is
 /// disabled the architecture is misdetected, and when detection fails the
 /// platform resolves to `UNKNOWN`. A wrong value causes the gallery to
 /// select a version built for a different OS (e.g. `linux-x64` on macOS), and
@@ -120,9 +120,7 @@ fn extract_target_platform(url: &str) -> Option<&str> {
     let start = idx + key.len();
     let rest = &url[start..];
     // Value runs until the next query separator (`&`), fragment (`#`), or end.
-    let end = rest
-        .find(|c: char| c == '&' || c == '#')
-        .unwrap_or(rest.len());
+    let end = rest.find(['&', '#']).unwrap_or(rest.len());
     Some(&rest[..end])
 }
 
@@ -134,9 +132,7 @@ fn replace_target_platform(url: &str, new_platform: &str) -> String {
     };
     let start = idx + key.len();
     let rest = &url[start..];
-    let end = rest
-        .find(|c: char| c == '&' || c == '#')
-        .unwrap_or(rest.len());
+    let end = rest.find(['&', '#']).unwrap_or(rest.len());
     let mut result = String::with_capacity(url.len() + new_platform.len());
     result.push_str(&url[..start]);
     result.push_str(new_platform);
@@ -469,8 +465,14 @@ mod tests {
         let rewritten = rewrite_proxy_vsix_platform(&url, "darwin-arm64");
         assert_ne!(rewritten, url, "URL should change");
         let decoded = decoded_inner(&rewritten);
-        assert!(decoded.contains("darwin-arm64"), "decoded should contain new platform");
-        assert!(!decoded.contains("alpine-arm64"), "decoded should not contain old platform");
+        assert!(
+            decoded.contains("darwin-arm64"),
+            "decoded should contain new platform"
+        );
+        assert!(
+            !decoded.contains("alpine-arm64"),
+            "decoded should not contain old platform"
+        );
     }
 
     #[test]
@@ -496,6 +498,9 @@ mod tests {
             "https://marketplace.siden.ai/api/asset/openvsx/vsix-{b64}/Microsoft.VisualStudio.Services.VSIXPackage"
         );
         let rewritten = rewrite_proxy_vsix_platform(&url, "darwin-arm64");
-        assert_eq!(rewritten, url, "URL without @platform suffix should be unchanged");
+        assert_eq!(
+            rewritten, url,
+            "URL without @platform suffix should be unchanged"
+        );
     }
 }

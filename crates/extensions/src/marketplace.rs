@@ -275,7 +275,7 @@ struct CachedQuery {
 /// platform (e.g. Linux ARM64 on macOS), causing `ENOEXEC` errors when the
 /// extension tries to execute its bundled native binaries.
 ///
-/// Reference: https://open-vsx.org/api/-/search?targetPlatform=...
+/// Reference: <https://open-vsx.org/api/-/search?targetPlatform=...>
 pub fn current_target_platform() -> &'static str {
     if cfg!(target_os = "macos") {
         if cfg!(target_arch = "aarch64") {
