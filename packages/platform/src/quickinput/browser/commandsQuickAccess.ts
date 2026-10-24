@@ -66,7 +66,7 @@ export abstract class AbstractCommandsQuickAccessProvider
 
 	private readonly commandsHistory: CommandsHistory;
 
-	protected declare readonly options: ICommandsQuickAccessOptions;
+	declare protected readonly options: ICommandsQuickAccessOptions;
 
 	constructor(
 		options: ICommandsQuickAccessOptions,

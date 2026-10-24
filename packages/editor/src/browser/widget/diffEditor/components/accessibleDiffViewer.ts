@@ -86,7 +86,7 @@ export interface IAccessibleDiffViewerModel {
 
 export class AccessibleDiffViewer extends Disposable {
 	public static _ttPolicy = createTrustedTypesPolicy('diffReview', { createHTML: value => value });
-	private declare readonly _state: IObservable<{ model: ViewModel; view: View } | null>;
+	declare private readonly _state: IObservable<{ model: ViewModel; view: View } | null>;
 
 	constructor(
 		private readonly _parentNode: HTMLElement,

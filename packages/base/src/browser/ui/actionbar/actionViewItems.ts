@@ -307,7 +307,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 
 export class ActionViewItem extends BaseActionViewItem {
 	protected label: HTMLElement | undefined;
-	protected declare readonly options: IActionViewItemOptions;
+	declare protected readonly options: IActionViewItemOptions;
 
 	private cssClass?: string;
 

@@ -24,7 +24,7 @@ const module = { exports };
 		function t(n) {
 			if (r[n]) return r[n].exports;
 			var o = (r[n] = { i: n, l: !1, exports: {} });
-			return e[n].call(o.exports, o, o.exports, t), (o.l = !0), o.exports;
+			return (e[n].call(o.exports, o, o.exports, t), (o.l = !0), o.exports);
 		}
 		return (
 			(t.m = e),
@@ -62,7 +62,7 @@ const module = { exports };
 						: function () {
 								return e;
 							};
-				return t.d(r, 'a', r), r;
+				return (t.d(r, 'a', r), r);
 			}),
 			(t.o = function (e, r) {
 				return Object.prototype.hasOwnProperty.call(e, r);
@@ -295,7 +295,7 @@ const module = { exports };
 							default:
 								throw new Error('invalid increment argument: ' + e);
 						}
-						return this.format(), (this.raw = this.version), this;
+						return (this.format(), (this.raw = this.version), this);
 					}),
 					(r.inc = function (e, r, t, n) {
 						'string' == typeof t && ((n = t), (t = void 0));
@@ -320,7 +320,7 @@ const module = { exports };
 				function K(e, r) {
 					var t = J.test(e),
 						n = J.test(r);
-					return t && n && ((e = +e), (r = +r)), t && !n ? -1 : n && !t ? 1 : e < r ? -1 : e > r ? 1 : 0;
+					return (t && n && ((e = +e), (r = +r)), t && !n ? -1 : n && !t ? 1 : e < r ? -1 : e > r ? 1 : 0);
 				}
 				function Q(e, r, t) {
 					return new H(e, t).compare(new H(r, t));
@@ -538,8 +538,8 @@ const module = { exports };
 					(ie.prototype.intersects = function (e, r) {
 						if (!(e instanceof ie)) throw new TypeError('a Comparator is required');
 						var t;
-						if ('' === this.operator) return (t = new ae(e.value, r)), fe(this.value, t, r);
-						if ('' === e.operator) return (t = new ae(this.value, r)), fe(e.semver, t, r);
+						if ('' === this.operator) return ((t = new ae(e.value, r)), fe(this.value, t, r));
+						if ('' === e.operator) return ((t = new ae(this.value, r)), fe(e.semver, t, r));
 						var n = !(('>=' !== this.operator && '>' !== this.operator) || ('>=' !== e.operator && '>' !== e.operator)),
 							o = !(('<=' !== this.operator && '<' !== this.operator) || ('<=' !== e.operator && '<' !== e.operator)),
 							i = this.semver.version === e.semver.version,
@@ -714,7 +714,7 @@ const module = { exports };
 											})(e, r)),
 											n('xrange', e),
 											(e = (function (e, r) {
-												return n('replaceStars', e, r), e.trim().replace(s[B], '');
+												return (n('replaceStars', e, r), e.trim().replace(s[B], ''));
 											})(e, r)),
 											n('stars', e),
 											e
@@ -812,7 +812,7 @@ const module = { exports };
 						return t && t.prerelease.length ? t.prerelease : null;
 					}),
 					(r.intersects = function (e, r, t) {
-						return (e = new ae(e, t)), (r = new ae(r, t)), e.intersects(r);
+						return ((e = new ae(e, t)), (r = new ae(r, t)), e.intersects(r));
 					}),
 					(r.coerce = function (e) {
 						if (e instanceof H) return e;
@@ -834,7 +834,7 @@ const module = { exports };
 			}
 			function a(e) {
 				if (t === setTimeout) return setTimeout(e, 0);
-				if ((t === i || !t) && setTimeout) return (t = setTimeout), setTimeout(e, 0);
+				if ((t === i || !t) && setTimeout) return ((t = setTimeout), setTimeout(e, 0));
 				try {
 					return t(e, 0);
 				} catch (r) {
@@ -876,7 +876,7 @@ const module = { exports };
 						(p = !1),
 						(function (e) {
 							if (n === clearTimeout) return clearTimeout(e);
-							if ((n === s || !n) && clearTimeout) return (n = clearTimeout), clearTimeout(e);
+							if ((n === s || !n) && clearTimeout) return ((n = clearTimeout), clearTimeout(e));
 							try {
 								n(e);
 							} catch (r) {
