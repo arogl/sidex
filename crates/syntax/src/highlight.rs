@@ -920,7 +920,7 @@ impl Highlighter {
         let mut spans: Vec<(usize, usize, u32)> = Vec::new();
         let mut matches = cursor.matches(&config.query, root, source.as_bytes());
         while let Some(m) = matches.next() {
-            for capture in m.captures {
+            for capture in m.captures() {
                 let node = capture.node;
                 let start = node.start_byte();
                 let end = node.end_byte();
