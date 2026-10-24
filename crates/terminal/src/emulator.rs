@@ -66,25 +66,23 @@ impl TerminalEmulator {
     }
 
     pub fn process(&mut self, bytes: &[u8]) {
-        for &byte in bytes {
-            let mut performer = Performer {
-                grid: &mut self.grid,
-                pen: &mut self.pen,
-                saved_cursor: &mut self.saved_cursor,
-                title: &mut self.title,
-                cursor_visible: &mut self.cursor_visible,
-                auto_wrap: &mut self.auto_wrap,
-                origin_mode: &mut self.origin_mode,
-                application_cursor_keys: &mut self.application_cursor_keys,
-                bracketed_paste: &mut self.bracketed_paste,
-                mouse_tracking: &mut self.mouse_tracking,
-                focus_events: &mut self.focus_events,
-                alternate_grid: &mut self.alternate_grid,
-                alternate_saved_cursor: &mut self.alternate_saved_cursor,
-                current_hyperlink: &mut self.current_hyperlink,
-            };
-            self.parser.advance(&mut performer, byte);
-        }
+        let mut performer = Performer {
+            grid: &mut self.grid,
+            pen: &mut self.pen,
+            saved_cursor: &mut self.saved_cursor,
+            title: &mut self.title,
+            cursor_visible: &mut self.cursor_visible,
+            auto_wrap: &mut self.auto_wrap,
+            origin_mode: &mut self.origin_mode,
+            application_cursor_keys: &mut self.application_cursor_keys,
+            bracketed_paste: &mut self.bracketed_paste,
+            mouse_tracking: &mut self.mouse_tracking,
+            focus_events: &mut self.focus_events,
+            alternate_grid: &mut self.alternate_grid,
+            alternate_saved_cursor: &mut self.alternate_saved_cursor,
+            current_hyperlink: &mut self.current_hyperlink,
+        };
+        self.parser.advance(&mut performer, bytes);
     }
 
     pub fn grid(&self) -> &TerminalGrid {

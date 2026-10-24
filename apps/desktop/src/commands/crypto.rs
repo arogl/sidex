@@ -10,7 +10,7 @@ const HASH_BUF_SIZE: usize = 64 * 1024;
 pub fn sha256_hash(data: Vec<u8>) -> String {
     let mut hasher = Sha256::new();
     hasher.update(&data);
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 #[allow(clippy::needless_pass_by_value, clippy::large_stack_arrays)]
@@ -31,7 +31,7 @@ pub fn sha256_file(path: String) -> Result<String, String> {
         hasher.update(&buf[..n]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -58,7 +58,7 @@ pub fn md5_file(path: String) -> Result<String, String> {
         context.consume(&buf[..n]);
     }
 
-    Ok(format!("{:x}", context.compute()))
+    Ok(format!("{:x}", context.finalize()))
 }
 
 #[tauri::command]
@@ -141,8 +141,8 @@ pub fn file_hashes(path: String) -> Result<FileHashInfo, String> {
 
     Ok(FileHashInfo {
         path,
-        sha256: format!("{:x}", sha256_hasher.finalize()),
-        md5: format!("{:x}", md5_context.compute()),
+        sha256: hex::encode(sha256_hasher.finalize()),
+        md5: format!("{:x}", md5_context.finalize()),
         size: file_size,
     })
 }
@@ -165,5 +165,52 @@ mod random_bytes_tests {
     #[test]
     fn two_draws_differ() {
         assert_ne!(random_bytes(32), random_bytes(32));
+    }
+}
+
+#[cfg(test)]
+mod hash_tests {
+    use super::*;
+
+    const SHA256_ABC: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    const MD5_ABC: &str = "900150983cd24fb0d6963f7d28e17f72";
+
+    fn abc_file() -> (std::path::PathBuf, String) {
+        let path = std::env::temp_dir().join(format!("sidex-crypto-{}.txt", uuid_v4()));
+        std::fs::write(&path, b"abc").unwrap();
+        let name = path.to_string_lossy().into_owned();
+        (path, name)
+    }
+
+    #[test]
+    fn sha256_of_bytes_matches_known_vector() {
+        assert_eq!(sha256_hash(b"abc".to_vec()), SHA256_ABC);
+    }
+
+    #[test]
+    fn md5_of_bytes_matches_known_vector() {
+        assert_eq!(md5_hash(b"abc".to_vec()), MD5_ABC);
+    }
+
+    #[test]
+    fn file_hashes_match_known_vectors() {
+        let (path, name) = abc_file();
+        assert_eq!(sha256_file(name.clone()).unwrap(), SHA256_ABC);
+        assert_eq!(md5_file(name.clone()).unwrap(), MD5_ABC);
+        let info = file_hashes(name).unwrap();
+        assert_eq!(info.sha256, SHA256_ABC);
+        assert_eq!(info.md5, MD5_ABC);
+        assert_eq!(info.size, 3);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn base64_round_trips() {
+        let data = vec![0u8, 1, 2, 250, 251, 252, 253, 254, 255];
+        assert_eq!(base64_decode(base64_encode(data.clone())).unwrap(), data);
+        assert_eq!(
+            base64_decode_urlsafe(base64_encode_urlsafe(data.clone())).unwrap(),
+            data
+        );
     }
 }

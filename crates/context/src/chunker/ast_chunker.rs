@@ -259,7 +259,7 @@ fn extract_signature(content: &str) -> Option<String> {
 fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 fn compute_content_hash(content: &str) -> String {

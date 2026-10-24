@@ -17,8 +17,8 @@ regex = { workspace = true }
 bitflags = "2"
 thiserror = "2"
 log = "0.4"
-which = "7"
-dirs = "6"
+which = "8"
+dirs = "7"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
