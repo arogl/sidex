@@ -409,7 +409,7 @@ async fn run_agent_session(
     });
 
     write
-        .send(Message::Text(payload.to_string()))
+        .send(Message::Text(payload.to_string().into()))
         .await
         .map_err(|e| format!("Send failed: {e}"))?;
 

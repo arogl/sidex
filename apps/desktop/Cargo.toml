@@ -59,7 +59,7 @@ sha2 = "0.10"
 dotenvy = "0.15"
 md5 = "0.7"
 uuid = { version = "1", features = ["v4"] }
-rand = "0.8"
+rand = "0.10"
 chrono = "0.4"
 
 # Path utilities
@@ -79,7 +79,7 @@ which = "6"
 crossbeam = "0.8"
 
 # WebSocket for orchestration
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 futures-util = "0.3"
 
 # Extension API helpers

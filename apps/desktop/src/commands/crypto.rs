@@ -63,9 +63,9 @@ pub fn md5_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn random_bytes(length: usize) -> Vec<u8> {
-    use rand::RngCore;
+    use rand::Rng;
     let mut bytes = vec![0u8; length.min(65536)];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     bytes
 }
 
@@ -145,4 +145,25 @@ pub fn file_hashes(path: String) -> Result<FileHashInfo, String> {
         md5: format!("{:x}", md5_context.compute()),
         size: file_size,
     })
+}
+
+#[cfg(test)]
+mod random_bytes_tests {
+    use super::random_bytes;
+
+    #[test]
+    fn returns_the_requested_length() {
+        assert_eq!(random_bytes(0).len(), 0);
+        assert_eq!(random_bytes(32).len(), 32);
+    }
+
+    #[test]
+    fn caps_the_length_at_65536() {
+        assert_eq!(random_bytes(1_000_000).len(), 65536);
+    }
+
+    #[test]
+    fn two_draws_differ() {
+        assert_ne!(random_bytes(32), random_bytes(32));
+    }
 }
