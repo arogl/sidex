@@ -7,12 +7,13 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
-use bollard::container::{
-    Config as ContainerConfig, CreateContainerOptions, LogOutput, RemoveContainerOptions,
-    StartContainerOptions, StopContainerOptions,
-};
+use bollard::container::LogOutput;
 use bollard::exec::{CreateExecOptions, StartExecResults};
-use bollard::image::BuildImageOptions;
+use bollard::models::{ContainerCreateBody, ContainerSummaryStateEnum};
+use bollard::query_parameters::{
+    BuildImageOptionsBuilder, CreateContainerOptionsBuilder, ListContainersOptionsBuilder,
+    RemoveContainerOptionsBuilder, StartContainerOptions, StopContainerOptionsBuilder,
+};
 use bollard::Docker;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -198,23 +199,20 @@ impl DevContainerConnection {
 /// List all Docker containers managed by `SideX`.
 pub async fn list_containers() -> Result<Vec<ContainerInfo>> {
     let docker = Docker::connect_with_local_defaults().context("connecting to Docker")?;
-    let opts = bollard::container::ListContainersOptions::<String> {
-        all: true,
-        filters: {
-            let mut f = HashMap::new();
-            f.insert("name".to_string(), vec!["sidex-".to_string()]);
-            f
-        },
-        ..Default::default()
-    };
+    let mut filters = HashMap::new();
+    filters.insert("name", vec!["sidex-"]);
+    let opts = ListContainersOptionsBuilder::default()
+        .all(true)
+        .filters(&filters)
+        .build();
     let containers = docker.list_containers(Some(opts)).await?;
     let mut result = Vec::new();
     for c in containers {
-        let status = match c.state.as_deref() {
-            Some("running") => ContainerStatus::Running,
-            Some("exited") => ContainerStatus::Exited,
-            Some("created") => ContainerStatus::Creating,
-            Some("removing") => ContainerStatus::Removing,
+        let status = match c.state {
+            Some(ContainerSummaryStateEnum::RUNNING) => ContainerStatus::Running,
+            Some(ContainerSummaryStateEnum::EXITED) => ContainerStatus::Exited,
+            Some(ContainerSummaryStateEnum::CREATED) => ContainerStatus::Creating,
+            Some(ContainerSummaryStateEnum::REMOVING) => ContainerStatus::Removing,
             _ => ContainerStatus::Stopped,
         };
         let ports = c
@@ -502,7 +500,7 @@ impl ContainerTransport {
             Self::create_container_inner(&docker, &image, workspace_path, config, user).await?;
 
         docker
-            .start_container(&id, None::<StartContainerOptions<String>>)
+            .start_container(&id, None::<StartContainerOptions>)
             .await
             .context("starting container")?;
 
@@ -593,20 +591,19 @@ impl ContainerTransport {
         config: &DevContainerConfig,
         context_path: &Path,
     ) -> Result<String> {
-        use bollard::models::BuildInfo;
+        use bollard::models::{BuildInfo, ErrorDetail};
         use futures_util::StreamExt;
 
         let tag = format!("sidex-devcontainer:{:x}", fxhash(context_path));
         let dockerfile = config.dockerfile.as_deref().unwrap_or("Dockerfile");
 
-        let opts = BuildImageOptions {
-            dockerfile: dockerfile.to_string(),
-            t: tag.clone(),
-            ..Default::default()
-        };
+        let opts = BuildImageOptionsBuilder::default()
+            .dockerfile(dockerfile)
+            .t(&tag)
+            .build();
 
         let tar_bytes = tar_directory(context_path)?;
-        let mut stream = docker.build_image(opts, None, Some(tar_bytes.into()));
+        let mut stream = docker.build_image(opts, None, Some(bollard::body_full(tar_bytes.into())));
 
         while let Some(msg) = stream.next().await {
             match msg {
@@ -615,7 +612,12 @@ impl ContainerTransport {
                     ..
                 }) => log::debug!("{}", s.trim_end()),
                 Ok(BuildInfo {
-                    error: Some(ref e), ..
+                    error_detail:
+                        Some(ErrorDetail {
+                            message: Some(ref e),
+                            ..
+                        }),
+                    ..
                 }) => bail!("docker build error: {e}"),
                 Err(e) => bail!("docker build stream error: {e}"),
                 _ => {}
@@ -637,11 +639,10 @@ impl ContainerTransport {
             binds.push(format!("{}:{}:{}", m.source, m.target, m.r#type));
         }
 
-        #[allow(clippy::zero_sized_map_values)]
-        let exposed: HashMap<String, HashMap<(), ()>> = config
+        let exposed: Vec<String> = config
             .forward_ports
             .iter()
-            .map(|p| (format!("{p}/tcp"), HashMap::new()))
+            .map(|p| format!("{p}/tcp"))
             .collect();
 
         let mut env_vec: Vec<String> = config
@@ -673,7 +674,7 @@ impl ContainerTransport {
             ..Default::default()
         };
 
-        let container_config = ContainerConfig {
+        let container_config = ContainerCreateBody {
             image: Some(image.to_string()),
             cmd: Some(vec!["sleep".to_string(), "infinity".to_string()]),
             working_dir: Some("/workspace".to_string()),
@@ -689,10 +690,7 @@ impl ContainerTransport {
         };
 
         let name = format!("sidex-{:x}", fxhash(workspace_path));
-        let opts = CreateContainerOptions {
-            name: name.clone(),
-            platform: None,
-        };
+        let opts = CreateContainerOptionsBuilder::default().name(&name).build();
         let resp = docker
             .create_container(Some(opts), container_config)
             .await
@@ -709,7 +707,10 @@ impl ContainerTransport {
     pub async fn stop_container(id: &str) -> Result<()> {
         let docker = Docker::connect_with_local_defaults()?;
         docker
-            .stop_container(id, Some(StopContainerOptions { t: 10 }))
+            .stop_container(
+                id,
+                Some(StopContainerOptionsBuilder::default().t(10).build()),
+            )
             .await?;
         Ok(())
     }
@@ -719,10 +720,7 @@ impl ContainerTransport {
         docker
             .remove_container(
                 id,
-                Some(RemoveContainerOptions {
-                    force: true,
-                    ..Default::default()
-                }),
+                Some(RemoveContainerOptionsBuilder::default().force(true).build()),
             )
             .await?;
         Ok(())
@@ -833,7 +831,10 @@ impl RemoteTransport for ContainerTransport {
 
     async fn disconnect(&self) -> Result<()> {
         self.docker
-            .stop_container(&self.container_id, Some(StopContainerOptions { t: 10 }))
+            .stop_container(
+                &self.container_id,
+                Some(StopContainerOptionsBuilder::default().t(10).build()),
+            )
             .await?;
         Ok(())
     }

@@ -67,7 +67,7 @@ rusqlite = { version = "0.40", features = ["bundled", "backup"] }
 
 # Remote
 russh = "0.64.1"
-bollard = "0.18"
+bollard = "0.21"
 tokio-tungstenite = "0.30"
 
 # HTTP
