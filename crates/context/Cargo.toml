@@ -17,7 +17,7 @@ ignore = { workspace = true }
 reqwest = { workspace = true, features = ["blocking", "json"] }
 rusqlite = { workspace = true }
 sha2 = "0.10"
-notify = "6"
+notify = { workspace = true }
 
 tree-sitter-rust = "0.23"
 tree-sitter-python = "0.23"

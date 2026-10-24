@@ -3047,17 +3047,6 @@ dependencies = [
 
 [[package]]
 name = "inotify"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8069d3ec154eb856955c1c0fbffefbf5f3c40a104ec912d4797314c1801abff"
-dependencies = [
- "bitflags 1.3.2",
- "inotify-sys",
- "libc",
-]
-
-[[package]]
-name = "inotify"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4cc00ea907cab49550b7da656f80ebb97be1b997d931fbcd28d39734e17ce592"
@@ -3574,18 +3563,6 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a650543ca06a924e8b371db273b2756685faae30f8487da1b56505a8f78b0c"
-dependencies = [
- "libc",
- "log",
- "wasi",
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "mio"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50b7e5b27aa02a74bac8c3f23f448f8d87ff11f92d3aac1a6ed369ee08cc56c1"
@@ -3732,36 +3709,17 @@ dependencies = [
 
 [[package]]
 name = "notify"
-version = "6.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6205bd8bb1e454ad2e27422015fb5e4f2bcc7e08fa8f27058670d208324a4d2d"
-dependencies = [
- "bitflags 2.11.1",
- "crossbeam-channel",
- "filetime",
- "fsevent-sys",
- "inotify 0.9.6",
- "kqueue",
- "libc",
- "log",
- "mio 0.8.11",
- "walkdir",
- "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "notify"
 version = "8.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d3d07927151ff8575b7087f245456e549fea62edf0ec4e565a5ee50c8402bc3"
 dependencies = [
  "bitflags 2.11.1",
  "fsevent-sys",
- "inotify 0.11.5",
+ "inotify",
  "kqueue",
  "libc",
  "log",
- "mio 1.2.0",
+ "mio",
  "notify-types",
  "walkdir",
  "windows-sys 0.60.2",
@@ -5784,7 +5742,7 @@ dependencies = [
  "log",
  "md5 0.7.0",
  "memchr",
- "notify 8.2.0",
+ "notify",
  "open",
  "pathdiff",
  "portable-pty",
@@ -5883,7 +5841,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "ignore",
- "notify 6.1.1",
+ "notify",
  "regex",
  "reqwest 0.12.28",
  "rusqlite",
@@ -6052,7 +6010,7 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "log",
- "notify 8.2.0",
+ "notify",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -6184,7 +6142,7 @@ dependencies = [
  "ignore",
  "log",
  "memchr",
- "notify 8.2.0",
+ "notify",
  "pathdiff",
  "rayon",
  "regex",
@@ -7096,7 +7054,7 @@ checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
 dependencies = [
  "bytes",
  "libc",
- "mio 1.2.0",
+ "mio",
  "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
