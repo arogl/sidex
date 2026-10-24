@@ -707,10 +707,6 @@ export class XtermTerminal
 		this._decorationAddon?.clearDecorations();
 	}
 
-	forceRefresh() {
-		this._core.viewport?._innerRefresh();
-	}
-
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
 		this._updateFindColors(searchOptions);
 		return (await this._getSearchAddon()).findNext(term, searchOptions);

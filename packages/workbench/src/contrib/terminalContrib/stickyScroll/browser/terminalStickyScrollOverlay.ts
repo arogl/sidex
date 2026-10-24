@@ -42,7 +42,6 @@ import {
 	IXtermTerminal
 } from '../../../terminal/browser/terminal.js';
 import { openContextMenu } from '../../../terminal/browser/terminalContextMenu.js';
-import { IXtermCore } from '../../../terminal/browser/xterm-private.js';
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
@@ -63,7 +62,9 @@ const enum CssClasses {
 }
 
 const enum Constants {
-	StickyScrollPercentageCap = 0.4
+	StickyScrollPercentageCap = 0.4,
+	/** Scrollbar width xterm 6 uses when `overviewRuler.width` is unset */
+	XtermDefaultScrollBarWidth = 14
 }
 
 export class TerminalStickyScrollOverlay extends Disposable {
@@ -459,13 +460,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		hoverOverlay.title = hoverTitle;
 
-		interface XtermWithCore extends XTermTerminal {
-			_core: IXtermCore;
-		}
-		const scrollBarWidth = (this._xterm.raw as XtermWithCore)._core.viewport?.scrollBarWidth;
-		if (scrollBarWidth !== undefined) {
-			this._element.style.right = `${scrollBarWidth}px`;
-		}
+		// xterm 6 draws its own scrollbar sized by `overviewRuler.width`, falling back to 14px
+		const scrollBarWidth = this._xterm.raw.options.overviewRuler?.width || Constants.XtermDefaultScrollBarWidth;
+		this._element.style.right = `${scrollBarWidth}px`;
 
 		this._stickyScrollOverlay.open(this._element);
 
