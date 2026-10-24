@@ -232,7 +232,7 @@ pub fn get_injections(tree: &Tree, source: &str, injections_query: &Query) -> Ve
         let mut language_name: Option<String> = None;
         let mut content_range: Option<tree_sitter::Range> = None;
 
-        for capture in m.captures {
+        for capture in m.captures() {
             if Some(capture.index as usize) == lang_name_idx {
                 if let Ok(text) = capture.node.utf8_text(source.as_bytes()) {
                     language_name = Some(String::from(text).to_lowercase());
@@ -263,7 +263,7 @@ pub fn get_fold_ranges(tree: &Tree, source: &str, folds_query: &Query) -> Vec<(u
 
     let mut matches = cursor.matches(folds_query, root, source.as_bytes());
     while let Some(m) = matches.next() {
-        for capture in m.captures {
+        for capture in m.captures() {
             let start = capture.node.start_position().row;
             let end = capture.node.end_position().row;
             if end > start {
@@ -295,7 +295,7 @@ pub fn get_indent_hints(tree: &Tree, source: &str, indents_query: &Query) -> Has
 
     let mut matches = cursor.matches(indents_query, root, source.as_bytes());
     while let Some(m) = matches.next() {
-        for capture in m.captures {
+        for capture in m.captures() {
             let line = capture.node.start_position().row;
             if Some(capture.index as usize) == indent_idx {
                 *hints.entry(line).or_insert(0) += 1;
@@ -324,7 +324,7 @@ pub fn get_local_bindings(tree: &Tree, source: &str, locals_query: &Query) -> Ve
 
     let mut matches = cursor.matches(locals_query, root, source.as_bytes());
     while let Some(m) = matches.next() {
-        for capture in m.captures {
+        for capture in m.captures() {
             let node = capture.node;
             let name = node.utf8_text(source.as_bytes()).unwrap_or("").to_owned();
             let start_byte = node.start_byte();

@@ -205,33 +205,31 @@ fn extract_name(node: &tree_sitter::Node, source: &[u8], lang: &str) -> Option<S
 }
 
 fn find_named_child_name(node: &tree_sitter::Node, source: &[u8]) -> Option<String> {
-    for i in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(i) {
-            match child.kind() {
-                "function_declaration" | "class_declaration" | "lexical_declaration" => {
-                    if let Some(name) = child.child_by_field_name("name") {
-                        return name.utf8_text(source).ok().map(str::to_string);
-                    }
-                    if child.kind() == "lexical_declaration" {
-                        return find_declarator_name(&child, source);
-                    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        match child.kind() {
+            "function_declaration" | "class_declaration" | "lexical_declaration" => {
+                if let Some(name) = child.child_by_field_name("name") {
+                    return name.utf8_text(source).ok().map(str::to_string);
                 }
-                _ => {}
+                if child.kind() == "lexical_declaration" {
+                    return find_declarator_name(&child, source);
+                }
             }
+            _ => {}
         }
     }
     None
 }
 
 fn find_declarator_name(node: &tree_sitter::Node, source: &[u8]) -> Option<String> {
-    for i in 0..node.named_child_count() {
-        if let Some(child) = node.named_child(i) {
-            if child.kind() == "variable_declarator" {
-                return child
-                    .child_by_field_name("name")
-                    .and_then(|n| n.utf8_text(source).ok())
-                    .map(str::to_string);
-            }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if child.kind() == "variable_declarator" {
+            return child
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source).ok())
+                .map(str::to_string);
         }
     }
     None
