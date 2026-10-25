@@ -245,14 +245,22 @@ fn detect_file_paths(text: &str, row: u16, links: &mut Vec<TerminalLink>) {
     detect_relative_paths(text, row, links);
 }
 
+/// Finds the byte index of the first `X:\` drive prefix in `text`, where `X`
+/// is an ASCII letter.
+fn find_windows_drive_start(text: &str) -> Option<usize> {
+    let colon = text.find(":\\")?;
+    let drive = colon.checked_sub(1)?;
+    text.as_bytes()[drive]
+        .is_ascii_alphabetic()
+        .then_some(drive)
+}
+
 fn detect_absolute_paths(text: &str, row: u16, links: &mut Vec<TerminalLink>) {
     let mut search_from = 0;
     while search_from < text.len() {
         let remaining = &text[search_from..];
         let start = if cfg!(target_os = "windows") {
-            remaining
-                .find(|c: char| c.is_ascii_alphabetic())
-                .filter(|&i| remaining.get(i + 1..i + 3) == Some(":\\"))
+            find_windows_drive_start(remaining)
         } else {
             remaining
                 .find('/')
@@ -408,6 +416,15 @@ mod tests {
             .collect();
         assert!(!path_links.is_empty());
         assert!(path_links[0].url.starts_with("C:\\usr\\local\\bin\\app.rs"));
+    }
+
+    #[test]
+    fn windows_drive_start_is_found_mid_line() {
+        assert_eq!(find_windows_drive_start("Error in C:\\src\\a.rs"), Some(9));
+        assert_eq!(find_windows_drive_start("C:\\a.rs"), Some(0));
+        assert_eq!(find_windows_drive_start(":\\a.rs"), None);
+        assert_eq!(find_windows_drive_start("1:\\a.rs"), None);
+        assert_eq!(find_windows_drive_start("no path here"), None);
     }
 
     #[test]
