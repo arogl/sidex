@@ -162,6 +162,9 @@ class ExtensionHost extends EventEmitter {
     this._nextWatcherId = 1;
     this._activationPromises = new Map();
     this._failedExtensions = new Set();
+    // False until the initial extension discovery and configuration sync have
+    // finished; activation requests that arrive earlier are deferred.
+    this._isReady = false;
   }
 
   initialize() {
@@ -415,6 +418,32 @@ class ExtensionHost extends EventEmitter {
     }
   }
 
+  _shouldDeferActivation(ext) {
+    const events = ext.manifest?.activationEvents || [];
+    const hasStar = events.includes('*') || events.length === 0;
+    const hasStartupFinished = events.includes('onStartupFinished');
+    return !hasStar && hasStartupFinished && !this._initialEditorsReceived;
+  }
+
+  // Called once discovery and config sync are done. Releases activations that
+  // were requested too early, but keeps onStartupFinished ones waiting for the
+  // initial editors, as before.
+  _markReady() {
+    this._isReady = true;
+    const pending = this._deferredStartupActivations;
+    if (!pending || !pending.size) return;
+    for (const extId of [...pending]) {
+      const ext = this._extensions.get(extId);
+      if (!ext || ext.activated) {
+        pending.delete(extId);
+        continue;
+      }
+      if (this._shouldDeferActivation(ext)) continue;
+      pending.delete(extId);
+      this._activateExtension(extId).catch((e) => log(`deferred activation error (${extId}): ${e.message}`));
+    }
+  }
+
   _handleActivateExtension(id, params) {
     try {
       const { extensionId } = params;
@@ -423,7 +452,7 @@ class ExtensionHost extends EventEmitter {
         const events = ext.manifest?.activationEvents || [];
         const hasStar = events.includes('*') || events.length === 0;
         const hasStartupFinished = events.includes('onStartupFinished');
-        if (!hasStar && hasStartupFinished && !this._initialEditorsReceived) {
+        if (!this._isReady || (!hasStar && hasStartupFinished && !this._initialEditorsReceived)) {
           if (!this._deferredStartupActivations) {
             this._deferredStartupActivations = new Set();
           }
@@ -2451,6 +2480,14 @@ function createVscodeShim() {
     constructor(name) {
       this.name = name;
       this._entries = new Map();
+      // Extensions often pass these around detached (`const { set } = coll`).
+      this.set = this.set.bind(this);
+      this.delete = this.delete.bind(this);
+      this.clear = this.clear.bind(this);
+      this.get = this.get.bind(this);
+      this.has = this.has.bind(this);
+      this.forEach = this.forEach.bind(this);
+      this.dispose = this.dispose.bind(this);
     }
     set(uri, diagnostics) {
       const key = typeof uri === 'string' ? uri : uri.toString();
@@ -3309,9 +3346,11 @@ function createVscodeShim() {
       });
     },
     get activeTextEditor() {
-      return host._activeEditorId ? host._editorValues.get(host._activeEditorId) : undefined;
+      if (!host || !host._editorValues || !host._activeEditorId) return undefined;
+      return host._editorValues.get(host._activeEditorId);
     },
     get visibleTextEditors() {
+      if (!host || !host._editorValues) return [];
       return [...host._editorValues.values()];
     },
     onDidChangeActiveTextEditor: (listener, thisArg, disposables) =>
@@ -5131,6 +5170,9 @@ if (process.env.SIDEX_EXTENSION_HOST === 'true' && process.send) {
       }
     }
   }
+
+  // Discovery and config sync are finished (or there was nothing to load).
+  host._markReady();
 
   setTimeout(() => {
     if (!host._initialEditorsReceived) {
