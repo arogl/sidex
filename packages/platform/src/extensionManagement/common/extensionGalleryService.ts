@@ -102,7 +102,7 @@ const SIDEX_INJECTED_TARGET_PLATFORM: TargetPlatform | undefined =
 const CURRENT_TARGET_PLATFORM: TargetPlatform =
 	isWeb && !(globalThis as any).__SIDEX_TAURI__
 		? TargetPlatform.WEB
-		: SIDEX_INJECTED_TARGET_PLATFORM ?? getTargetPlatform(platform, arch);
+		: (SIDEX_INJECTED_TARGET_PLATFORM ?? getTargetPlatform(platform, arch));
 
 const SEARCH_ACTIVITY_HEADER_NAME = 'X-Market-Search-Activity-Id';
 const ACTIVITY_HEADER_NAME = 'Activityid';
@@ -895,9 +895,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		// and the wrong native binaries are installed (ENOEXEC). The query API
 		// returns all platform versions with `targetPlatform` set, letting the
 		// version-selection logic pick the correct one. Force query API in Tauri.
-		const resourceApi = (globalThis as any).__SIDEX_TAURI__
-			? undefined
-			: this.getResourceApi(extensionGalleryManifest);
+		const resourceApi = (globalThis as any).__SIDEX_TAURI__ ? undefined : this.getResourceApi(extensionGalleryManifest);
 		const result = resourceApi
 			? await this.getExtensionsUsingResourceApi(extensionInfos, options, resourceApi, extensionGalleryManifest, token)
 			: await this.getExtensionsUsingQueryApi(extensionInfos, options, extensionGalleryManifest, token);
