@@ -504,13 +504,8 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok_styled("comment", "#AAAAAA", FontStyle::ITALIC),
         tok_styled("comment.line", "#AAAAAA", FontStyle::ITALIC),
         tok_styled("comment.block", "#AAAAAA", FontStyle::ITALIC),
-        tok_styled(
-            "comment.block.documentation",
-            "#448C27",
-            FontStyle::ITALIC,
-        ),
+        tok_styled("comment.block.documentation", "#448C27", FontStyle::ITALIC),
         tok("punctuation.definition.comment", "#AAAAAA"),
-
         // Strings
         tok("string", "#448C27"),
         tok("string.quoted.single", "#448C27"),
@@ -520,7 +515,6 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok("string.interpolated", "#448C27"),
         tok("string.regexp", "#4B69C6"),
         tok("constant.character.escape", "#9C5D27"),
-
         // Numbers & constants
         tok_multi(
             &[
@@ -540,7 +534,6 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok("constant.character", "#9C5D27"),
         tok("constant.other", "#9C5D27"),
         tok("constant.regexp", "#4B69C6"),
-
         // Variables
         tok_multi(
             &[
@@ -561,7 +554,6 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok("variable.language.self", "#4B69C6"),
         tok("variable.language.super", "#4B69C6"),
         tok("meta.object-literal.key", "#7A3E9D"),
-
         // Keywords & storage
         tok("keyword", "#4B69C6"),
         tok_multi(
@@ -587,37 +579,15 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok("keyword.operator.assignment", "#777777"),
         tok("keyword.operator.comparison", "#777777"),
         tok("keyword.operator.type", "#4B69C6"),
-
         // Functions
-        tok_styled(
-            "entity.name.function",
-            "#AA3731",
-            FontStyle::BOLD,
-        ),
-        tok_styled(
-            "entity.name.function.member",
-            "#AA3731",
-            FontStyle::BOLD,
-        ),
+        tok_styled("entity.name.function", "#AA3731", FontStyle::BOLD),
+        tok_styled("entity.name.function.member", "#AA3731", FontStyle::BOLD),
         tok_styled("support.function", "#AA3731", FontStyle::BOLD),
         tok_styled("meta.function-call", "#AA3731", FontStyle::BOLD),
-        tok_styled(
-            "support.function.builtin",
-            "#AA3731",
-            FontStyle::BOLD,
-        ),
-
+        tok_styled("support.function.builtin", "#AA3731", FontStyle::BOLD),
         // Types & classes
-        tok_styled(
-            "entity.name.type",
-            "#7A3E9D",
-            FontStyle::BOLD,
-        ),
-        tok_styled(
-            "entity.name.class",
-            "#7A3E9D",
-            FontStyle::BOLD,
-        ),
+        tok_styled("entity.name.type", "#7A3E9D", FontStyle::BOLD),
+        tok_styled("entity.name.class", "#7A3E9D", FontStyle::BOLD),
         tok_styled("support.class", "#7A3E9D", FontStyle::BOLD),
         tok("support.type", "#7A3E9D"),
         tok("entity.name.type.parameter", "#7A3E9D"),
@@ -630,18 +600,15 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
             &["meta.type.cast.expr", "entity.other.inherited-class"],
             "#7A3E9D",
         ),
-
         // HTML/XML/JSX
         tok("entity.name.tag", "#4B69C6"),
         tok("entity.name.tag.html", "#4B69C6"),
         tok("entity.name.tag.css", "#91B3E0"),
         tok("entity.other.attribute-name", "#8190A0"),
-
         // CSS
         tok("support.constant.property-value.css", "#448C27"),
         tok("support.constant.font-name", "#448C27"),
         tok("support.constant.color", "#448C27"),
-
         // Decorators / attributes
         tok_multi(
             &[
@@ -652,7 +619,6 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
             "#AA3731",
         ),
         tok("meta.attribute", "#8190A0"),
-
         // Preprocessor / macros
         tok("meta.preprocessor", "#4B69C6"),
         tok("meta.preprocessor.string", "#448C27"),
@@ -665,7 +631,6 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
             ],
             "#4B69C6",
         ),
-
         // Operators & punctuation
         tok("support.constant", "#9C5D27"),
         tok("punctuation.definition.tag", "#91B3E0"),
@@ -674,14 +639,12 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok("punctuation.section", "#777777"),
         tok("punctuation.accessor", "#777777"),
         tok("meta.brace", "#777777"),
-
         // JSON / YAML / TOML
         tok("support.type.property-name.json", "#7A3E9D"),
         tok("string.value.json", "#448C27"),
         tok("entity.name.tag.yaml", "#4B69C6"),
         tok("entity.name.tag.toml", "#4B69C6"),
         tok("support.type.property-name.toml", "#7A3E9D"),
-
         // Markdown / markup
         tok_styled("emphasis", "#333333", FontStyle::ITALIC),
         tok_styled("strong", "#333333", FontStyle::BOLD),
@@ -692,11 +655,7 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok_styled("markup.italic", "#333333", FontStyle::ITALIC),
         tok_styled("markup.bold", "#333333", FontStyle::BOLD),
         tok_styled("markup.underline", "#333333", FontStyle::UNDERLINE),
-        tok_styled(
-            "markup.strikethrough",
-            "#333333",
-            FontStyle::STRIKETHROUGH,
-        ),
+        tok_styled("markup.strikethrough", "#333333", FontStyle::STRIKETHROUGH),
         tok("markup.inline.raw", "#448C27"),
         tok("markup.fenced_code.block", "#448C27"),
         tok("markup.quote", "#448C27"),
@@ -704,22 +663,16 @@ fn quiet_light_tokens() -> Vec<TokenColorRule> {
         tok("markup.list.unnumbered", "#4B69C6"),
         tok("meta.link.inline.markdown", "#4B69C6"),
         tok("string.other.link", "#4B69C6"),
-
         // Rust
         tok("entity.name.type.lifetime.rust", "#4B69C6"),
         tok("keyword.operator.borrow.rust", "#4B69C6"),
         tok("keyword.operator.sigil.rust", "#4B69C6"),
         tok("entity.name.function.macro.rust", "#AA3731"),
         tok("meta.attribute.rust", "#8190A0"),
-
         // Invalid / deprecated
         tok("invalid", "#cd3131"),
         tok("invalid.illegal", "#660000"),
-        tok_styled(
-            "invalid.deprecated",
-            "#AA3731",
-            FontStyle::STRIKETHROUGH,
-        ),
+        tok_styled("invalid.deprecated", "#AA3731", FontStyle::STRIKETHROUGH),
     ]
 }
 

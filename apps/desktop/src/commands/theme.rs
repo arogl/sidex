@@ -306,7 +306,8 @@ mod tests {
 
     #[test]
     fn test_theme_get_by_various_ids() {
-        let data_by_name = theme_get("Quiet Light".to_string()).expect("should find by display name");
+        let data_by_name =
+            theme_get("Quiet Light".to_string()).expect("should find by display name");
         assert!(!data_by_name.workbench_colors.is_empty());
         assert!(!data_by_name.token_colors.is_empty());
         assert_eq!(
@@ -320,8 +321,8 @@ mod tests {
             Some(&"#f5f5f5".to_string())
         );
 
-        let data_by_builtin =
-            theme_get("sidex-builtin-quiet-light".to_string()).expect("should find by sidex-builtin id");
+        let data_by_builtin = theme_get("sidex-builtin-quiet-light".to_string())
+            .expect("should find by sidex-builtin id");
         assert_eq!(
             data_by_builtin.workbench_colors.get("editor.background"),
             Some(&"#f5f5f5".to_string())
@@ -335,9 +336,18 @@ mod tests {
 
         assert_eq!(map.get("editor.background"), Some(&"#f5f5f5".to_string()));
         assert_eq!(map.get("editor.foreground"), Some(&"#333333".to_string()));
-        assert_eq!(map.get("activityBar.background"), Some(&"#ededf5".to_string()));
-        assert_eq!(map.get("statusBar.background"), Some(&"#705697".to_string()));
-        assert_eq!(map.get("selection.background"), Some(&"#c9d0d9".to_string()));
+        assert_eq!(
+            map.get("activityBar.background"),
+            Some(&"#ededf5".to_string())
+        );
+        assert_eq!(
+            map.get("statusBar.background"),
+            Some(&"#705697".to_string())
+        );
+        assert_eq!(
+            map.get("selection.background"),
+            Some(&"#c9d0d9".to_string())
+        );
         assert_eq!(map.get("errorForeground"), Some(&"#f1897f".to_string()));
     }
 }

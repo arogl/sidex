@@ -700,14 +700,17 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			) {
 				return null;
 			}
-			throw new Error(nls.localize('error.cannotloadtheme', 'Unable to load {0}: {1}', themeData.location?.toString(), msg));
+			throw new Error(
+				nls.localize('error.cannotloadtheme', 'Unable to load {0}: {1}', themeData.location?.toString(), msg)
+			);
 		}
 	}
 
 	private reloadCurrentColorTheme() {
 		return this.colorThemeSequencer.queue(async () => {
 			try {
-				const theme = this.colorThemeRegistry.findThemeBySettingsId(this.currentColorTheme.settingsId) || this.currentColorTheme;
+				const theme =
+					this.colorThemeRegistry.findThemeBySettingsId(this.currentColorTheme.settingsId) || this.currentColorTheme;
 				if (theme.settingsId === SIDEX_QUIET_LIGHT_THEME_ID) {
 					await this.loadThemeData(theme);
 				} else {
