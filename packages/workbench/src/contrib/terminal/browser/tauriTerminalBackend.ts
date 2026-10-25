@@ -33,7 +33,13 @@ import {
 import type { IProcessDetails } from '@sidex/platform/terminal/common/terminalProcess.js';
 import type { IProcessEnvironment } from '@sidex/base/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from './terminal.js';
+import {
+	ITerminalExternalLinkProvider,
+	ITerminalInstance,
+	ITerminalInstanceService,
+	ITerminalLink,
+	ITerminalService
+} from './terminal.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
@@ -313,7 +319,7 @@ class TauriPty extends Disposable implements ITerminalChildProcess {
 	async getCwd(): Promise<string> {
 		if (this._backendId !== undefined && _invoke) {
 			try {
-				const cwd = await _invoke('terminal_get_cwd', { terminalId: this._backendId }) as string;
+				const cwd = (await _invoke('terminal_get_cwd', { terminalId: this._backendId })) as string;
 				if (cwd) {
 					return cwd;
 				}

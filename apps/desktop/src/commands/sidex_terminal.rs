@@ -134,16 +134,15 @@ impl From<sidex_terminal::TerminalLink> for TerminalLinkInfo {
 }
 
 #[tauri::command]
-pub fn terminal_detect_links(line_text: String) -> Result<Vec<TerminalLinkInfo>, String> {
+pub fn terminal_detect_links(line_text: &str) -> Vec<TerminalLinkInfo> {
     let cells: Vec<sidex_terminal::Cell> = line_text
         .chars()
-        .map(|c| {
-            let mut cell = sidex_terminal::Cell::default();
-            cell.c = c;
-            cell
+        .map(|c| sidex_terminal::Cell {
+            c,
+            ..Default::default()
         })
         .collect();
 
     let links = sidex_terminal::detect_links(&cells);
-    Ok(links.into_iter().map(TerminalLinkInfo::from).collect())
+    links.into_iter().map(TerminalLinkInfo::from).collect()
 }

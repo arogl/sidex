@@ -169,7 +169,9 @@ fn process_osc_sequence(
     terminal_id: u32,
     payload_bytes: &[u8],
 ) {
-    let Ok(payload) = String::from_utf8(payload_bytes.to_vec()) else { return; };
+    let Ok(payload) = String::from_utf8(payload_bytes.to_vec()) else {
+        return;
+    };
 
     if payload.starts_with("633;") {
         // Prompt-end (B) is not surfaced by the shared parser; detect it directly here.
@@ -478,10 +480,14 @@ pub fn terminal_spawn(
         let mut osc_buffer = Vec::new();
         let mut parser_state = 0; // 0: normal, 1: esc_received, 2: osc_received, 3: osc_esc_received
 
-        let (unack, flow) = state_clone.terminals.lock().ok()
-            .and_then(|ts| ts.get(&terminal_id).map(|h| {
-                (h.unacknowledged_chars.clone(), h.flow_condvar.clone())
-            }))
+        let (unack, flow) = state_clone
+            .terminals
+            .lock()
+            .ok()
+            .and_then(|ts| {
+                ts.get(&terminal_id)
+                    .map(|h| (h.unacknowledged_chars.clone(), h.flow_condvar.clone()))
+            })
             .unzip();
 
         loop {
@@ -493,7 +499,9 @@ pub fn terminal_spawn(
                     let mut paused = lock.lock().unwrap();
                     // Re-check the count under the lock so we don't park after an
                     // acknowledgment already drained the backlog (avoids a lost-wakeup deadlock).
-                    while unack_atomic.load(std::sync::atomic::Ordering::Relaxed) > FLOW_HIGH_WATERMARK {
+                    while unack_atomic.load(std::sync::atomic::Ordering::Relaxed)
+                        > FLOW_HIGH_WATERMARK
+                    {
                         *paused = true;
                         paused = cvar.wait(paused).unwrap();
                     }
@@ -537,7 +545,12 @@ pub fn terminal_spawn(
                             }
                             2 => {
                                 if byte == 0x07 {
-                                    process_osc_sequence(&app_clone, &state_clone, terminal_id, &osc_buffer);
+                                    process_osc_sequence(
+                                        &app_clone,
+                                        &state_clone,
+                                        terminal_id,
+                                        &osc_buffer,
+                                    );
                                     osc_buffer.clear();
                                     parser_state = 0;
                                 } else if byte == 0x1b {
@@ -552,7 +565,12 @@ pub fn terminal_spawn(
                             }
                             3 => {
                                 if byte == b'\\' {
-                                    process_osc_sequence(&app_clone, &state_clone, terminal_id, &osc_buffer);
+                                    process_osc_sequence(
+                                        &app_clone,
+                                        &state_clone,
+                                        terminal_id,
+                                        &osc_buffer,
+                                    );
                                     osc_buffer.clear();
                                     parser_state = 0;
                                 } else if osc_buffer.len() >= 65536 {
@@ -950,6 +968,7 @@ fi
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub fn terminal_get_cwd(
     state: State<'_, Arc<TerminalStore>>,
     terminal_id: u32,
@@ -971,11 +990,14 @@ pub fn terminal_acknowledge_data(
 ) -> Result<(), String> {
     let terminals = state.terminals.lock().map_err(|e| e.to_string())?;
     if let Some(handle) = terminals.get(&terminal_id) {
-        let prev = handle.unacknowledged_chars.fetch_update(
-            std::sync::atomic::Ordering::Relaxed,
-            std::sync::atomic::Ordering::Relaxed,
-            |current| Some(current.saturating_sub(size)),
-        ).unwrap_or(0);
+        let prev = handle
+            .unacknowledged_chars
+            .fetch_update(
+                std::sync::atomic::Ordering::Relaxed,
+                std::sync::atomic::Ordering::Relaxed,
+                |current| Some(current.saturating_sub(size)),
+            )
+            .unwrap_or(0);
         // Resume the read loop if it was paused and we've drained below the low watermark.
         if prev.saturating_sub(size) < FLOW_LOW_WATERMARK {
             let (lock, cvar) = handle.flow_condvar.as_ref();
