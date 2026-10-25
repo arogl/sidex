@@ -892,7 +892,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				// Use the manifest URI's directory as the extension location
 				extensionLocation = joinPath(manifestUri, '..');
 			} catch (error) {
-				this.logService.warn(`Failed to fetch manifest from gallery asset, falling back to resourceUrlTemplate`, getErrorMessage(error));
+				this.logService.warn(
+					`Failed to fetch manifest from gallery asset, falling back to resourceUrlTemplate`,
+					getErrorMessage(error)
+				);
 			}
 		}
 
