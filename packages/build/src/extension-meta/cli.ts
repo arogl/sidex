@@ -1,11 +1,13 @@
 #!/usr/bin/env bun
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { renderSidexEnvJs, resolveSidexEnv } from '../sidex-env/render';
 import { collectDescriptors, renderBuiltinExtensionsJs } from './collect';
 
 const repoRoot = resolve(import.meta.dir, '../../../..');
 const extensionsDir = resolve(repoRoot, 'extensions');
 const metaOutputPath = resolve(repoRoot, 'extensions-meta.json');
+const envOutputPath = resolve(repoRoot, 'apps', 'workbench', 'public', 'sidex-env.js');
 const jsOutputPath = resolve(repoRoot, 'apps', 'workbench', 'public', 'builtin-extensions.js');
 
 const descriptors = collectDescriptors(extensionsDir);
@@ -21,3 +23,7 @@ console.log(`Wrote ${descriptors.length} extension descriptors to extensions-met
 const js = renderBuiltinExtensionsJs(descriptors);
 writeFileSync(jsOutputPath, js);
 console.log(`Wrote public/builtin-extensions.js (${(js.length / 1024).toFixed(1)} KB)`);
+
+const sidexEnv = resolveSidexEnv(process.arch, process.platform);
+writeFileSync(envOutputPath, renderSidexEnvJs(sidexEnv));
+console.log(`Wrote public/sidex-env.js (targetPlatform=${sidexEnv.targetPlatform})`);
