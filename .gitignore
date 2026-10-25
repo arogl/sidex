@@ -139,6 +139,7 @@ extensions-wasm/css-language-extension/css-builtin.json
 extensions-wasm/css-language-extension/src/css_data.rs
 /sidex-web/
 apps/workbench/public/builtin-extensions.js
+apps/workbench/public/sidex-env.js
 .superpowers/
 /sidex-site/
 /deploy/
