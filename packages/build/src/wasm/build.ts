@@ -2,6 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { hasWasmTarget } from './detect';
 
 const repoRoot = resolve(import.meta.dir, '../../../..');
 const optional = process.argv.includes('--optional');
@@ -12,15 +13,14 @@ function have(cmd: string, args: string[]): boolean {
 }
 
 const hasWasmPack = have('wasm-pack', ['--version']);
-const hasTarget =
-	spawnSync('rustup', ['target', 'list', '--installed'], { encoding: 'utf-8' }).stdout?.includes(
-		'wasm32-unknown-unknown'
-	) ?? false;
+const hasTarget = hasWasmTarget();
 
 if (!hasWasmPack || !hasTarget) {
 	const msg =
 		'wasm build skipped: requires wasm-pack and the wasm32-unknown-unknown target.\n' +
-		'  Install: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && rustup target add wasm32-unknown-unknown';
+		'  Install: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && rustup target add wasm32-unknown-unknown\n' +
+		'  (Arch/CachyOS without rustup: install the rust-wasm package instead.)\n' +
+		`  Found: wasm-pack ${hasWasmPack ? 'yes' : 'NO'}, wasm32-unknown-unknown target ${hasTarget ? 'yes' : 'NO'}.`;
 	if (optional) {
 		console.warn(`[build:wasm] ${msg}\n[build:wasm] Continuing with the JS fallback (dev only).`);
 		process.exit(0);
