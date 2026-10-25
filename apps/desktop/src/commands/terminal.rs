@@ -990,14 +990,22 @@ pub fn terminal_acknowledge_data(
 ) -> Result<(), String> {
     let terminals = state.terminals.lock().map_err(|e| e.to_string())?;
     if let Some(handle) = terminals.get(&terminal_id) {
-        let prev = handle
-            .unacknowledged_chars
-            .fetch_update(
+        // Saturating subtract via a compare-exchange loop. `fetch_update` is
+        // deprecated on the pinned toolchain and its replacement `try_update`
+        // is newer than the crate's MSRV (1.91), so use the stable primitive.
+        let counter = &handle.unacknowledged_chars;
+        let mut prev = counter.load(std::sync::atomic::Ordering::Relaxed);
+        loop {
+            match counter.compare_exchange_weak(
+                prev,
+                prev.saturating_sub(size),
                 std::sync::atomic::Ordering::Relaxed,
                 std::sync::atomic::Ordering::Relaxed,
-                |current| Some(current.saturating_sub(size)),
-            )
-            .unwrap_or(0);
+            ) {
+                Ok(_) => break,
+                Err(actual) => prev = actual,
+            }
+        }
         // Resume the read loop if it was paused and we've drained below the low watermark.
         if prev.saturating_sub(size) < FLOW_LOW_WATERMARK {
             let (lock, cvar) = handle.flow_condvar.as_ref();
