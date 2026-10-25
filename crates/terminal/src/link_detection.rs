@@ -245,14 +245,22 @@ fn detect_file_paths(text: &str, row: u16, links: &mut Vec<TerminalLink>) {
     detect_relative_paths(text, row, links);
 }
 
+/// Finds the byte index of the first `X:\` drive prefix in `text`, where `X`
+/// is an ASCII letter.
+fn find_windows_drive_start(text: &str) -> Option<usize> {
+    let colon = text.find(":\\")?;
+    let drive = colon.checked_sub(1)?;
+    text.as_bytes()[drive]
+        .is_ascii_alphabetic()
+        .then_some(drive)
+}
+
 fn detect_absolute_paths(text: &str, row: u16, links: &mut Vec<TerminalLink>) {
     let mut search_from = 0;
     while search_from < text.len() {
         let remaining = &text[search_from..];
         let start = if cfg!(target_os = "windows") {
-            remaining
-                .find(|c: char| c.is_ascii_alphabetic())
-                .filter(|&i| remaining.get(i + 1..i + 3) == Some(":\\"))
+            find_windows_drive_start(remaining)
         } else {
             remaining
                 .find('/')
@@ -385,6 +393,7 @@ mod tests {
     // A path like /usr/local/bin is not absolute on Windows.
     #[cfg(unix)]
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn detect_absolute_path_unix() {
         let cells = cells_from_str("Error in /usr/local/bin/app.rs");
         let links = detect_links(&cells);
@@ -394,6 +403,28 @@ mod tests {
             .collect();
         assert!(!path_links.is_empty());
         assert!(path_links[0].url.starts_with("/usr/local/bin/app.rs"));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn detect_absolute_path_windows() {
+        let cells = cells_from_str("Error in C:\\usr\\local\\bin\\app.rs");
+        let links = detect_links(&cells);
+        let path_links: Vec<_> = links
+            .iter()
+            .filter(|l| l.kind == LinkKind::FilePath)
+            .collect();
+        assert!(!path_links.is_empty());
+        assert!(path_links[0].url.starts_with("C:\\usr\\local\\bin\\app.rs"));
+    }
+
+    #[test]
+    fn windows_drive_start_is_found_mid_line() {
+        assert_eq!(find_windows_drive_start("Error in C:\\src\\a.rs"), Some(9));
+        assert_eq!(find_windows_drive_start("C:\\a.rs"), Some(0));
+        assert_eq!(find_windows_drive_start(":\\a.rs"), None);
+        assert_eq!(find_windows_drive_start("1:\\a.rs"), None);
+        assert_eq!(find_windows_drive_start("no path here"), None);
     }
 
     #[test]
