@@ -199,6 +199,75 @@ fn rewrite_proxy_vsix_platform(url: &str, new_platform: &str) -> String {
     result
 }
 
+/// Builds the platform-specific form of a proxy VSIX URL whose encoded Open
+/// VSX URL carries no platform at all.
+///
+/// Such a URL, for example
+/// `https://open-vsx.org/api/{ns}/{name}/{version}/file/{ns}.{name}-{version}.vsix`,
+/// is served as the universal build, which for extensions that ship native
+/// binaries inside a per-platform VSIX (rust-analyzer's `server/` folder) has no
+/// binary. Open VSX serves the platform build at
+/// `.../api/{ns}/{name}/{platform}/{version}/file/{ns}.{name}-{version}@{platform}.vsix`.
+///
+/// Returns `None` when the URL is not a proxy VSIX URL, is not an Open VSX
+/// download URL of that shape, or already names a platform. The caller must
+/// fall back to the original URL, because many extensions are universal and
+/// have no platform build.
+fn add_platform_to_proxy_vsix(url: &str, platform: &str) -> Option<String> {
+    const SEGMENT: &str = "/vsix-";
+    let seg_idx = url.find(SEGMENT)?;
+    let b64_start = seg_idx + SEGMENT.len();
+    let rest = &url[b64_start..];
+    let b64_end = rest.find('/').unwrap_or(rest.len());
+    let decoded = String::from_utf8(STANDARD_NO_PAD.decode(&rest[..b64_end]).ok()?).ok()?;
+
+    let (prefix, tail) = decoded.split_once("/api/")?;
+    let parts: Vec<&str> = tail.split('/').collect();
+    // [namespace, name, version, "file", "{namespace}.{name}-{version}.vsix"]
+    let [namespace, name, version, "file", filename] = parts.as_slice() else {
+        return None;
+    };
+    let stem = filename.strip_suffix(".vsix")?;
+    if stem.contains('@') {
+        return None;
+    }
+    let specific =
+        format!("{prefix}/api/{namespace}/{name}/{platform}/{version}/file/{stem}@{platform}.vsix");
+    let new_b64 = STANDARD_NO_PAD.encode(&specific);
+    let mut result = String::with_capacity(url.len() + new_b64.len());
+    result.push_str(&url[..b64_start]);
+    result.push_str(&new_b64);
+    result.push_str(&rest[b64_end..]);
+    Some(result)
+}
+
+/// Downloads the first URL that answers with success, in order. Returns the
+/// last failure when none do.
+async fn download_first_ok(urls: &[String]) -> Result<Vec<u8>, String> {
+    let mut last_err = String::from("no download url");
+    for url in urls {
+        log::info!("downloading extension from {url}");
+        match reqwest::get(url).await {
+            Ok(resp) if resp.status().is_success() => {
+                return resp
+                    .bytes()
+                    .await
+                    .map(|b| b.to_vec())
+                    .map_err(|e| format!("read body: {e}"));
+            }
+            Ok(resp) => {
+                last_err = format!("download failed: HTTP {}", resp.status());
+                log::warn!("{last_err} for {url}");
+            }
+            Err(e) => {
+                last_err = format!("download: {e}");
+                log::warn!("{last_err} for {url}");
+            }
+        }
+    }
+    Err(last_err)
+}
+
 #[tauri::command]
 pub async fn install_extension_from_url(url: String) -> Result<InstalledExtension, String> {
     // The SideX marketplace proxy encodes the upstream Open VSX VSIX URL as
@@ -206,16 +275,17 @@ pub async fn install_extension_from_url(url: String) -> Result<InstalledExtensio
     // platform baked into that base64 segment and ignores the
     // `targetPlatform` query parameter we append elsewhere, so fix the
     // encoded platform here - this is the authoritative correction point.
-    let url = rewrite_proxy_vsix_platform(&url, current_target_platform());
-    let url = ensure_target_platform(&url);
-    log::info!("downloading extension from {url}");
-    let resp = reqwest::get(&url)
-        .await
-        .map_err(|e| format!("download: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("download failed: HTTP {}", resp.status()));
+    let platform = current_target_platform();
+    let url = rewrite_proxy_vsix_platform(&url, platform);
+    // When the encoded URL names no platform, try the platform build first
+    // (extensions with a bundled native binary only have it there) and fall
+    // back to the URL as given for universal extensions.
+    let mut candidates = Vec::new();
+    if let Some(specific) = add_platform_to_proxy_vsix(&url, platform) {
+        candidates.push(ensure_target_platform(&specific));
     }
-    let bytes = resp.bytes().await.map_err(|e| format!("read body: {e}"))?;
+    candidates.push(ensure_target_platform(&url));
+    let bytes = download_first_ok(&candidates).await?;
 
     let tmp_path = std::env::temp_dir().join(format!("sidex-{}.vsix", uuid::Uuid::new_v4()));
     fs::write(&tmp_path, &bytes).map_err(|e| format!("write tempfile: {e}"))?;
@@ -457,6 +527,48 @@ mod tests {
         let b64 = &rest[..rest.find('/').unwrap_or(rest.len())];
         let bytes = STANDARD_NO_PAD.decode(b64).expect("base64");
         String::from_utf8(bytes).expect("utf8")
+    }
+
+    fn platformless_proxy_url() -> String {
+        let inner =
+            "https://open-vsx.org/api/rust-lang/rust-analyzer/0.4.3096/file/rust-lang.rust-analyzer-0.4.3096.vsix";
+        let b64 = STANDARD_NO_PAD.encode(inner);
+        format!(
+            "https://marketplace.siden.ai/api/asset/openvsx/vsix-{b64}/Microsoft.VisualStudio.Services.VSIXPackage?redirect=true"
+        )
+    }
+
+    #[test]
+    fn adds_the_platform_to_a_platformless_url() {
+        let url = platformless_proxy_url();
+        let specific = add_platform_to_proxy_vsix(&url, "linux-x64").expect("should add platform");
+        assert_eq!(
+            decoded_inner(&specific),
+            "https://open-vsx.org/api/rust-lang/rust-analyzer/linux-x64/0.4.3096/file/rust-lang.rust-analyzer-0.4.3096@linux-x64.vsix"
+        );
+        assert!(
+            specific.ends_with("/Microsoft.VisualStudio.Services.VSIXPackage?redirect=true"),
+            "the rest of the proxy URL is kept"
+        );
+    }
+
+    #[test]
+    fn does_not_add_a_platform_when_one_is_present() {
+        assert_eq!(
+            add_platform_to_proxy_vsix(&proxy_url("alpine-arm64"), "linux-x64"),
+            None
+        );
+    }
+
+    #[test]
+    fn does_not_add_a_platform_to_other_urls() {
+        assert_eq!(
+            add_platform_to_proxy_vsix("https://example.com/a.vsix", "linux-x64"),
+            None
+        );
+        let not_open_vsx = STANDARD_NO_PAD.encode("https://example.com/files/a.vsix");
+        let url = format!("https://marketplace.siden.ai/api/asset/openvsx/vsix-{not_open_vsx}/x");
+        assert_eq!(add_platform_to_proxy_vsix(&url, "linux-x64"), None);
     }
 
     #[test]
