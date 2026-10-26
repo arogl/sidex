@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -55,6 +56,14 @@ pub struct ExtensionPlatformRuntimeState {
 /// lifecycle operations: spawn, stop, restart, crash tracking.
 pub struct ExtensionPlatformSupervisor {
     inner: Mutex<SupervisorState>,
+    /// Serialises `ensure_started` callers. Starting a host can take a long
+    /// time (it probes for node, scans extensions, and waits for the host's
+    /// port message), so that work happens under this gate and never under
+    /// `inner`: stopping the host or taking a snapshot must not wait for it.
+    start_gate: Mutex<()>,
+    /// Set once the app is exiting so a start that is still in flight kills
+    /// its host instead of leaving it behind.
+    shutting_down: AtomicBool,
 }
 
 struct SupervisorState {
@@ -69,6 +78,8 @@ impl ExtensionPlatformSupervisor {
                 session: None,
                 total_crashes: 0,
             }),
+            start_gate: Mutex::new(()),
+            shutting_down: AtomicBool::new(false),
         }
     }
 
@@ -78,15 +89,27 @@ impl ExtensionPlatformSupervisor {
         _init_data_json: &str,
         _extension_search_paths: &[String],
     ) -> Result<u16, String> {
-        let mut guard = self.inner.lock().map_err(|e| e.to_string())?;
-        if let Some(ref mut session) = guard.session {
-            if session.child.try_wait().ok().flatten().is_none() {
-                return Ok(session.port);
+        let _gate = self.start_gate.lock().map_err(|e| e.to_string())?;
+        {
+            let mut guard = self.inner.lock().map_err(|e| e.to_string())?;
+            if let Some(ref mut session) = guard.session {
+                if session.child.try_wait().ok().flatten().is_none() {
+                    return Ok(session.port);
+                }
+                guard.total_crashes += 1;
+                guard.session = None;
             }
-            guard.total_crashes += 1;
-            guard.session = None;
         }
-        let started = spawn_host_process(app, &[])?;
+        if self.shutting_down.load(Ordering::SeqCst) {
+            return Err("the app is shutting down".to_string());
+        }
+        let mut started = spawn_host_process(app, &[])?;
+        let mut guard = self.inner.lock().map_err(|e| e.to_string())?;
+        if self.shutting_down.load(Ordering::SeqCst) {
+            let _ = started.child.kill();
+            let _ = started.child.wait();
+            return Err("the app is shutting down".to_string());
+        }
         let port = started.port;
         guard.session = Some(ExtHostSession {
             child: started.child,
@@ -108,6 +131,13 @@ impl ExtensionPlatformSupervisor {
             log::info!("[ext-host] stopped");
         }
         Ok(())
+    }
+
+    /// Stop the host for good as the app exits. Unlike `stop`, this also
+    /// makes any start that is still in flight kill its host when it finishes.
+    pub fn shutdown(&self) {
+        self.shutting_down.store(true, Ordering::SeqCst);
+        let _ = self.stop();
     }
 
     pub fn restart(
@@ -405,4 +435,53 @@ fn kill_session(session: &mut ExtHostSession) {
         session.session_id,
         session.started_at.elapsed().as_secs()
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    /// Run `f` on another thread and fail if it has not finished in 5s, so a
+    /// regression shows up as a failed test rather than a hung test run.
+    fn finishes_promptly<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> T {
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            let _ = tx.send(f());
+        });
+        rx.recv_timeout(Duration::from_secs(5))
+            .expect("the call blocked while a host start was in flight")
+    }
+
+    #[test]
+    fn shutdown_does_not_wait_for_a_start_in_flight() {
+        let supervisor = Arc::new(ExtensionPlatformSupervisor::new());
+        // Pretend a start is stuck, for example probing for node.
+        let _starting = supervisor.start_gate.lock().unwrap();
+
+        let s = Arc::clone(&supervisor);
+        finishes_promptly(move || s.shutdown());
+
+        assert!(supervisor.shutting_down.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn stop_and_snapshot_do_not_wait_for_a_start_in_flight() {
+        let supervisor = Arc::new(ExtensionPlatformSupervisor::new());
+        let _starting = supervisor.start_gate.lock().unwrap();
+
+        let s = Arc::clone(&supervisor);
+        finishes_promptly(move || s.stop().unwrap());
+        let s = Arc::clone(&supervisor);
+        let state = finishes_promptly(move || s.snapshot().unwrap());
+
+        assert!(!state.running);
+    }
+
+    #[test]
+    fn a_plain_stop_does_not_block_later_starts() {
+        let supervisor = ExtensionPlatformSupervisor::new();
+        supervisor.stop().unwrap();
+        assert!(!supervisor.shutting_down.load(Ordering::SeqCst));
+    }
 }

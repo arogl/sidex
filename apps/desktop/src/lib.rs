@@ -1147,7 +1147,7 @@ pub fn run() {
                     store.kill_all();
                 }
                 if let Some(supervisor) = app_handle.try_state::<ExtensionPlatformSupervisor>() {
-                    let _ = supervisor.stop();
+                    supervisor.shutdown();
                 }
                 // Every other child-process owner is stopped explicitly here
                 // rather than left to Drop; the agent server needs the same
