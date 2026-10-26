@@ -337,7 +337,10 @@ export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 		}
 		for (const theme of this.listedBuiltInThemes) {
 			if (theme.id === themeId) {
-				return theme;
+				// A listed built-in has no token colors of its own. When an
+				// extension provides the same theme, use that one so syntax
+				// highlighting works.
+				return this.extensionThemeFor(theme) ?? theme;
 			}
 		}
 		const allThemes = this.getThemes();
@@ -347,6 +350,12 @@ export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 			}
 		}
 		return undefined;
+	}
+
+	private extensionThemeFor(builtIn: T): T | undefined {
+		return builtIn.settingsId === null
+			? undefined
+			: this.extensionThemes.find(t => t.settingsId === builtIn.settingsId);
 	}
 
 	public findThemeBySettingsId(settingsId: string | null, defaultSettingsId?: string): T | undefined {
@@ -375,7 +384,13 @@ export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 	}
 
 	public getThemes(): T[] {
-		return [...this.listedBuiltInThemes, ...this.extensionThemes];
+		// The listed built-ins are a fallback for when the theme extensions are
+		// not installed. Once an extension provides a theme with the same
+		// settings id (Dark Modern, Light Modern, ...), show only that one so the
+		// picker has no duplicates and the full theme, with token colors, is used.
+		const extensionSettingsIds = new Set(this.extensionThemes.map(t => t.settingsId));
+		const fallbackBuiltIns = this.listedBuiltInThemes.filter(t => !extensionSettingsIds.has(t.settingsId));
+		return [...fallbackBuiltIns, ...this.extensionThemes];
 	}
 
 	public getMarketplaceThemes(manifest: any, extensionLocation: URI, extensionData: ExtensionData): T[] {
