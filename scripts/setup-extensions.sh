@@ -41,17 +41,37 @@ echo "No local VSCode installation found. Downloading from GitHub..."
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-ARCHIVE_URL="https://github.com/microsoft/vscode/archive/refs/tags/${VSCODE_VERSION}.tar.gz"
-# --fail makes an HTTP error (for example a tag that does not exist) stop here;
-# without it curl saves the error page and tar later fails with "not in gzip format".
-if ! curl --fail -L --progress-bar "$ARCHIVE_URL" -o "$TMP_DIR/vscode.tar.gz"; then
-  echo "error: could not download $ARCHIVE_URL" >&2
-  echo "       check that .vscode-version ($VSCODE_VERSION) is a tag that exists in microsoft/vscode" >&2
-  exit 1
+# VS Code names the tag of a minor's first release inconsistently: 1.110 has the
+# tag "1.110" (there is no "1.110.0"), while 1.115.0 has "1.115.0". Try the exact
+# version, then the version without a trailing ".0".
+TAGS=("$VSCODE_VERSION")
+if [[ "$VSCODE_VERSION" == *.0 ]]; then
+  TAGS+=("${VSCODE_VERSION%.0}")
 fi
 
+TAG=""
+for candidate in "${TAGS[@]}"; do
+  echo "Downloading VS Code tag '${candidate}'..."
+  # --fail makes an HTTP error (a tag that does not exist) stop the download;
+  # without it curl saves the error page and tar later fails with "not in gzip format".
+  if curl --fail --silent --show-error -L --progress-bar \
+    "https://github.com/microsoft/vscode/archive/refs/tags/${candidate}.tar.gz" \
+    -o "$TMP_DIR/vscode.tar.gz" 2>/dev/null; then
+    TAG="$candidate"
+    break
+  fi
+  echo "Could not download tag '${candidate}'." >&2
+done
+
+if [[ -z "$TAG" ]]; then
+  echo "error: could not download VS Code ${VSCODE_VERSION} from github.com/microsoft/vscode (tried tags: ${TAGS[*]})" >&2
+  echo "       check .vscode-version, and list real tags with: git ls-remote --tags https://github.com/microsoft/vscode" >&2
+  exit 1
+fi
+echo "Downloaded VS Code tag ${TAG}."
+
 echo "Extracting extensions..."
-tar -xzf "$TMP_DIR/vscode.tar.gz" -C "$TMP_DIR" "vscode-${VSCODE_VERSION}/extensions"
-cp -r "$TMP_DIR/vscode-${VSCODE_VERSION}/extensions/." "$EXTENSIONS_DIR/"
+tar -xzf "$TMP_DIR/vscode.tar.gz" -C "$TMP_DIR" "vscode-${TAG}/extensions"
+cp -r "$TMP_DIR/vscode-${TAG}/extensions/." "$EXTENSIONS_DIR/"
 
 echo "Done — $(ls "$EXTENSIONS_DIR" | wc -l | tr -d ' ') extensions installed."
