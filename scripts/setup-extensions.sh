@@ -41,9 +41,14 @@ echo "No local VSCode installation found. Downloading from GitHub..."
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-curl -L --progress-bar \
-  "https://github.com/microsoft/vscode/archive/refs/tags/${VSCODE_VERSION}.tar.gz" \
-  -o "$TMP_DIR/vscode.tar.gz"
+ARCHIVE_URL="https://github.com/microsoft/vscode/archive/refs/tags/${VSCODE_VERSION}.tar.gz"
+# --fail makes an HTTP error (for example a tag that does not exist) stop here;
+# without it curl saves the error page and tar later fails with "not in gzip format".
+if ! curl --fail -L --progress-bar "$ARCHIVE_URL" -o "$TMP_DIR/vscode.tar.gz"; then
+  echo "error: could not download $ARCHIVE_URL" >&2
+  echo "       check that .vscode-version ($VSCODE_VERSION) is a tag that exists in microsoft/vscode" >&2
+  exit 1
+fi
 
 echo "Extracting extensions..."
 tar -xzf "$TMP_DIR/vscode.tar.gz" -C "$TMP_DIR" "vscode-${VSCODE_VERSION}/extensions"
