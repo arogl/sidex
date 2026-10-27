@@ -8,3 +8,6 @@ sidex-extension-sdk = { path = "../../crates/extension-sdk" }
 
 [lib]
 crate-type = ["cdylib"]
+
+# Standalone: not a member of the root workspace or of extensions-wasm.
+[workspace]
