@@ -33,14 +33,19 @@
 					globalThis.__SIDEX_ARCH__ = 'x64';
 				}
 			}
-			globalThis._VSCODE_PACKAGE_JSON = { version: '1.110.0', name: 'sidex' };
+			// The VS Code version SideX targets comes from /sidex-env.js (from
+			// .vscode-version); it has no useful fallback, so say so loudly.
+			if (!globalThis.__SIDEX_VSCODE_VERSION__) {
+				console.error('sidex-env.js did not set __SIDEX_VSCODE_VERSION__ - run `bun run setup`');
+			}
+			globalThis._VSCODE_PACKAGE_JSON = { version: globalThis.__SIDEX_VSCODE_VERSION__, name: 'sidex' };
 			globalThis._VSCODE_PRODUCT_JSON = {
 				nameShort: 'SideX',
 				nameLong: 'SideX',
 				applicationName: 'sidex',
 				dataFolderName: '.sidex',
 				urlProtocol: 'sidex',
-				version: '1.110.0',
+				version: globalThis.__SIDEX_VSCODE_VERSION__,
 				commit: '',
 				date: new Date().toISOString(),
 				quality: 'stable',

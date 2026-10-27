@@ -62,7 +62,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.110.0',
+			version: (globalThis as any).__SIDEX_VSCODE_VERSION__,
 			nameShort: 'SideX',
 			nameLong: 'SideX',
 			applicationName: 'sidex',

@@ -16,13 +16,15 @@ export interface SidexEnv {
 	arch: string;
 	os: string;
 	targetPlatform: string;
+	/** The VS Code version SideX targets, from `.vscode-version`. */
+	vscodeVersion: string;
 }
 
 /** Maps Node's `process.arch` / `process.platform` to the values SideX uses. */
-export function resolveSidexEnv(nodeArch: string, nodePlatform: string): SidexEnv {
+export function resolveSidexEnv(nodeArch: string, nodePlatform: string, vscodeVersion: string): SidexEnv {
 	const arch = ARCH[nodeArch] ?? 'x64';
 	const os = OS[nodePlatform] ?? 'linux';
-	return { arch, os, targetPlatform: `${os}-${arch}` };
+	return { arch, os, targetPlatform: `${os}-${arch}`, vscodeVersion };
 }
 
 export function renderSidexEnvJs(env: SidexEnv): string {
@@ -33,6 +35,7 @@ export function renderSidexEnvJs(env: SidexEnv): string {
 		`globalThis.__SIDEX_ARCH__ = ${JSON.stringify(env.arch)};`,
 		`globalThis.__SIDEX_OS__ = ${JSON.stringify(env.os)};`,
 		`globalThis.__SIDEX_TARGET_PLATFORM__ = ${JSON.stringify(env.targetPlatform)};`,
+		`globalThis.__SIDEX_VSCODE_VERSION__ = ${JSON.stringify(env.vscodeVersion)};`,
 		''
 	].join('\n');
 }
