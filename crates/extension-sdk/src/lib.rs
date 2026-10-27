@@ -16,21 +16,23 @@
 //!
 //! struct MyExtension;
 //!
-//! impl SidexExtension for MyExtension {
+//! // `Extension` has a default for every hook except `get_name`.
+//! impl Extension for MyExtension {
 //!     fn activate() -> Result<(), String> {
 //!         host::log_info("Hello from my extension!");
 //!         Ok(())
 //!     }
-//!
-//!     fn deactivate() {}
 //!
 //!     fn get_name() -> String {
 //!         "My Extension".to_string()
 //!     }
 //! }
 //!
-//! export_extension!(MyExtension);
+//! export_extension_with_defaults!(MyExtension);
 //! ```
+//!
+//! To control every hook yourself, implement [`SidexExtension`] (the
+//! WIT-generated trait, which has no defaults) and use [`export_extension!`].
 //!
 //! Then in your extension directory, create a `sidex.toml`:
 //!
@@ -57,11 +59,15 @@ pub use self::sidex::extension::host_api as host;
 /// Re-export the guest trait that extensions must implement.
 pub use self::exports::sidex::extension::extension_api::Guest as SidexExtension;
 
+mod defaults;
+pub use defaults::{Extension, ExtensionComponent};
+
 /// Prelude module — import everything you need with `use sidex_extension_sdk::prelude::*;`
 pub mod prelude {
     pub use super::exports::sidex::extension::extension_api::Guest as SidexExtension;
     pub use super::sidex::extension::common_types::*;
     pub use super::sidex::extension::host_api as host;
+    pub use super::Extension;
 }
 
 /// Macro to export your extension implementation. Call this once at the
@@ -70,5 +76,15 @@ pub mod prelude {
 macro_rules! export_extension {
     ($ty:ident) => {
         ::sidex_extension_sdk::export!($ty with_types_in ::sidex_extension_sdk);
+    };
+}
+
+/// Like [`export_extension!`], for a type that implements [`Extension`] (the
+/// trait with a default for every hook) instead of [`SidexExtension`].
+#[macro_export]
+macro_rules! export_extension_with_defaults {
+    ($ty:ty) => {
+        type __SidexExtensionExport = ::sidex_extension_sdk::ExtensionComponent<$ty>;
+        ::sidex_extension_sdk::export!(__SidexExtensionExport with_types_in ::sidex_extension_sdk);
     };
 }
