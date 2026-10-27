@@ -18,6 +18,7 @@ on:
       - "bunfig.toml"
       - "wasm/**"
       - "packages/build/**"
+      - "examples/**"
   pull_request:
     branches: [main]
 
@@ -124,3 +125,33 @@ jobs:
           bun run build:wasm
           test -f apps/workbench/public/wasm/tfidf/sidex_tfidf_wasm.js
           test -f apps/workbench/public/wasm/tfidf/sidex_tfidf_wasm_bg.wasm
+
+  examples:
+    name: build examples (wasm32-wasip2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          toolchain: stable
+
+      # Run from the repo root so the target is added to the toolchain that
+      # rust-toolchain.toml selects, which is the one cargo uses below.
+      - name: Add the wasm32-wasip2 target
+        run: rustup target add wasm32-wasip2
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: "examples/hello-extension -> target"
+          key: examples
+
+      # examples/ is outside every Cargo workspace, so nothing else builds it
+      # and it can go stale when the extension SDK changes.
+      - name: Build hello-extension
+        run: cargo build --manifest-path examples/hello-extension/Cargo.toml --target wasm32-wasip2 --release
+
+      - name: Assert the component was produced
+        run: test -f examples/hello-extension/target/wasm32-wasip2/release/hello_extension.wasm
