@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderSidexEnvJs, resolveSidexEnv } from '../sidex-env/render';
+import { parseVscodeVersion } from '../vscode-version/parse';
 import { collectDescriptors, renderBuiltinExtensionsJs } from './collect';
 
 const repoRoot = resolve(import.meta.dir, '../../../..');
@@ -24,6 +25,9 @@ const js = renderBuiltinExtensionsJs(descriptors);
 writeFileSync(jsOutputPath, js);
 console.log(`Wrote public/builtin-extensions.js (${(js.length / 1024).toFixed(1)} KB)`);
 
-const sidexEnv = resolveSidexEnv(process.arch, process.platform);
+const vscodeVersion = parseVscodeVersion(readFileSync(resolve(repoRoot, '.vscode-version'), 'utf8'));
+const sidexEnv = resolveSidexEnv(process.arch, process.platform, vscodeVersion);
 writeFileSync(envOutputPath, renderSidexEnvJs(sidexEnv));
-console.log(`Wrote public/sidex-env.js (targetPlatform=${sidexEnv.targetPlatform})`);
+console.log(
+	`Wrote public/sidex-env.js (targetPlatform=${sidexEnv.targetPlatform}, vscodeVersion=${sidexEnv.vscodeVersion})`
+);

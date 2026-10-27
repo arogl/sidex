@@ -16,6 +16,11 @@ use tauri::AppHandle;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
+/// The VS Code version SideX targets, from the repo's single `.vscode-version`
+/// file. Compiled in (cargo rebuilds when the file changes) and handed to the
+/// extension host, which reports it as `vscode.version`.
+const VSCODE_VERSION: &str = include_str!("../../../../.vscode-version");
+
 /// Strip the Windows `\\?\` prefix; Node's CJS resolver chokes on UNC paths.
 #[allow(clippy::needless_pass_by_value)]
 fn normalize_for_node(path: PathBuf) -> PathBuf {
@@ -304,6 +309,7 @@ fn spawn_host_process(
         .env("SIDEX_EXTENSIONS_DIR", &user_ext_dir)
         .env("SIDEX_BUILTIN_EXTENSIONS_DIR", &builtin_ext_dir)
         .env("SIDEX_GLOBAL_STORAGE_DIR", &global_store_dir)
+        .env("SIDEX_VSCODE_VERSION", VSCODE_VERSION.trim())
         .env("SIDEX_EXTENSION_SEARCH_PATHS", &search_paths_json)
         .env("SIDEX_INIT_DATA_FILE", &init_data_file)
         .env("SIDEX_SESSION_ID", &session_id)
@@ -476,6 +482,15 @@ mod tests {
         let state = finishes_promptly(move || s.snapshot().unwrap());
 
         assert!(!state.running);
+    }
+
+    #[test]
+    fn the_compiled_in_vscode_version_is_one_major_minor_patch() {
+        let parts: Vec<&str> = VSCODE_VERSION.trim().split('.').collect();
+        assert_eq!(parts.len(), 3, "got {VSCODE_VERSION:?}");
+        assert!(parts
+            .iter()
+            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit())));
     }
 
     #[test]

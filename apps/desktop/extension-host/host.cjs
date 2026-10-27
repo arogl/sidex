@@ -14,6 +14,10 @@ process.on('uncaughtException', (err) => {
 
 const _isWin = process.platform === 'win32';
 
+// The VS Code version SideX targets (`.vscode-version`). The Rust side sets it when it
+// spawns the host; it is only absent when the host is run standalone, as the tests do.
+const VSCODE_VERSION = process.env.SIDEX_VSCODE_VERSION || '0.0.0';
+
 function uriPathToFsPath(uriPath) {
   if (!uriPath) return uriPath;
   if (_isWin && /^\/[A-Za-z]:/.test(uriPath)) {
@@ -4954,7 +4958,7 @@ function createVscodeShim() {
     comments,
     authentication,
     tests,
-    version: '1.110.0',
+    version: VSCODE_VERSION,
     l10n: {
       t: (message, ...args) => {
         let str = typeof message === 'string' ? message : message.message || '';
@@ -5060,7 +5064,7 @@ function installVscodeShim() {
     fs.mkdirSync(vscDir, { recursive: true });
     fs.writeFileSync(path.join(vscDir, 'package.json'), JSON.stringify({
       name: 'vscode',
-      version: '1.110.0',
+      version: VSCODE_VERSION,
       main: 'index.cjs',
     }));
     fs.writeFileSync(path.join(vscDir, 'index.cjs'), "module.exports = globalThis.__sidex_vscode_shim__ || require('__sidex_vscode_shim__');");

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VSCODE_VERSION="1.115.0"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# The VS Code version SideX targets lives in one place, .vscode-version.
+VSCODE_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/.vscode-version")"
+if [[ ! "$VSCODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "error: .vscode-version must contain one version like 1.110.0, got '$VSCODE_VERSION'" >&2
+  exit 1
+fi
 EXTENSIONS_DIR="$REPO_ROOT/extensions"
 
 if [[ -d "$EXTENSIONS_DIR" && "$(ls -A "$EXTENSIONS_DIR" 2>/dev/null | wc -l)" -gt 10 ]]; then
