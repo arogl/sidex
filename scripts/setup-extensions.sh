@@ -17,13 +17,16 @@ fi
 
 mkdir -p "$EXTENSIONS_DIR"
 
+# Only places that hold VS Code's own built-in extensions. ~/.vscode/extensions
+# is not one: it holds the extensions a user installed from the marketplace, and
+# the app deliberately never loads other editors' user extensions (see
+# extension_search_paths in apps/desktop/src/commands/extension_platform.rs).
 VSCODE_CANDIDATES=(
   "/Applications/Visual Studio Code.app/Contents/Resources/app/extensions"
   "/Applications/Cursor.app/Contents/Resources/app/extensions"
   "/usr/share/code/resources/app/extensions"
   "/usr/lib/code/extensions"
   "/opt/visual-studio-code/resources/app/extensions"
-  "$HOME/.vscode/extensions"
 )
 
 for candidate in "${VSCODE_CANDIDATES[@]}"; do
