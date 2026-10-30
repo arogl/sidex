@@ -84,6 +84,10 @@ export class SimpleTypedRpcConnection<T extends Side> {
 			{},
 			{
 				get: (target, key: string) => {
+					// Answering `then` makes this proxy a thenable, so `await` would send a bogus request and never settle.
+					if (key === 'then') {
+						return undefined;
+					}
 					return async (...args: unknown[]) => {
 						const result = await this._channel.sendRequest([key, args] satisfies OutgoingMessage);
 						if (result.type === 'error') {
@@ -100,6 +104,10 @@ export class SimpleTypedRpcConnection<T extends Side> {
 			{},
 			{
 				get: (target, key: string) => {
+					// Answering `then` makes this proxy a thenable, so `await` would send a bogus notification and never settle.
+					if (key === 'then') {
+						return undefined;
+					}
 					return (...args: unknown[]) => {
 						this._channel.sendNotification([key, args] satisfies OutgoingMessage);
 					};
