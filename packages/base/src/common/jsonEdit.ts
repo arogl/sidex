@@ -3,7 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json.js';
+import {
+	createScanner,
+	findNodeAtLocation,
+	JSONPath,
+	Node,
+	ParseError,
+	parseTree,
+	Segment,
+	SyntaxKind
+} from './json.js';
 import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter.js';
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
@@ -69,6 +78,13 @@ export function setProperty(
 						// remove the comma of the next node
 						const next = parent.children[1];
 						removeEnd = next.offset;
+					} else {
+						// remove the trailing comma of the only node
+						const scanner = createScanner(text, true);
+						scanner.setPosition(removeEnd);
+						if (scanner.scan() === SyntaxKind.CommaToken) {
+							removeEnd = scanner.getPosition();
+						}
 					}
 				}
 				return withFormatting(
@@ -134,7 +150,7 @@ export function setProperty(
 				const previous = parent.children[removalIndex - 1];
 				const offset = previous.offset + previous.length;
 				const parentEndOffset = parent.offset + parent.length;
-				edit = { offset, length: parentEndOffset - 2 - offset, content: '' };
+				edit = { offset, length: parentEndOffset - 1 - offset, content: '' };
 			} else {
 				edit = {
 					offset: toRemove.offset,

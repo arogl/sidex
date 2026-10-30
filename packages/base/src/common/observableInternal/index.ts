@@ -14,7 +14,9 @@ export {
 	autorunWithStore,
 	autorunWithStoreHandleChanges,
 	autorunIterableDelta,
-	autorunSelfDisposable
+	autorunPerKeyedItem,
+	autorunSelfDisposable,
+	registerAutorunSelfDisposable
 } from './reactions/autorun.js';
 export {
 	type IObservable,
@@ -36,7 +38,13 @@ export {
 	derivedWithStore
 } from './observables/derived.js';
 export { type IDerivedReader } from './observables/derivedImpl.js';
-export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult } from './utils/promise.js';
+export {
+	ObservableLazy,
+	ObservableLazyPromise,
+	ObservablePromise,
+	ObservableResolvedPromise,
+	PromiseResult
+} from './utils/promise.js';
 export { derivedWithCancellationToken, waitForState } from './utils/utilsCancellation.js';
 export {
 	debouncedObservable,
@@ -48,6 +56,7 @@ export {
 	observableFromPromise,
 	recomputeInitiallyAndOnChange,
 	signalFromObservable,
+	throttledObservable,
 	wasEventTriggeredRecently,
 	isObservable
 } from './utils/utils.js';

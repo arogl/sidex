@@ -16,6 +16,7 @@ import { IToggleStyles } from '../toggle/toggle.js';
 import {
 	Action,
 	ActionRunner,
+	getActionForAltMode,
 	IAction,
 	IActionChangeEvent,
 	IActionRunner,
@@ -26,7 +27,7 @@ import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
 import * as nls from '@sidex/base/nls.js';
-import type { IManagedHover, IManagedHoverContent } from '../hover/hover.js';
+import type { IManagedHover, IManagedHoverContent, IManagedHoverOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IBaseActionViewItemOptions {
@@ -200,7 +201,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 				? event
 				: { preserveFocus }
 			: this._context;
-		this.actionRunner.run(this._action, context);
+		this.actionRunner.run(this.getActionToRun(event), context);
+	}
+
+	getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		return this.options?.isMenu ? getActionForAltMode(this._action, event) : this._action;
 	}
 
 	// Only set the tabIndex on the element once it is about to get focused
@@ -255,6 +260,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return this.getTooltip();
 	}
 
+	protected getHoverOptions(): IManagedHoverOptions | undefined {
+		return undefined;
+	}
+
 	protected updateTooltip(): void {
 		if (!this.element) {
 			return;
@@ -265,10 +274,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		if (!this.customHover && title !== '') {
 			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
 			this.customHover = this._store.add(
-				getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title)
+				getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title, this.getHoverOptions())
 			);
 		} else if (this.customHover) {
-			this.customHover.update(title);
+			this.customHover.update(title, this.getHoverOptions());
 		}
 	}
 
