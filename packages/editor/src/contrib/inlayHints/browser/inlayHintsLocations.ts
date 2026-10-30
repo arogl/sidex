@@ -110,7 +110,7 @@ export async function showGoToContextMenu(
 		onHide: () => {
 			editor.focus();
 		},
-		autoSelectFirstItem: true
+		autoSelectItem: true
 	});
 }
 

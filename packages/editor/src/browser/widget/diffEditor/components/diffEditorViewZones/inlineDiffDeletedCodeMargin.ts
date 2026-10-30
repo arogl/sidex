@@ -143,7 +143,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 					}
 					return actions;
 				},
-				autoSelectFirstItem: true
+				autoSelectItem: true
 			});
 		};
 
