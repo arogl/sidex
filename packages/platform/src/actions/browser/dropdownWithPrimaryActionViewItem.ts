@@ -6,6 +6,7 @@
 import * as DOM from '@sidex/base/browser/dom.js';
 import { StandardKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem } from '@sidex/base/browser/ui/actionbar/actionViewItems.js';
+import { IActionProvider } from '@sidex/base/browser/ui/dropdown/dropdown.js';
 import { DropdownMenuActionViewItem } from '@sidex/base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAction, IActionRunner } from '@sidex/base/common/actions.js';
 import { Event } from '@sidex/base/common/event.js';
@@ -20,11 +21,15 @@ import { IThemeService } from '../../theme/common/themeService.js';
 import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IHoverDelegate } from '@sidex/base/browser/ui/hover/hoverDelegate.js';
+import { IContextViewCloseAnimation } from '@sidex/base/browser/ui/contextview/contextview.js';
 
 export interface IDropdownWithPrimaryActionViewItemOptions {
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	hoverDelegate?: IHoverDelegate;
+	menuClassName?: string;
+	closeAnimation?: IContextViewCloseAnimation;
+	getAnchor?: () => HTMLElement;
 	menuAsChild?: boolean;
 	skipTelemetry?: boolean;
 }
@@ -42,7 +47,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	constructor(
 		primaryAction: MenuItemAction,
 		dropdownAction: IAction,
-		dropdownMenuActions: readonly IAction[],
+		dropdownMenuActions: readonly IAction[] | IActionProvider,
 		className: string,
 		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
 		@IContextMenuService private readonly _contextMenuProvider: IContextMenuService,
@@ -70,6 +75,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: _options?.menuAsChild ?? true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
+			menuClassName: _options?.menuClassName,
+			closeAnimation: _options?.closeAnimation,
+			getAnchor: _options?.getAnchor,
 			actionRunner: this._options?.actionRunner,
 			keybindingProvider: this._options?.getKeyBinding ?? (action => _keybindingService.lookupKeybinding(action.id)),
 			hoverDelegate: _options?.hoverDelegate,
@@ -169,6 +177,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: this._options?.menuAsChild ?? true,
 			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'],
+			menuClassName: this._options?.menuClassName,
+			closeAnimation: this._options?.closeAnimation,
+			getAnchor: this._options?.getAnchor,
 			actionRunner: this._options?.actionRunner,
 			hoverDelegate: this._options?.hoverDelegate,
 			keybindingProvider: this._options?.getKeyBinding

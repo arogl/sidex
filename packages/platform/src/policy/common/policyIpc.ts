@@ -11,18 +11,25 @@ import { IChannel, IServerChannel } from '@sidex/base/parts/ipc/common/ipc.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
 
 export class PolicyChannel implements IServerChannel {
+	private readonly onDidChangeEvent: Event<IStringDictionary<PolicyValue | null>>;
 	private readonly disposables = new DisposableStore();
 
-	constructor(private service: IPolicyService) {}
+	constructor(private service: IPolicyService) {
+		this.onDidChangeEvent = Event.map(
+			this.service.onDidChange,
+			names =>
+				names.reduce<IStringDictionary<PolicyValue | null>>(
+					(r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }),
+					{}
+				),
+			this.disposables
+		);
+	}
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
 			case 'onDidChange':
-				return Event.map(
-					this.service.onDidChange,
-					names => names.reduce<object>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }), {}),
-					this.disposables
-				);
+				return this.onDidChangeEvent;
 		}
 
 		throw new Error(`Event not found: ${event}`);

@@ -181,7 +181,7 @@ export abstract class AbstractExtensionResourceLoaderService
 		);
 	}
 
-	protected async getExtensionGalleryRequestHeaders(): Promise<Record<string, string>> {
+	protected async getExtensionGalleryRequestHeaders(resource: URI): Promise<Record<string, string>> {
 		const headers: Record<string, string> = {
 			'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
 			'X-Client-Version': this._productService.version
@@ -194,6 +194,10 @@ export abstract class AbstractExtensionResourceLoaderService
 		}
 		if (this._productService.commit) {
 			headers['X-Client-Commit'] = this._productService.commit;
+		}
+		const accessToken = await this._extensionGalleryManifestService.getAccessToken(resource.toString(true));
+		if (accessToken) {
+			headers.Authorization = `Bearer ${accessToken}`;
 		}
 		return headers;
 	}

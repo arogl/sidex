@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '@sidex/base/browser/window.js';
+import { getRecentDisposableResizeObserverContextForLoopError } from '@sidex/base/browser/dom.js';
 import { ErrorNoTelemetry } from '@sidex/base/common/errors.js';
 import { toDisposable } from '@sidex/base/common/lifecycle.js';
 import BaseErrorTelemetry, { ErrorEvent } from '../common/errorTelemetry.js';
@@ -57,6 +58,16 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 			if (stack) {
 				data.callstack = Array.isArray(err.stack) ? (err.stack = err.stack.join('\n')) : err.stack;
 			}
+		}
+
+		// The browser does not expose which observer or skipped target caused a
+		// ResizeObserver loop warning. Include the wrapped observers that ran
+		// recently as delivery context instead of falsely attributing the loop
+		// to whichever callback happened to run last.
+		const resizeObserverContext = getRecentDisposableResizeObserverContextForLoopError(msg);
+		if (resizeObserverContext) {
+			data.msg = resizeObserverContext;
+			data.callstack = resizeObserverContext;
 		}
 
 		this._enqueue(data);

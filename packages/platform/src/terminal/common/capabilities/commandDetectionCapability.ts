@@ -55,6 +55,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		return this._hasRichCommandDetection;
 	}
 	private _nextCommandId: { command: string; commandId: string | undefined } | undefined;
+	private _isCurrentCommandInterrupted = false;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private readonly _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
@@ -125,6 +126,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._logService
 			)
 		);
+		this._register(this._promptInputModel.onDidInterrupt(() => (this._isCurrentCommandInterrupted = true)));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(
@@ -275,6 +277,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 	}
 
+	clearCommands(): void {
+		if (this._commands.length > 0) {
+			this._onCommandInvalidated.fire(this._commands.splice(0));
+		}
+	}
+
 	setContinuationPrompt(value: string): void {
 		this._promptInputModel.setContinuationPrompt(value);
 	}
@@ -386,6 +394,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
+		this._isCurrentCommandInterrupted = false;
 		// Adjust the last command's finished marker when needed. The standard position for the
 		// finished marker `D` to appear is at the same position as the following prompt started
 		// `A`. Only do this when it would not extend past the current cursor position.
@@ -514,7 +523,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
-		if (exitCode === undefined) {
+		// A canceled command's exit code should remain undefined.
+		if (exitCode === undefined && !this._isCurrentCommandInterrupted) {
 			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
 			if (
 				this._currentCommand.command &&

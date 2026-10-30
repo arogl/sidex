@@ -9,6 +9,7 @@ import {
 	AnchorAlignment,
 	AnchorAxisAlignment,
 	IAnchor,
+	IContextViewCloseAnimation,
 	IContextViewProvider
 } from '@sidex/base/browser/ui/contextview/contextview.js';
 import { IAction } from '@sidex/base/common/actions.js';
@@ -24,7 +25,12 @@ export const IContextViewService = createDecorator<IContextViewService>('context
 export interface IContextViewService extends IContextViewProvider {
 	readonly _serviceBrand: undefined;
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView;
+	showContextView(
+		delegate: IContextViewDelegate,
+		container?: HTMLElement,
+		shadowRoot?: boolean,
+		useWindowContainerForShadowRoot?: boolean
+	): IOpenContextView;
 	hideContextView(data?: any): void;
 	getContextViewElement(): HTMLElement;
 	layout(): void;
@@ -44,7 +50,9 @@ export interface IContextViewDelegate {
 	render(container: HTMLElement): IDisposable;
 	onDOMEvent?(e: any, activeElement: HTMLElement): void;
 	onHide?(data?: any): void;
+	closeAnimation?: IContextViewCloseAnimation;
 	focus?(): void;
+	layout?(): void;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	anchorPosition?: AnchorPosition;

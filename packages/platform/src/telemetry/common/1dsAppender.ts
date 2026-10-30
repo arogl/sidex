@@ -27,6 +27,23 @@ export interface IAppInsightsCore {
 const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
 const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
 
+/** Fills in the envelope fields every event needs, including the internal-only routing flag. */
+export function applyEnvelopeDefaults(envelope: ITelemetryItem, isInternalMachine: boolean | undefined): void {
+	// Opt the user out of 1DS data sharing
+	envelope['ext'] = envelope['ext'] ?? {};
+	envelope['ext']['web'] = envelope['ext']['web'] ?? {};
+	envelope['ext']['web']['consentDetails'] = '{"GPC_DataSharingOptIn":false}';
+
+	// An internal account is only known after sign-in, so check each event and not just the machine.
+	// `validateTelemetryData` turns the boolean common property into the measurement `1`.
+	const baseData = envelope['baseData'] as { measurements?: Record<string, unknown> } | undefined;
+	if (isInternalMachine || baseData?.measurements?.['common.msftInternal'] === 1) {
+		envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
+		// Sets it to be internal only based on Windows UTC flagging
+		envelope['ext']['utc']['flags'] = 0x0000811ecd;
+	}
+}
+
 async function getClient(
 	instrumentationKey: string,
 	addInternalFlag?: boolean,
@@ -72,18 +89,7 @@ async function getClient(
 
 	appInsightsCore.initialize(coreConfig, []);
 
-	appInsightsCore.addTelemetryInitializer(envelope => {
-		// Opt the user out of 1DS data sharing
-		envelope['ext'] = envelope['ext'] ?? {};
-		envelope['ext']['web'] = envelope['ext']['web'] ?? {};
-		envelope['ext']['web']['consentDetails'] = '{"GPC_DataSharingOptIn":false}';
-
-		if (addInternalFlag) {
-			envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
-			// Sets it to be internal only based on Windows UTC flagging
-			envelope['ext']['utc']['flags'] = 0x0000811ecd;
-		}
-	});
+	appInsightsCore.addTelemetryInitializer(envelope => applyEnvelopeDefaults(envelope, addInternalFlag));
 
 	return appInsightsCore;
 }

@@ -306,6 +306,11 @@ export interface IWorkspace {
 	 * the location of the workspace configuration
 	 */
 	readonly configuration?: URI | null;
+
+	/**
+	 * Optional display name for the workspace.
+	 */
+	readonly name?: string;
 }
 
 export function isWorkspace(thing: unknown): thing is IWorkspace {
@@ -373,7 +378,8 @@ export class Workspace implements IWorkspace {
 		folders: WorkspaceFolder[],
 		private _transient: boolean,
 		private _configuration: URI | null,
-		private ignorePathCasing: (key: URI) => boolean
+		private ignorePathCasing: (key: URI) => boolean,
+		private _workspaceName?: string
 	) {
 		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
@@ -383,6 +389,7 @@ export class Workspace implements IWorkspace {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
 		this._transient = workspace.transient;
+		this._workspaceName = workspace.name;
 		this.ignorePathCasing = workspace.ignorePathCasing;
 		this.folders = workspace.folders;
 	}
@@ -403,6 +410,10 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
+	get name(): string | undefined {
+		return this._workspaceName;
+	}
+
 	getFolder(resource: URI): IWorkspaceFolder | null {
 		if (!resource) {
 			return null;
@@ -419,7 +430,13 @@ export class Workspace implements IWorkspace {
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration };
+		return {
+			id: this.id,
+			folders: this.folders,
+			transient: this.transient,
+			configuration: this.configuration,
+			name: this.name
+		};
 	}
 }
 

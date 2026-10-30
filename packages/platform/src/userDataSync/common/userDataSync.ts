@@ -37,6 +37,7 @@ import {
 } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../log/common/log.js';
 import { Registry } from '../../registry/common/platform.js';
+import { StorageScope } from '../../storage/common/storage.js';
 import { IUserDataProfile, UseDefaultProfileFlags } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncMachine } from './userDataSyncMachines.js';
 
@@ -504,6 +505,7 @@ export interface IRemoteSyncExtension {
 export interface IStorageValue {
 	version: number;
 	value: string;
+	scope?: StorageScope;
 }
 
 export interface IGlobalState {
