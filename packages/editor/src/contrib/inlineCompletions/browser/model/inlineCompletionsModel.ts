@@ -170,7 +170,7 @@ export class InlineCompletionsModel extends Disposable {
 				this._textModelVersionId,
 				this._debounceValue,
 				this.primaryPosition,
-				product.defaultChatAgent?.completionsEnablementSetting
+				undefined /* SideX has no default chat agent */
 			)
 		);
 		this.lastTriggerKind = this._source.inlineCompletions.map(this, v => v?.request?.context.triggerKind);

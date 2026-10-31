@@ -623,10 +623,10 @@ function resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffCompu
 			return linesDiffComputers.getLegacy();
 		case 'advanced':
 			return linesDiffComputers.getDefault();
+		// SideX does not ship the external diff engine (`@vscode/diff`), so these fall back to the default algorithm.
 		case 'advanced-external':
-			return linesDiffComputers.getAdvancedExternal();
 		case 'advanced-wasm':
-			return linesDiffComputers.getAdvancedWasm();
+			return linesDiffComputers.getDefault();
 	}
 }
 

@@ -3,21 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionViewItem } from '@sidex/base/browser/ui/actionbar/actionbar.js';
-import { IActionViewItemOptions } from '@sidex/base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '@sidex/base/common/actions.js';
 import { IDisposable } from '@sidex/base/common/lifecycle.js';
 import { URI } from '@sidex/base/common/uri.js';
-
-/**
- * Which of a multi-diff entry's two file-path labels is being created: the
- * primary (modified/current) label, or the secondary (original) label shown for
- * renames.
- */
-export const enum MultiDiffEditorItemLabelKind {
-	Primary = 'primary',
-	Secondary = 'secondary'
-}
 
 /**
  * This solves the problem that the editor layer cannot depend on the workbench layer.
@@ -26,24 +13,7 @@ export const enum MultiDiffEditorItemLabelKind {
  * This would make monaco-editor consumption much more difficult though.
  */
 export interface IWorkbenchUIElementFactory {
-	createResourceLabel?(
-		element: HTMLElement,
-		kind: MultiDiffEditorItemLabelKind,
-		accessoryContainer: HTMLElement
-	): IResourceLabel;
-
-	/** Handles a middle-click on an entry header. Returns whether the event was handled. */
-	handleHeaderMiddleClick?(resource: URI): boolean;
-
-	/** Opens an entry in a standalone diff editor. */
-	openDiffEditor?(original: URI, modified: URI): void;
-
-	/**
-	 * Optional override for how individual actions render in the per-file header
-	 * toolbar (`MenuId.MultiDiffEditorFileToolbar`). Return `undefined` to fall
-	 * back to the default icon/label rendering.
-	 */
-	createToolbarActionViewItem?(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;
+	createResourceLabel?(element: HTMLElement): IResourceLabel;
 }
 
 export interface IResourceLabel extends IDisposable {

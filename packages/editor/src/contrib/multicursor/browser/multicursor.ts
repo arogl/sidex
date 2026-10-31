@@ -1025,7 +1025,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = null;
 
 		this._register(
-			editor.onDidChangeConfiguration(_e => {
+			editor.onDidChangeConfiguration(e => {
 				this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 				this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
 				this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);

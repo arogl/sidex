@@ -442,7 +442,7 @@ class WordHighlighter {
 			})
 		);
 		this.toUnhook.add(
-			editor.onDidChangeConfiguration(_e => {
+			editor.onDidChangeConfiguration(e => {
 				const newEnablement = this.editor.getOption(EditorOption.occurrencesHighlight);
 				if (this.occurrencesHighlightEnablement !== newEnablement) {
 					this.occurrencesHighlightEnablement = newEnablement;
