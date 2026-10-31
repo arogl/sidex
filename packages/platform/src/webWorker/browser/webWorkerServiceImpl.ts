@@ -40,11 +40,13 @@ export class WebWorkerService implements IWebWorkerService {
 			workerRunnerUrl,
 			this._getWorkerLoadingFailedErrorMessage(descriptor)
 		);
-		const worker = new Worker(
-			ttPolicy ? (ttPolicy.createScriptURL(workerUrlWithNls) as unknown as string) : workerUrlWithNls,
-			{ name: descriptor.label, type: 'module' }
-		);
-		return whenESMWorkerReady(worker);
+		try {
+			const worker = createBlobWorker(workerUrlWithNls, { name: descriptor.label, type: 'module' });
+			return whenESMWorkerReady(worker).finally(() => URL.revokeObjectURL(workerUrlWithNls));
+		} catch (error) {
+			URL.revokeObjectURL(workerUrlWithNls);
+			throw error;
+		}
 	}
 
 	protected _getWorkerLoadingFailedErrorMessage(_descriptor: WebWorkerDescriptor): string | undefined {
@@ -157,6 +159,7 @@ function getWorkerBootstrapUrl(
 				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(getNLSLanguage())};`,
 				`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(globalThis._VSCODE_FILE_ROOT)};`,
 				`globalThis.__SIDEX_TAURI__ = ${JSON.stringify(!!(globalThis as any).__SIDEX_TAURI__)};`,
+				`globalThis._VSCODE_PRODUCT_JSON = ${JSON.stringify(globalThis._VSCODE_PRODUCT_JSON)};`,
 				`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 				`globalThis.workerttPolicy = ttPolicy;`,
 				`const __sidexImportUrlRaw = (ttPolicy?.createScriptURL(${JSON.stringify(workerScriptUrl)}) ?? ${JSON.stringify(workerScriptUrl)});`,

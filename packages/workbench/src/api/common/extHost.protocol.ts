@@ -839,8 +839,12 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 }
 
 export interface MainThreadProgressShape extends IDisposable {
-	$startProgress(handle: number, options: IProgressOptions, extensionId?: string): Promise<void>;
-	$progressReport(handle: number, message: IProgressStep): void;
+	$startProgress(
+		handle: number,
+		options: Omit<IProgressOptions, 'title'> & { readonly title?: string },
+		extensionId?: string
+	): Promise<void>;
+	$progressReport(handle: number, message: Omit<IProgressStep, 'message'> & { readonly message?: string }): void;
 	$progressEnd(handle: number): void;
 }
 

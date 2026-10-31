@@ -27,7 +27,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			description: localize(
 				'updateMode',
-				'Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service.'
+				'Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service.'
 			),
 			tags: ['usesOnlineServices'],
 			enumDescriptions: [
@@ -51,7 +51,7 @@ configurationRegistry.registerConfiguration({
 						key: 'updateMode',
 						value: localize(
 							'updateMode',
-							'Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service.'
+							'Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service.'
 						)
 					},
 					enumDescriptions: [
@@ -87,7 +87,7 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			description: localize(
 				'updateMode',
-				'Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service.'
+				'Configure whether you receive automatic updates. The updates are fetched from a Microsoft online service.'
 			),
 			deprecationMessage: localize('deprecated', "This setting is deprecated, please use '{0}' instead.", 'update.mode')
 		},

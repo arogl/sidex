@@ -5,6 +5,7 @@
 
 import { Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
+import { URI } from '@sidex/base/common/uri.js';
 import { IProductService } from '../../product/common/productService.js';
 import {
 	ExtensionGalleryResourceType,
@@ -29,6 +30,8 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeExtensionGalleryManifest = Event.None;
 	readonly onDidChangeExtensionGalleryManifestStatus = Event.None;
+	protected extensionGalleryAccessToken: string | undefined;
+	protected extensionGalleryServiceIndexUrl: string | undefined;
 
 	get extensionGalleryManifestStatus(): ExtensionGalleryManifestStatus {
 		return !!this.productService.extensionsGallery?.serviceUrl
@@ -233,5 +236,29 @@ export class ExtensionGalleryManifestService extends Disposable implements IExte
 				}
 			}
 		};
+	}
+
+	async getAccessToken(targetUrl: string): Promise<string | undefined> {
+		const accessToken = this.extensionGalleryAccessToken;
+		const serviceIndexUrl = this.extensionGalleryServiceIndexUrl;
+		if (!accessToken || !serviceIndexUrl) {
+			return undefined;
+		}
+		try {
+			const target = URI.parse(targetUrl);
+			const serviceIndex = URI.parse(serviceIndexUrl);
+			return target.scheme === 'https' &&
+				serviceIndex.scheme === 'https' &&
+				target.authority.toLowerCase() === serviceIndex.authority.toLowerCase()
+				? accessToken
+				: undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	protected setAuthorization(accessToken: string | undefined, serviceIndexUrl: string | undefined): void {
+		this.extensionGalleryAccessToken = accessToken;
+		this.extensionGalleryServiceIndexUrl = serviceIndexUrl;
 	}
 }

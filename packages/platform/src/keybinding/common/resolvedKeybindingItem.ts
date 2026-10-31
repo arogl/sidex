@@ -19,6 +19,12 @@ export class ResolvedKeybindingItem {
 	public readonly isDefault: boolean;
 	public readonly extensionId: string | null;
 	public readonly isBuiltinExtension: boolean;
+	/**
+	 * Whether this keybinding was declared as a system-wide (OS global) shortcut via
+	 * `keybindings.json`. Only ever `true` for user keybindings; defaults/extension keybindings
+	 * are always `false`.
+	 */
+	public readonly systemWide: boolean;
 
 	constructor(
 		resolvedKeybinding: ResolvedKeybinding | undefined,
@@ -27,7 +33,8 @@ export class ResolvedKeybindingItem {
 		when: ContextKeyExpression | undefined,
 		isDefault: boolean,
 		extensionId: string | null,
-		isBuiltinExtension: boolean
+		isBuiltinExtension: boolean,
+		systemWide: boolean = false
 	) {
 		this.resolvedKeybinding = resolvedKeybinding;
 		this.chords = resolvedKeybinding ? toEmptyArrayIfContainsNull(resolvedKeybinding.getDispatchChords()) : [];
@@ -42,6 +49,7 @@ export class ResolvedKeybindingItem {
 		this.isDefault = isDefault;
 		this.extensionId = extensionId;
 		this.isBuiltinExtension = isBuiltinExtension;
+		this.systemWide = systemWide;
 	}
 }
 

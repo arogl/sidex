@@ -6,6 +6,7 @@
 import { Barrier } from '@sidex/base/common/async.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { IChannelServer } from '@sidex/base/parts/ipc/common/ipc.js';
+import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import {
 	IExtensionGalleryManifest,
@@ -35,7 +36,11 @@ export class ExtensionGalleryManifestIPCService
 			: ExtensionGalleryManifestStatus.Unavailable;
 	}
 
-	constructor(server: IChannelServer<unknown>, @IProductService productService: IProductService) {
+	constructor(
+		server: IChannelServer<unknown>,
+		@ILogService private readonly logService: ILogService,
+		@IProductService productService: IProductService
+	) {
 		super(productService);
 		server.registerChannel('extensionGalleryManifest', {
 			listen: () => Event.None,
@@ -43,7 +48,7 @@ export class ExtensionGalleryManifestIPCService
 			call: async (context: any, command: string, args?: any): Promise<any> => {
 				switch (command) {
 					case 'setExtensionGalleryManifest':
-						return Promise.resolve(this.setExtensionGalleryManifest(args[0]));
+						return Promise.resolve(this.setExtensionGalleryManifest(args[0], args[1], args[2]));
 				}
 				throw new Error('Invalid call');
 			}
@@ -55,7 +60,13 @@ export class ExtensionGalleryManifestIPCService
 		return this._extensionGalleryManifest ?? null;
 	}
 
-	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+	private setExtensionGalleryManifest(
+		manifest: IExtensionGalleryManifest | null,
+		accessToken: string | undefined,
+		serviceIndexUrl: string | undefined
+	): void {
+		this.logService.trace(`[Marketplace] Setting manifest ${manifest ? 'available' : 'unavailable'}`);
+		this.setAuthorization(accessToken, serviceIndexUrl);
 		this._extensionGalleryManifest = manifest;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);

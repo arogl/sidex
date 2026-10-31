@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBuffer, IBufferCell, IBufferLine, IMarker, Terminal } from '@xterm/headless';
-import { throttle } from '@sidex/base/common/decorators.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
 import { ILogService, LogLevel } from '../../../../log/common/log.js';
@@ -280,7 +279,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._onDidChangeInput.fire(this._createStateObject());
 	}
 
-	@throttle(0)
 	private _sync() {
 		try {
 			this._doSync();

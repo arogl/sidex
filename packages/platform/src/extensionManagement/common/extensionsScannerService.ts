@@ -11,6 +11,7 @@ import { getErrorMessage } from '@sidex/base/common/errors.js';
 import { getNodeType, parse, ParseError } from '@sidex/base/common/json.js';
 import { getParseErrorMessage } from '@sidex/base/common/jsonErrorMessages.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
+import { ResourceMap } from '@sidex/base/common/map.js';
 import { FileAccess, Schemas } from '@sidex/base/common/network.js';
 import * as path from '@sidex/base/common/path.js';
 import * as platform from '@sidex/base/common/platform.js';
@@ -36,8 +37,7 @@ import {
 	IRelaxedExtensionManifest,
 	UNDEFINED_PUBLISHER,
 	IExtensionDescription,
-	BUILTIN_MANIFEST_CACHE_FILE,
-	USER_MANIFEST_CACHE_FILE,
+	getManifestCacheFileName,
 	ExtensionIdentifierMap,
 	parseEnabledApiProposalNames
 } from '../../extensions/common/extensions.js';
@@ -79,6 +79,7 @@ interface IRelaxedScannedExtension {
 	isValid: boolean;
 	validations: readonly [Severity, string][];
 	preRelease: boolean;
+	forceAutoUpdate: boolean;
 }
 
 export type IScannedExtension = Readonly<IRelaxedScannedExtension> & { manifest: IExtensionManifest };
@@ -128,6 +129,21 @@ interface LocalizedMessages {
 
 interface IBuiltInExtensionControl {
 	[name: string]: 'marketplace' | 'disabled' | string;
+}
+
+function getProductBuiltInExtensionsEnabledWithAutoUpdates(
+	productService: IProductService,
+	environmentService: IEnvironmentService
+): Set<string> {
+	const result = new Set<string>();
+	for (const id of productService.builtInExtensionsEnabledWithAutoUpdates) {
+		const toLowerCaseId = id.toLowerCase();
+		if (environmentService.skipBuiltinExtensions?.some(skipId => skipId.toLowerCase() === toLowerCaseId)) {
+			continue;
+		}
+		result.add(toLowerCaseId);
+	}
+	return result;
 }
 
 export type SystemExtensionsScanOptions = {
@@ -257,9 +273,14 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		promises.push(this.scanDefaultSystemExtensions(scanOptions.language));
 		promises.push(this.scanDevSystemExtensions(scanOptions.language, !!scanOptions.checkControlFile));
 		const [defaultSystemExtensions, devSystemExtensions] = await Promise.all(promises);
-		return this.applyScanOptions([...defaultSystemExtensions, ...devSystemExtensions], ExtensionType.System, {
-			pickLatest: false
-		});
+		let allSystemExtensions = [...defaultSystemExtensions, ...devSystemExtensions];
+
+		if (this.environmentService.skipBuiltinExtensions?.length) {
+			const skipSet = new Set(this.environmentService.skipBuiltinExtensions.map(id => id.toLowerCase()));
+			allSystemExtensions = allSystemExtensions.filter(ext => !skipSet.has(ext.identifier.id.toLowerCase()));
+		}
+
+		return this.applyScanOptions(allSystemExtensions, ExtensionType.System, { pickLatest: false });
 	}
 
 	async scanUserExtensions(scanOptions: UserExtensionsScanOptions): Promise<IScannedExtension[]> {
@@ -542,7 +563,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		pickLatest: boolean
 	): IScannedExtension[] {
 		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
-			if (!isDevelopment) {
+			if (!isDevelopment && !(existing.isBuiltin || extension.isBuiltin)) {
 				if (existing.metadata?.isApplicationScoped && !extension.metadata?.isApplicationScoped) {
 					return false;
 				}
@@ -589,10 +610,23 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 				result.set(extension.identifier.id, extension);
 			}
 		});
+		const productBuiltInExtensionsEnabledWithAutoUpdates = getProductBuiltInExtensionsEnabledWithAutoUpdates(
+			this.productService,
+			this.environmentService
+		);
 		user?.forEach(extension => {
 			const existing = result.get(extension.identifier.id);
 			if (!existing && system && extension.type === ExtensionType.System) {
 				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
+				return;
+			}
+			if (
+				productBuiltInExtensionsEnabledWithAutoUpdates.has(extension.identifier.id.toLowerCase()) &&
+				!extension.forceAutoUpdate
+			) {
+				this.logService.info(
+					`Skipping user installed builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it is not allowed to in the current product quality ${this.productService.quality}`
+				);
 				return;
 			}
 			if (!existing || pick(existing, extension, false)) {
@@ -798,7 +832,8 @@ type NlsConfiguration = {
 };
 
 class ExtensionsScanner extends Disposable {
-	private readonly extensionsEnabledWithApiProposalVersion: string[];
+	private readonly productQuality: string | undefined;
+	private readonly productBuiltInExtensionsEnabledWithAutoUpdates: Set<string>;
 
 	constructor(
 		@IExtensionsProfileScannerService
@@ -806,12 +841,15 @@ class ExtensionsScanner extends Disposable {
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
 		@IProductService productService: IProductService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
-		this.extensionsEnabledWithApiProposalVersion =
-			productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
+		this.productQuality = productService.quality;
+		this.productBuiltInExtensionsEnabledWithAutoUpdates = getProductBuiltInExtensionsEnabledWithAutoUpdates(
+			productService,
+			environmentService
+		);
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -1005,15 +1043,14 @@ class ExtensionsScanner extends Disposable {
 			metadata,
 			isValid,
 			validations,
-			preRelease: !!metadata?.preRelease
+			preRelease: !!metadata?.preRelease,
+			forceAutoUpdate:
+				this.productBuiltInExtensionsEnabledWithAutoUpdates.has(id.toLowerCase()) && this.productQuality === 'stable'
 		};
 		if (input.validate) {
 			extension = this.validate(extension, input);
 		}
-		if (
-			manifest.enabledApiProposals &&
-			(!this.environmentService.isBuilt || this.extensionsEnabledWithApiProposalVersion.includes(id.toLowerCase()))
-		) {
+		if (manifest.enabledApiProposals) {
 			manifest.originalEnabledApiProposals = manifest.enabledApiProposals;
 			manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 		}
@@ -1022,16 +1059,12 @@ class ExtensionsScanner extends Disposable {
 
 	validate(extension: IRelaxedScannedExtension, input: ExtensionScannerInput): IRelaxedScannedExtension {
 		let isValid = extension.isValid;
-		const validateApiVersion =
-			this.environmentService.isBuilt &&
-			this.extensionsEnabledWithApiProposalVersion.includes(extension.identifier.id.toLowerCase());
 		const validations = validateExtensionManifest(
 			input.productVersion,
 			input.productDate,
 			input.location,
 			extension.manifest,
-			extension.isBuiltin,
-			validateApiVersion
+			extension.isBuiltin
 		);
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {
@@ -1287,7 +1320,7 @@ interface IExtensionCacheData {
 }
 
 class CachedExtensionsScanner extends ExtensionsScanner {
-	private input: ExtensionScannerInput | undefined;
+	private readonly pendingValidations = new ResourceMap<ExtensionScannerInput>();
 	private readonly cacheValidatorThrottler: ThrottledDelayer<void> = this._register(new ThrottledDelayer(3000));
 
 	private readonly _onDidChangeCache = this._register(new Emitter<void>());
@@ -1316,14 +1349,15 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 	override async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
 		const cacheFile = this.getCacheFile(input);
 		const cacheContents = await this.readExtensionCache(cacheFile);
-		this.input = input;
-		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
+		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, input)) {
 			this.logService.debug(
 				'Using cached extensions scan result',
 				input.type === ExtensionType.System ? 'system' : 'user',
 				input.location.toString()
 			);
-			this.cacheValidatorThrottler.trigger(() => this.validateCache());
+			// Each cache file needs validating on its own, scanning one language says nothing about the others
+			this.pendingValidations.set(cacheFile, input);
+			this.cacheValidatorThrottler.trigger(() => this.validatePendingCaches());
 			return cacheContents.result.map(extension => {
 				// revive URI object
 				extension.location = URI.revive(extension.location);
@@ -1356,13 +1390,13 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		}
 	}
 
-	private async validateCache(): Promise<void> {
-		if (!this.input) {
-			// Input has been unset by the time we get here, so skip validation
-			return;
-		}
+	private async validatePendingCaches(): Promise<void> {
+		const pending = [...this.pendingValidations.entries()];
+		this.pendingValidations.clear();
+		await Promise.all(pending.map(([cacheFile, input]) => this.validateCache(cacheFile, input)));
+	}
 
-		const cacheFile = this.getCacheFile(this.input);
+	private async validateCache(cacheFile: URI, input: ExtensionScannerInput): Promise<void> {
 		const cacheContents = await this.readExtensionCache(cacheFile);
 		if (!cacheContents) {
 			// Cache has been deleted by someone else, which is perfectly fine...
@@ -1370,7 +1404,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		}
 
 		const actual = cacheContents.result;
-		const expected = JSON.parse(JSON.stringify(await super.scanExtensions(this.input)));
+		const expected = JSON.parse(JSON.stringify(await super.scanExtensions(input)));
 		if (objects.equals(expected, actual)) {
 			// Cache is valid and running with it is perfectly fine...
 			return;
@@ -1390,7 +1424,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		const profile = this.getProfile(input);
 		return this.uriIdentityService.extUri.joinPath(
 			profile.cacheHome,
-			input.type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE
+			getManifestCacheFileName(input.type, input.language)
 		);
 	}
 

@@ -14,7 +14,8 @@ import { editorWidgetBackground, editorWidgetForeground } from './editorColors.j
 import {
 	listActiveSelectionBackground,
 	listActiveSelectionForeground,
-	listActiveSelectionIconForeground
+	listActiveSelectionIconForeground,
+	listFocusHighlightForeground
 } from './listColors.js';
 
 export const quickInputBackground = registerColor(
@@ -90,4 +91,13 @@ export const quickInputListFocusBackground = registerColor(
 		hcLight: null
 	},
 	nls.localize('quickInput.listFocusBackground', 'Quick picker background color for the focused item.')
+);
+
+export const quickInputListFocusHighlightForeground = registerColor(
+	'quickInputList.focusHighlightForeground',
+	listFocusHighlightForeground,
+	nls.localize(
+		'quickInput.listFocusHighlightForeground',
+		'Quick picker foreground color of the match highlights on the focused item.'
+	)
 );

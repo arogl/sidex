@@ -134,7 +134,7 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { IDialogService, IFileDialogService, IPromptButton } from '@sidex/platform/dialogs/common/dialogs.js';
 import { IUpdateService, StateType } from '@sidex/platform/update/common/update.js';
-import { areApiProposalsCompatible, isEngineValid } from '@sidex/platform/extensions/common/extensionValidator.js';
+import { isEngineValid } from '@sidex/platform/extensions/common/extensionValidator.js';
 import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
@@ -1848,8 +1848,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					e =>
 						e.local &&
 						e.local.manifest.engines?.vscode &&
-						(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) ||
-							areApiProposalsCompatible([...(e.local.manifest.enabledApiProposals ?? [])]))
+						!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date)
 				)
 			) {
 				computedNotificiations.push({

@@ -8,7 +8,6 @@ import { registerColor, transparent } from '../colorUtils.js';
 
 import { foreground } from './baseColors.js';
 import { editorErrorForeground, editorInfoForeground, editorWarningForeground } from './editorColors.js';
-import { minimapFindMatch } from './minimapColors.js';
 
 export const chartsForeground = registerColor(
 	'charts.foreground',
@@ -42,7 +41,7 @@ export const chartsYellow = registerColor(
 
 export const chartsOrange = registerColor(
 	'charts.orange',
-	minimapFindMatch,
+	{ dark: '#D18616', light: '#D18616', hcDark: '#AB5A00', hcLight: '#0F4A85' },
 	nls.localize('chartsOrange', 'The orange color used in chart visualizations.')
 );
 
