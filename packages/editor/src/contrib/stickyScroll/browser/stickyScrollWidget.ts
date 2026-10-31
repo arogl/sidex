@@ -192,7 +192,11 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		let totalHeight = 0;
 		for (let i = 0; i < candidateLineNumbers.length; i++) {
-			totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			const position = new Position(candidateLineNumbers[i], 1);
+			const viewModel = this._editor._getViewModel();
+			if (viewModel && position.lineNumber <= viewModel.getLineCount()) {
+				totalHeight += this._editor.getLineHeightForPosition(new Position(candidateLineNumbers[i], 1));
+			}
 		}
 		if (totalHeight === 0) {
 			return { lineNumbers: [], lastLineRelativePosition: 0 };
@@ -274,12 +278,16 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (let i = rebuildFromIndex; i < lineNumbers.length; i++) {
+			const lineNumber = lineNumbers[i];
+			if (lineNumber > viewModel.getLineCount()) {
+				continue;
+			}
 			const stickyLine = this._renderChildNode(
 				viewModel,
 				i,
-				lineNumbers[i],
+				lineNumber,
 				top,
-				lastLineNumber === lineNumbers[i],
+				lastLineNumber === lineNumber,
 				foldingModel,
 				layoutInfo
 			);
@@ -527,6 +535,7 @@ class RenderedStickyLine {
 
 		const lineHeight = editor.getLineHeightForPosition(new Position(lineNumber, 1));
 		const textDirection = viewModel.getTextDirection(lineNumber);
+		const fontInfo = editor.getOption(EditorOption.fontInfo);
 		const renderLineInput: RenderLineInput = new RenderLineInput(
 			true,
 			true,
@@ -539,7 +548,7 @@ class RenderedStickyLine {
 			actualInlineDecorations,
 			lineRenderingData.tabSize,
 			lineRenderingData.startVisibleColumn,
-			1,
+			fontInfo.spaceWidth,
 			1,
 			1,
 			500,
@@ -548,7 +557,9 @@ class RenderedStickyLine {
 			true,
 			null,
 			textDirection,
-			verticalScrollbarSize
+			verticalScrollbarSize,
+			false,
+			editor.getOption(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells'
 		);
 
 		const sb = new StringBuilder(2000);

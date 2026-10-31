@@ -52,7 +52,7 @@ import * as nls from '@sidex/base/nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '@sidex/platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
 import { FoldingDecorationProvider } from './foldingDecorations.js';
-import { FoldingRegion, FoldingRegions, FoldRange, FoldSource, ILineRange } from './foldingRanges.js';
+import { FoldingRegion, FoldingRegions, FoldRange, FoldSource } from './foldingRanges.js';
 import { SyntaxRangeProvider } from './syntaxRangeProvider.js';
 import { INotificationService } from '@sidex/platform/notification/common/notification.js';
 import {
@@ -1294,14 +1294,7 @@ class RemoveFoldRangeFromSelectionAction extends FoldingAction<void> {
 	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		const selections = editor.getSelections();
 		if (selections) {
-			const ranges: ILineRange[] = [];
-			for (const selection of selections) {
-				const { startLineNumber, endLineNumber } = selection;
-				ranges.push(
-					endLineNumber >= startLineNumber ? { startLineNumber, endLineNumber } : { endLineNumber, startLineNumber }
-				);
-			}
-			foldingModel.removeManualRanges(ranges);
+			foldingModel.removeManualRanges(selections);
 			foldingController.triggerFoldingModelChanged();
 		}
 	}

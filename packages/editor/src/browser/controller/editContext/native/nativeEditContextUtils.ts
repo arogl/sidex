@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveElement, getShadowRoot } from '@sidex/base/browser/dom.js';
+import { addDisposableListener, getShadowRoot } from '@sidex/base/browser/dom.js';
 import { IDisposable, Disposable } from '@sidex/base/common/lifecycle.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 
@@ -71,7 +71,7 @@ export class FocusTracker extends Disposable {
 
 	public refreshFocusState(): void {
 		const shadowRoot = getShadowRoot(this._domNode);
-		const activeElement = shadowRoot ? shadowRoot.activeElement : getActiveElement();
+		const activeElement = shadowRoot ? shadowRoot.activeElement : this._domNode.ownerDocument.activeElement;
 		const focused = this._domNode === activeElement;
 		this._handleFocusedChanged(focused);
 	}

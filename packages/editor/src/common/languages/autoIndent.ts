@@ -443,7 +443,7 @@ export function getIndentActionForType(
 	}
 
 	const previousLineNumber = range.startLineNumber - 1;
-	if (previousLineNumber > 0) {
+	if (range.isEmpty() && previousLineNumber > 0) {
 		const previousLine = model.getLineContent(previousLineNumber);
 		if (
 			indentRulesSupport.shouldIndentNextLine(previousLine) &&

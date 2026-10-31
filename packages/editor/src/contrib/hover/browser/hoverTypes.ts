@@ -165,6 +165,7 @@ export class RenderedHoverParts<T extends IHoverPart> implements IRenderedHoverP
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
+	readonly hideCopyButton?: boolean;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource): T[];
 	computeAsync?(

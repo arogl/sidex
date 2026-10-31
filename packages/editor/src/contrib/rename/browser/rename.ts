@@ -498,7 +498,7 @@ registerEditorCommand(
 		handler: x => x.acceptRenameInput(false),
 		kbOpts: {
 			weight: KeybindingWeight.EditorContrib + 99,
-			kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
+			kbExpr: EditorContextKeys.focus,
 			primary: KeyCode.Enter
 		}
 	})
@@ -514,7 +514,7 @@ registerEditorCommand(
 		handler: x => x.acceptRenameInput(true),
 		kbOpts: {
 			weight: KeybindingWeight.EditorContrib + 99,
-			kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
+			kbExpr: EditorContextKeys.focus,
 			primary: KeyMod.CtrlCmd + KeyCode.Enter
 		}
 	})

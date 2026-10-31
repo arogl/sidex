@@ -361,7 +361,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		);
 		this._register(
 			dom.addDisposableListener(mainWindow, dom.EventType.MOUSE_MOVE, mouseEvent => {
-				this._mouseTarget = mouseEvent.target;
+				// Only remember targets inside the widget to not retain arbitrary, later detached, DOM (#146841)
+				const target = mouseEvent.target;
+				this._mouseTarget =
+					dom.isHTMLElement(target) && this._stickyScrollWidget.getDomNode().contains(target) ? target : null;
 				this._onMouseMoveOrKeyDown(mouseEvent);
 			})
 		);
@@ -580,7 +583,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (
 			event.hasChanged(EditorOption.lineNumbers) ||
 			event.hasChanged(EditorOption.folding) ||
-			event.hasChanged(EditorOption.showFoldingControls)
+			event.hasChanged(EditorOption.showFoldingControls) ||
+			event.hasChanged(EditorOption.fontInfo) ||
+			event.hasChanged(EditorOption.effectiveFullwidthCharacterWidth)
 		) {
 			this._renderStickyScroll(0);
 		}

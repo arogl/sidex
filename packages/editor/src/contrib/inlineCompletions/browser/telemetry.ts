@@ -66,6 +66,7 @@ export type InlineCompletionEndOfLifeEvent = {
 	sameShapeReplacements: boolean | undefined;
 	longDistanceHintVisible: boolean | undefined;
 	longDistanceHintDistance: number | undefined;
+	isForAnotherDocument: boolean | undefined;
 	// empty
 	noSuggestionReason: string | undefined;
 	// shape
@@ -291,6 +292,11 @@ type InlineCompletionsEndOfLifeClassification = {
 		purpose: 'FeatureInsight';
 		isMeasurement: true;
 		comment: 'The distance in lines between the long distance hint and the inline edit';
+	};
+	isForAnotherDocument: {
+		classification: 'SystemMetaData';
+		purpose: 'FeatureInsight';
+		comment: 'Whether the inline edit targets a different document than the one currently being edited';
 	};
 	noSuggestionReason: {
 		classification: 'SystemMetaData';

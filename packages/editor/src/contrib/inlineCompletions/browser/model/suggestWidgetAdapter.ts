@@ -24,7 +24,6 @@ import { CompletionItem } from '../../../suggest/browser/suggest.js';
 import { SuggestController } from '../../../suggest/browser/suggestController.js';
 import { ObservableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { observableFromEvent } from '@sidex/base/common/observable.js';
-import { EditorOption } from '../../../../common/config/editorOptions.js';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
@@ -178,19 +177,6 @@ export class SuggestWidgetAdaptor extends Disposable {
 	private getSuggestItemInfo(): SuggestItemInfo | undefined {
 		const suggestController = SuggestController.get(this.editor);
 		if (!suggestController || !this.isSuggestWidgetVisible) {
-			return undefined;
-		}
-
-		// When offWhenInlineCompletions is active, don't expose the selected
-		// suggest item to the inline completions model so that it does not
-		// trigger an inline completion request while the suggest widget is open
-		const quickSuggestions = this.editor.getOption(EditorOption.quickSuggestions);
-		if (
-			typeof quickSuggestions === 'object' &&
-			(quickSuggestions.other === 'offWhenInlineCompletions' ||
-				quickSuggestions.comments === 'offWhenInlineCompletions' ||
-				quickSuggestions.strings === 'offWhenInlineCompletions')
-		) {
 			return undefined;
 		}
 

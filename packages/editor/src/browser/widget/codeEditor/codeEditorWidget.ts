@@ -96,6 +96,7 @@ import { ContextKeyValue, IContextKey, IContextKeyService } from '@sidex/platfor
 import { IInstantiationService, ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '@sidex/platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '@sidex/platform/notification/common/notification.js';
+import { NotificationText } from '@sidex/platform/notification/common/notificationMessage.js';
 import {
 	editorErrorForeground,
 	editorHintForeground,
@@ -1355,6 +1356,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 						args.pasteOnNewLine || false,
 						args.multicursorText || null,
 						args.mode || null,
+						args.isBlock || false,
 						args.clipboardEvent
 					);
 					return;
@@ -1438,6 +1440,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		pasteOnNewLine: boolean,
 		multicursorText: string[] | null,
 		mode: string | null,
+		isBlock: boolean,
 		clipboardEvent?: ClipboardEvent
 	): void {
 		if (!this._modelData) {
@@ -1445,7 +1448,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		const viewModel = this._modelData.viewModel;
 		const startPosition = viewModel.getSelection().getStartPosition();
-		viewModel.paste(text, pasteOnNewLine, multicursorText, source);
+		viewModel.paste(text, pasteOnNewLine, multicursorText, source, isBlock);
 		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
@@ -2086,10 +2089,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					case OutgoingViewModelEventKind.CursorStateChanged: {
 						if (e.reachedMaxCursorCount) {
 							const multiCursorLimit = this.getOption(EditorOption.multiCursorLimit);
-							const message = nls.localize(
-								'cursors.maximum',
-								'The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes or increase the editor multi cursor limit setting.',
-								multiCursorLimit
+							const message = NotificationText.format(
+								nls.localize(
+									'cursors.maximumLinked',
+									'The number of cursors has been limited to {0}. Consider using {1} for larger changes or increase the editor multi cursor limit setting.'
+								),
+								String(multiCursorLimit),
+								NotificationText.link(
+									nls.localize('cursors.findAndReplaceLink', 'find and replace'),
+									'https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace'
+								)
 							);
 							this._notificationService.prompt(Severity.Warning, message, [
 								{
@@ -2202,8 +2211,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		let commandDelegate: ICommandDelegate;
 		if (this.isSimpleWidget) {
 			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
+				paste: (
+					text: string,
+					pasteOnNewLine: boolean,
+					multicursorText: string[] | null,
+					mode: string | null,
+					isBlock: boolean
+				) => {
+					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode, isBlock);
 				},
 				type: (text: string) => {
 					this._type('keyboard', text);
@@ -2228,8 +2243,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			};
 		} else {
 			commandDelegate = {
-				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
+				paste: (
+					text: string,
+					pasteOnNewLine: boolean,
+					multicursorText: string[] | null,
+					mode: string | null,
+					isBlock: boolean
+				) => {
+					const payload: editorBrowser.PastePayload = { text, pasteOnNewLine, multicursorText, mode, isBlock };
 					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},
 				type: (text: string) => {

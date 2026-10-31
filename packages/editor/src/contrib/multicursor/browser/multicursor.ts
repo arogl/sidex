@@ -283,6 +283,27 @@ export class MultiCursorSessionResult {
 	) {}
 }
 
+function isFindWidgetSearch(editor: ICodeEditor, findController: CommonFindController): boolean {
+	// Find widget owns entirely what we search for if:
+	//  - focus is not in the editor (i.e. it is in the find widget)
+	//  - and the search widget is visible
+	//  - and the search string is non-empty
+	const findState = findController.getState();
+	return !editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0;
+}
+
+function getSelectionSearchOptions(
+	editor: ICodeEditor,
+	findController: CommonFindController
+): { wholeWord: boolean; matchCase: boolean; usesFindOptions: boolean } {
+	const selectedTextMatchMode = editor.getOption(EditorOption.selectedTextMatchMode);
+	if (selectedTextMatchMode === 'findOptions') {
+		const findState = findController.getState();
+		return { wholeWord: findState.wholeWord, matchCase: findState.matchCase, usesFindOptions: true };
+	}
+	return { wholeWord: false, matchCase: selectedTextMatchMode === 'caseSensitive', usesFindOptions: false };
+}
+
 export class MultiCursorSession {
 	public static create(editor: ICodeEditor, findController: CommonFindController): MultiCursorSession | null {
 		if (!editor.hasModel()) {
@@ -290,16 +311,13 @@ export class MultiCursorSession {
 		}
 		const findState = findController.getState();
 
-		// Find widget owns entirely what we search for if:
-		//  - focus is not in the editor (i.e. it is in the find widget)
-		//  - and the search widget is visible
-		//  - and the search string is non-empty
-		if (!editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0) {
+		if (isFindWidgetSearch(editor, findController)) {
 			// Find widget owns what is searched for
 			return new MultiCursorSession(
 				editor,
 				findController,
 				false,
+				true,
 				findState.searchString,
 				findState.wholeWord,
 				findState.matchCase,
@@ -307,19 +325,21 @@ export class MultiCursorSession {
 			);
 		}
 
-		// Otherwise, the selection gives the search text, and the find widget gives the search settings
-		// The exception is the find state disassociation case: when beginning with a single, collapsed selection
 		let isDisconnectedFromFindController = false;
 		let wholeWord: boolean;
 		let matchCase: boolean;
+		let usesFindOptions: boolean;
 		const selections = editor.getSelections();
 		if (selections.length === 1 && selections[0].isEmpty()) {
 			isDisconnectedFromFindController = true;
 			wholeWord = true;
 			matchCase = true;
+			usesFindOptions = true;
 		} else {
-			wholeWord = findState.wholeWord;
-			matchCase = findState.matchCase;
+			const selectionSearchOptions = getSelectionSearchOptions(editor, findController);
+			wholeWord = selectionSearchOptions.wholeWord;
+			matchCase = selectionSearchOptions.matchCase;
+			usesFindOptions = selectionSearchOptions.usesFindOptions;
 		}
 
 		// Selection owns what is searched for
@@ -344,6 +364,7 @@ export class MultiCursorSession {
 			editor,
 			findController,
 			isDisconnectedFromFindController,
+			usesFindOptions,
 			searchText,
 			wholeWord,
 			matchCase,
@@ -355,6 +376,7 @@ export class MultiCursorSession {
 		private readonly _editor: ICodeEditor,
 		public readonly findController: CommonFindController,
 		public readonly isDisconnectedFromFindController: boolean,
+		public readonly usesFindOptions: boolean,
 		public readonly searchText: string,
 		public readonly wholeWord: boolean,
 		public readonly matchCase: boolean,
@@ -404,7 +426,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		this._highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -473,7 +495,7 @@ export class MultiCursorSession {
 			return result;
 		}
 
-		this.findController.highlightFindOptions();
+		this._highlightFindOptions();
 
 		const allSelections = this._editor.getSelections();
 		const lastAddedSelection = allSelections[allSelections.length - 1];
@@ -504,7 +526,7 @@ export class MultiCursorSession {
 			return [];
 		}
 
-		this.findController.highlightFindOptions();
+		this._highlightFindOptions();
 
 		const editorModel = this._editor.getModel();
 		if (searchScope) {
@@ -527,6 +549,12 @@ export class MultiCursorSession {
 			false,
 			Constants.MAX_SAFE_SMALL_INTEGER
 		);
+	}
+
+	private _highlightFindOptions(): void {
+		if (this.usesFindOptions) {
+			this.findController.highlightFindOptions();
+		}
 	}
 }
 
@@ -585,9 +613,23 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 					this._endSession();
 				})
 			);
+			if (this._editor.getOption(EditorOption.selectedTextMatchMode) !== 'findOptions') {
+				this._sessionDispose.add(
+					this._editor.onDidFocusEditorText(() => {
+						this._endSession();
+					})
+				);
+			}
+			this._sessionDispose.add(
+				this._editor.onDidChangeConfiguration(e => {
+					if (e.hasChanged(EditorOption.selectedTextMatchMode)) {
+						this._endSession();
+					}
+				})
+			);
 			this._sessionDispose.add(
 				findController.getState().onFindReplaceStateChange(e => {
-					if (e.matchCase || e.wholeWord) {
+					if (session.usesFindOptions && (e.matchCase || e.wholeWord)) {
 						this._endSession();
 					}
 				})
@@ -647,8 +689,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 			// If there are multiple cursors, handle the case where they do not all select the same text.
 			const allSelections = this._editor.getSelections();
 			if (allSelections.length > 1) {
-				const findState = findController.getState();
-				const matchCase = findState.matchCase;
+				const matchCase = isFindWidgetSearch(this._editor, findController)
+					? findController.getState().matchCase
+					: getSelectionSearchOptions(this._editor, findController).matchCase;
 				const selectionsContainSameText = modelRangesContainSameText(this._editor.getModel(), allSelections, matchCase);
 				if (!selectionsContainSameText) {
 					const model = this._editor.getModel();
@@ -702,7 +745,9 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		const allowFindRegex =
+			this._editor.getOption(EditorOption.selectedTextMatchMode) === 'findOptions' || !this._editor.hasTextFocus();
+		if (allowFindRegex && findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 			const editorModel = this._editor.getModel();
 			if (findState.searchScope) {
 				matches = editorModel.findMatches(
@@ -980,10 +1025,13 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.state = null;
 
 		this._register(
-			editor.onDidChangeConfiguration(_e => {
+			editor.onDidChangeConfiguration(e => {
 				this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
 				this._isEnabledMultiline = editor.getOption(EditorOption.selectionHighlightMultiline);
 				this._maxLength = editor.getOption(EditorOption.selectionHighlightMaxLength);
+				if (e.hasChanged(EditorOption.selectedTextMatchMode)) {
+					this.updateSoon.schedule(0);
+				}
 			})
 		);
 		this._register(

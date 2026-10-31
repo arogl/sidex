@@ -19,7 +19,7 @@ import { Disposable } from '@sidex/base/common/lifecycle.js';
 import { ResourceMap } from '@sidex/base/common/map.js';
 import { LanguageFilter } from '../../../common/languageSelector.js';
 
-class TextualDocumentHighlightProvider implements DocumentHighlightProvider, MultiDocumentHighlightProvider {
+export class TextualDocumentHighlightProvider implements DocumentHighlightProvider, MultiDocumentHighlightProvider {
 	selector: LanguageFilter = { language: '*' };
 
 	provideDocumentHighlights(
@@ -27,6 +27,10 @@ class TextualDocumentHighlightProvider implements DocumentHighlightProvider, Mul
 		position: Position,
 		_token: CancellationToken
 	): ProviderResult<DocumentHighlight[]> {
+		if (model.isDisposed()) {
+			return;
+		}
+
 		const result: DocumentHighlight[] = [];
 
 		const word = model.getWordAtPosition({
@@ -36,10 +40,6 @@ class TextualDocumentHighlightProvider implements DocumentHighlightProvider, Mul
 
 		if (!word) {
 			return Promise.resolve(result);
-		}
-
-		if (model.isDisposed()) {
-			return;
 		}
 
 		const matches = model.findMatches(word.word, true, false, true, USUAL_WORD_SEPARATORS, false);
@@ -55,6 +55,10 @@ class TextualDocumentHighlightProvider implements DocumentHighlightProvider, Mul
 		otherModels: ITextModel[],
 		_token: CancellationToken
 	): ProviderResult<ResourceMap<DocumentHighlight[]>> {
+		if (primaryModel.isDisposed()) {
+			return;
+		}
+
 		const result = new ResourceMap<DocumentHighlight[]>();
 
 		const word = primaryModel.getWordAtPosition({

@@ -370,7 +370,8 @@ export interface ILineBreaksComputerFactory {
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
 		wordBreak: 'normal' | 'keepAll',
-		wrapOnEscapedLineFeeds: boolean
+		wrapOnEscapedLineFeeds: boolean,
+		useTwoCellFullwidthCharacters: boolean
 	): ILineBreaksComputer;
 }
 

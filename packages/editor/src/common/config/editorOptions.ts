@@ -342,6 +342,11 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
+	 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
+	 * Defaults to false.
+	 */
+	wordWrapIndicator?: boolean;
+	/**
 	 * Override the `wordWrap` setting.
 	 */
 	wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -458,7 +463,7 @@ export interface IEditorOptions {
 	 */
 	multiCursorMergeOverlapping?: boolean;
 	/**
-	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Configure the behaviour when pasting text with a line count equal to the cursor count or when pasting column selections into a single cursor.
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
@@ -567,6 +572,11 @@ export interface IEditorOptions {
 	 */
 	formatOnPaste?: boolean;
 	/**
+	 * Controls the width used to render full-width characters.
+	 * Defaults to 'font'.
+	 */
+	fullwidthCharacterWidth?: 'font' | 'twoCells';
+	/**
 	 * Controls whether double-clicking next to a bracket or quote selects the content inside.
 	 * Defaults to true.
 	 */
@@ -637,6 +647,11 @@ export interface IEditorOptions {
 	 */
 	selectionHighlightMaxLength?: number;
 	/**
+	 * Controls how occurrences of selected text are matched for occurrence selection and highlighting.
+	 * Defaults to 'findOptions', which uses the Find widget's match case and whole word settings.
+	 */
+	selectedTextMatchMode?: 'findOptions' | 'caseSensitive' | 'caseInsensitive';
+	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to 'singleFile'.
 	 * 'off' disables occurrence highlighting
@@ -651,6 +666,11 @@ export interface IEditorOptions {
 	 * Maximum value is 2000
 	 */
 	occurrencesHighlightDelay?: number;
+	/**
+	 * Merge single-document highlights from all matching providers.
+	 * Defaults to false.
+	 */
+	occurrencesHighlightFromAllProviders?: boolean;
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -863,6 +883,8 @@ export interface IEditorOptions {
  */
 export const MINIMAP_GUTTER_WIDTH = 8;
 
+export type DiffEditorViewMode = 'inline' | 'sideBySide' | 'automatic';
+
 export interface IDiffEditorBaseOptions {
 	/**
 	 * Allow the user to resize the diff editor split view.
@@ -900,6 +922,13 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to `false`.
 	 */
 	compactMode?: boolean;
+
+	/**
+	 * If set, the original editor's line numbers are hidden in the inline view.
+	 * Defaults to `false`.
+	 * @internal
+	 */
+	hideOriginalLineNumbers?: boolean;
 
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
@@ -962,7 +991,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	 */
-	diffAlgorithm?: 'legacy' | 'advanced';
+	diffAlgorithm?: 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -2235,6 +2264,26 @@ class EffectiveAllowVariableFonts extends ComputedEditorOption<EditorOption.effe
 
 //#engregion
 
+//#region effectiveFullwidthCharacterWidth
+
+class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<
+	EditorOption.effectiveFullwidthCharacterWidth,
+	'font' | 'twoCells'
+> {
+	constructor() {
+		super(EditorOption.effectiveFullwidthCharacterWidth, 'font');
+	}
+
+	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions): 'font' | 'twoCells' {
+		if (options.get(EditorOption.fullwidthCharacterWidth) === 'twoCells' && env.fontInfo.isMonospace) {
+			return 'twoCells';
+		}
+		return 'font';
+	}
+}
+
+//#endregion
+
 //#region fontSize
 
 class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
@@ -2618,7 +2667,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 						platform.isMacintosh ? `Command` : `Control`
 					)
 				],
-				description: nls.localize('hover.enabled', 'Controls whether the hover is shown.')
+				description: nls.localize('hover.enabled', 'Controls whether the hover is shown.'),
+				keywords: ['hint', 'info', 'tooltip']
 			},
 			'editor.hover.delay': {
 				type: 'number',
@@ -3182,6 +3232,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrap = wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1;
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
+		const wordWrapIndicator = options.get(EditorOption.wordWrapIndicator);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
@@ -3279,7 +3330,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		if (isViewportWrapping) {
 			// compute the actual wrappingColumn
-			wrappingColumn = Math.max(1, viewportColumn);
+			// (leaving the rightmost column for the word wrap indicator so that it does not overlap
+			// the wrapped text or end up underneath the vertical scrollbar)
+			wrappingColumn = Math.max(1, viewportColumn - (wordWrapIndicator ? 1 : 0));
 			if (wordWrap === 'bounded') {
 				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
 			}
@@ -4225,7 +4278,7 @@ class EditorQuickSuggestions extends BaseEditorOption<
 
 	constructor() {
 		const defaults: InternalQuickSuggestionsOptions = {
-			other: 'on',
+			other: 'offWhenInlineCompletions',
 			comments: 'off',
 			strings: 'off'
 		};
@@ -5046,6 +5099,12 @@ export interface IInlineSuggestOptions {
 		showLongDistanceHint?: boolean;
 
 		/**
+		 * Controls how many lines of surrounding context are shown above and below the target line
+		 * in the long distance inline suggestion hint preview. `0` shows only the target line.
+		 */
+		longDistanceHintContextLineCount?: number;
+
+		/**
 		 * @internal
 		 */
 		enabled?: boolean;
@@ -5107,7 +5166,8 @@ class InlineEditorSuggest extends BaseEditorOption<
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
-				showLongDistanceHint: true
+				showLongDistanceHint: true,
+				longDistanceHintContextLineCount: 0
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {
@@ -5250,6 +5310,20 @@ class InlineEditorSuggest extends BaseEditorOption<
 				),
 				tags: ['nextEditSuggestions', 'experimental']
 			},
+			'editor.inlineSuggest.edits.longDistanceHintContextLineCount': {
+				type: 'number',
+				default: defaults.edits.longDistanceHintContextLineCount,
+				minimum: 0,
+				maximum: 10,
+				description: nls.localize(
+					'inlineSuggest.edits.longDistanceHintContextLineCount',
+					'Controls how many lines of surrounding context are shown above and below the target line in the long distance inline suggestion preview. Set to 0 to only show the target line.'
+				),
+				tags: ['nextEditSuggestions', 'experimental'],
+				experiment: {
+					mode: 'auto'
+				}
+			},
 			'editor.inlineSuggest.edits.renderSideBySide': {
 				type: 'string',
 				default: defaults.edits.renderSideBySide,
@@ -5320,6 +5394,12 @@ class InlineEditorSuggest extends BaseEditorOption<
 				'never'
 			]),
 			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
+			longDistanceHintContextLineCount: EditorIntOption.clampedInt(
+				input.longDistanceHintContextLineCount,
+				this.defaultValue.edits.longDistanceHintContextLineCount,
+				0,
+				10
+			),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto'])
 		};
 	}
@@ -5637,6 +5717,12 @@ export interface ISuggestOptions {
 	 */
 	showInlineDetails?: boolean;
 	/**
+	 * Grow the suggest widget's preferred width to fit the inline detail text so it
+	 * is not truncated. Defaults to false.
+	 * @internal
+	 */
+	fitWidthToDetails?: boolean;
+	/**
 	 * Show method-suggestions.
 	 */
 	showMethods?: boolean;
@@ -5773,6 +5859,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: false,
 			previewMode: 'subwordSmart',
 			showInlineDetails: true,
+			fitWidthToDetails: false,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
@@ -5905,13 +5992,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 				description: nls.localize(
 					'suggest.showInlineDetails',
 					'Controls whether suggest details show inline with the label or only in the details widget.'
-				)
-			},
-			'editor.suggest.maxVisibleSuggestions': {
-				type: 'number',
-				deprecationMessage: nls.localize(
-					'suggest.maxVisibleSuggestions.dep',
-					'This setting is deprecated. The suggest widget can now be resized.'
 				)
 			},
 			'editor.suggest.filteredTypes': {
@@ -6186,6 +6266,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			preview: boolean(input.preview, this.defaultValue.preview),
 			previewMode: stringSet(input.previewMode, this.defaultValue.previewMode, ['prefix', 'subword', 'subwordSmart']),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
+			fitWidthToDetails: boolean(input.fitWidthToDetails, this.defaultValue.fitWidthToDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
@@ -6708,6 +6789,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	occurrencesHighlightFromAllProviders,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -6741,6 +6823,7 @@ export const enum EditorOption {
 	selectionHighlight,
 	selectionHighlightMaxLength,
 	selectionHighlightMultiline,
+	selectedTextMatchMode,
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
@@ -6777,6 +6860,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	wordWrapIndicator,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6790,7 +6874,10 @@ export const enum EditorOption {
 	effectiveEditContext,
 	scrollOnMiddleClick,
 	effectiveAllowVariableFonts,
-	doubleClickSelectsBlock
+	doubleClickSelectsBlock,
+	fullwidthCharacterWidth,
+	// Must come after `fullwidthCharacterWidth`, which it is computed from.
+	effectiveFullwidthCharacterWidth
 }
 
 export const EditorOptions = {
@@ -7462,6 +7549,27 @@ export const EditorOptions = {
 			)
 		})
 	),
+	fullwidthCharacterWidth: register(
+		new EditorStringEnumOption(
+			EditorOption.fullwidthCharacterWidth,
+			'fullwidthCharacterWidth',
+			'font' as 'font' | 'twoCells',
+			['font', 'twoCells'] as const,
+			{
+				enumDescriptions: [
+					nls.localize(
+						'fullwidthCharacterWidth.font',
+						'Render full-width characters using the width defined by the font.'
+					),
+					nls.localize(
+						'fullwidthCharacterWidth.twoCells',
+						'Render full-width characters centered in exactly two character cells. Only applies to monospace fonts when font ligatures are disabled. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering.'
+					)
+				],
+				description: nls.localize('fullwidthCharacterWidth', 'Controls the width used to render full-width characters.')
+			}
+		)
+	),
 	glyphMargin: register(
 		new EditorBooleanOption(EditorOption.glyphMargin, 'glyphMargin', true, {
 			description: nls.localize(
@@ -7610,12 +7718,15 @@ export const EditorOptions = {
 			['spread', 'full'] as const,
 			{
 				markdownEnumDescriptions: [
-					nls.localize('multiCursorPaste.spread', 'Each cursor pastes a single line of the text.'),
+					nls.localize(
+						'multiCursorPaste.spread',
+						'Each cursor pastes a single line of the text. When pasting column selections into a single cursor, each copied line is pasted on a successive destination line and padded with spaces to form a rectangle.'
+					),
 					nls.localize('multiCursorPaste.full', 'Each cursor pastes the full text.')
 				],
 				markdownDescription: nls.localize(
 					'multiCursorPaste',
-					'Controls pasting when the line count of the pasted text matches the cursor count.'
+					'Controls pasting when the line count of the pasted text matches the cursor count, or when pasting column selections into a single cursor.'
 				)
 			}
 		)
@@ -7658,6 +7769,19 @@ export const EditorOptions = {
 			),
 			tags: ['preview']
 		})
+	),
+	occurrencesHighlightFromAllProviders: register(
+		new EditorBooleanOption(
+			EditorOption.occurrencesHighlightFromAllProviders,
+			'occurrencesHighlightFromAllProviders',
+			false,
+			{
+				description: nls.localize(
+					'occurrencesHighlightFromAllProviders',
+					'Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.'
+				)
+			}
+		)
 	),
 	overtypeOnPaste: register(
 		new EditorBooleanOption(EditorOption.overtypeOnPaste, 'overtypeOnPaste', true, {
@@ -7881,7 +8005,7 @@ export const EditorOptions = {
 			{
 				description: nls.localize(
 					'selectionHighlightMaxLength',
-					'Controls how many characters can be in the selection before similiar matches are not highlighted. Set to zero for unlimited.'
+					'Controls how many characters can be in the selection before similar matches are not highlighted. Set to zero for unlimited.'
 				)
 			}
 		)
@@ -7893,6 +8017,34 @@ export const EditorOptions = {
 				'Controls whether the editor should highlight selection matches that span multiple lines.'
 			)
 		})
+	),
+	selectedTextMatchMode: register(
+		new EditorStringEnumOption(
+			EditorOption.selectedTextMatchMode,
+			'selectedTextMatchMode',
+			'findOptions' as 'findOptions' | 'caseSensitive' | 'caseInsensitive',
+			['findOptions', 'caseSensitive', 'caseInsensitive'] as const,
+			{
+				enumDescriptions: [
+					nls.localize(
+						'selectedTextMatchMode.findOptions',
+						"Use the Find widget's match case and whole word settings."
+					),
+					nls.localize(
+						'selectedTextMatchMode.caseSensitive',
+						'Match occurrences case-sensitively and independently of the Find widget.'
+					),
+					nls.localize(
+						'selectedTextMatchMode.caseInsensitive',
+						'Match occurrences case-insensitively and independently of the Find widget.'
+					)
+				],
+				markdownDescription: nls.localize(
+					'selectedTextMatchMode',
+					'Controls how occurrences of selected text are matched when selecting the next, previous, or all occurrences and when highlighting selection matches. `caseSensitive` and `caseInsensitive` match substrings independently of the Find widget. An empty selection always starts a whole-word, case-sensitive search.'
+				)
+			}
+		)
 	),
 	selectOnLineNumbers: register(new EditorBooleanOption(EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true)),
 	showFoldingControls: register(
@@ -8153,6 +8305,17 @@ export const EditorOptions = {
 			}
 		)
 	),
+	wordWrapIndicator: register(
+		new EditorBooleanOption(EditorOption.wordWrapIndicator, 'wordWrapIndicator', false, {
+			markdownDescription: nls.localize(
+				{
+					key: 'wordWrapIndicator',
+					comment: []
+				},
+				'Controls whether an indicator is rendered at the wrapping column of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.'
+			)
+		})
+	),
 	wordWrapBreakAfterCharacters: register(
 		new EditorStringOption(
 			EditorOption.wordWrapBreakAfterCharacters,
@@ -8247,7 +8410,8 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth())
 };
 
 type EditorOptionsType = typeof EditorOptions;
