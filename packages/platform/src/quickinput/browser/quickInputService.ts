@@ -107,8 +107,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@ILayoutService protected readonly layoutService: ILayoutService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
 		super(themeService);
 	}
@@ -124,7 +123,12 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
 			linkOpenerDelegate: content => {
-				this.openerService.open(content, { allowCommands: true, fromUserGesture: true });
+				// Resolved on use: injecting the opener service would create a service cycle
+				// (opener -> editor services -> editor resolver -> quick input -> opener) until the
+				// workbench layer is merged to 1.144.
+				this.instantiationService.invokeFunction(accessor =>
+					accessor.get(IOpenerService).open(content, { allowCommands: true, fromUserGesture: true })
+				);
 			},
 			returnFocus: () => host.focus(),
 			styles: this.computeStyles(),
