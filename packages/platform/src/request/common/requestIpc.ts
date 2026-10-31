@@ -15,7 +15,8 @@ type RequestResponse = [
 		headers: IHeaders;
 		statusCode?: number;
 	},
-	VSBuffer
+	VSBuffer,
+	IRequestContext['timings']?
 ];
 
 export class RequestChannelClient implements IRequestService {
@@ -26,8 +27,8 @@ export class RequestChannelClient implements IRequestService {
 	constructor(private readonly channel: IChannel) {}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		const [res, buffer] = await this.channel.call<RequestResponse>('request', [options], token);
-		return { res, stream: bufferToStream(buffer) };
+		const [res, buffer, timings] = await this.channel.call<RequestResponse>('request', [options], token);
+		return { res, stream: bufferToStream(buffer), ...(timings ? { timings } : {}) };
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {

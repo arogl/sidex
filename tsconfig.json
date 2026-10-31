@@ -1,42 +1,42 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "lib": ["ES2022", "ESNext.Disposable", "DOM", "DOM.Iterable", "WebWorker"],
-    "moduleResolution": "bundler",
-    "strict": false,
-    "noImplicitAny": false,
-    "noImplicitReturns": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "strictNullChecks": false,
-    "strictFunctionTypes": false,
-    "strictPropertyInitialization": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "allowJs": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": false,
-    "paths": {
-      "@sidex/base/*": ["./packages/base/src/*"],
-      "@sidex/platform/*": ["./packages/platform/src/*"],
-      "@sidex/editor/*": ["./packages/editor/src/*"],
-      "@sidex/workbench/*": ["./packages/workbench/src/*"],
-      "@sidex/vscode-dts/*": ["./packages/vscode-dts/src/*"]
-    },
-    "types": ["vite/client", "@webgpu/types", "trusted-types"]
-  },
-  "include": [
-    "apps/*/src/**/*",
-    "packages/base/src/**/*",
-    "packages/platform/src/**/*",
-    "packages/editor/src/**/*",
-    "packages/workbench/src/**/*",
-    "packages/vscode-dts/src/**/*"
-  ],
-  "exclude": ["node_modules", "apps/desktop", "dist", "**/test/**", "packages/build"]
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"lib": ["ES2022", "ES2024.String", "ESNext.Disposable", "DOM", "DOM.Iterable", "WebWorker"],
+		"moduleResolution": "bundler",
+		"strict": false,
+		"noImplicitAny": false,
+		"noImplicitReturns": false,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
+		"strictNullChecks": false,
+		"strictFunctionTypes": false,
+		"strictPropertyInitialization": false,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noEmit": true,
+		"allowJs": true,
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": false,
+		"paths": {
+			"@sidex/base/*": ["./packages/base/src/*"],
+			"@sidex/platform/*": ["./packages/platform/src/*"],
+			"@sidex/editor/*": ["./packages/editor/src/*"],
+			"@sidex/workbench/*": ["./packages/workbench/src/*"],
+			"@sidex/vscode-dts/*": ["./packages/vscode-dts/src/*"]
+		},
+		"types": ["vite/client", "@webgpu/types", "trusted-types"]
+	},
+	"include": [
+		"apps/*/src/**/*",
+		"packages/base/src/**/*",
+		"packages/platform/src/**/*",
+		"packages/editor/src/**/*",
+		"packages/workbench/src/**/*",
+		"packages/vscode-dts/src/**/*"
+	],
+	"exclude": ["node_modules", "apps/desktop", "dist", "**/test/**", "packages/build"]
 }

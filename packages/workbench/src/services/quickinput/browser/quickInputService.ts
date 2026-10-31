@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
 import { ILayoutService } from '@sidex/platform/layout/browser/layoutService.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
@@ -24,9 +25,10 @@ export class QuickInputService extends BaseQuickInputService {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@ILayoutService layoutService: ILayoutService
+		@ILayoutService layoutService: ILayoutService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(instantiationService, contextKeyService, themeService, layoutService, configurationService);
+		super(instantiationService, contextKeyService, themeService, layoutService, configurationService, openerService);
 
 		this.registerListeners();
 	}

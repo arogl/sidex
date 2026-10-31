@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from '@sidex/base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '@sidex/base/browser/contextmenu.js';
 import {
 	$,
 	addDisposableListener,
@@ -68,6 +68,7 @@ export class ContextMenuHandler {
 				canRelayout: false,
 				anchorAlignment: delegate.anchorAlignment,
 				anchorAxisAlignment: delegate.anchorAxisAlignment,
+				closeAnimation: delegate.closeAnimation,
 				layer: delegate.layer,
 				render: container => {
 					this.lastContainer = container;
@@ -147,7 +148,12 @@ export class ContextMenuHandler {
 				},
 
 				focus: () => {
-					menu?.focus(delegate.autoSelectItem === true);
+					const selection = getContextMenuAutoSelectItem(delegate, actions);
+					if (typeof selection === 'number') {
+						menu?.focus(selection);
+					} else {
+						menu?.focus(selection);
+					}
 				},
 
 				onHide: (didCancel?: boolean) => {
@@ -172,7 +178,8 @@ export class ContextMenuHandler {
 				}
 			},
 			shadowRootElement,
-			!!shadowRootElement
+			!!shadowRootElement,
+			delegate.useWindowContainerForShadowRoot
 		);
 	}
 

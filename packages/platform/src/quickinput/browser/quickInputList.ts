@@ -19,7 +19,7 @@ import { Checkbox, createToggleActionViewItemProvider, IToggleStyles } from '@si
 import { RenderIndentGuides } from '@sidex/base/browser/ui/tree/abstractTree.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, TreeVisibility } from '@sidex/base/browser/ui/tree/tree.js';
 import { equals } from '@sidex/base/common/arrays.js';
-import { ThrottledDelayer } from '@sidex/base/common/async.js';
+import { disposableTimeout, ThrottledDelayer } from '@sidex/base/common/async.js';
 import { compareAnything } from '@sidex/base/common/comparers.js';
 import { memoize } from '@sidex/base/common/decorators.js';
 import { isCancellationError } from '@sidex/base/common/errors.js';
@@ -46,6 +46,7 @@ import { WorkbenchObjectTree } from '../../list/browser/listService.js';
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
+import { asCssVariable } from '../../theme/common/colorUtils.js';
 import {
 	IQuickPickItem,
 	IQuickPickItemButtonEvent,
@@ -511,6 +512,11 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		const mainItem: IQuickPickItem = element.item;
 
 		element.element.classList.toggle('not-pickable', element.item.pickable === false);
+		if (typeof mainItem.id === 'string') {
+			data.entry.setAttribute('data-quick-input-id', mainItem.id);
+		} else {
+			data.entry.removeAttribute('data-quick-input-id');
+		}
 
 		this.ensureCheckbox(element, data);
 
@@ -528,6 +534,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			data.icon.style.backgroundImage = '';
 			data.icon.className = mainItem.iconClass ? `quick-input-list-icon ${mainItem.iconClass}` : '';
 		}
+		data.icon.style.color = mainItem.iconColor ? asCssVariable(mainItem.iconColor.id) : '';
 
 		// Label
 		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
@@ -1244,15 +1251,19 @@ export class QuickInputList extends Disposable {
 		// Accessibility hack, unfortunately on next tick
 		// https://github.com/microsoft/vscode/issues/211976
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			setTimeout(() => {
-				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
-				const parent = focusedElement?.parentNode;
-				if (focusedElement && parent) {
-					const nextSibling = focusedElement.nextSibling;
-					focusedElement.remove();
-					parent.insertBefore(focusedElement, nextSibling);
-				}
-			}, 0);
+			disposableTimeout(
+				() => {
+					const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
+					const parent = focusedElement?.parentNode;
+					if (focusedElement && parent) {
+						const nextSibling = focusedElement.nextSibling;
+						focusedElement.remove();
+						parent.insertBefore(focusedElement, nextSibling);
+					}
+				},
+				0,
+				this._elementDisposable
+			);
 		}
 	}
 

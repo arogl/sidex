@@ -21,6 +21,7 @@ import {
 import { ILayoutService } from '@sidex/platform/layout/browser/layoutService.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import Severity from '@sidex/base/common/severity.js';
+import { IMarkdownString } from '@sidex/base/common/htmlContent.js';
 import { Dialog, IDialogResult } from '@sidex/base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
@@ -132,7 +133,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		type: Severity | DialogType | undefined,
 		message: string,
 		buttons?: string[],
-		detail?: string,
+		detail?: string | IMarkdownString,
 		cancelId?: number,
 		checkbox?: ICheckbox,
 		inputs?: IInputElement[],
@@ -171,7 +172,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			buttons,
 			createWorkbenchDialogOptions(
 				{
-					detail,
+					detail: typeof detail === 'string' ? detail : detail?.value,
 					cancelId,
 					type: this.getDialogType(type),
 					renderBody,

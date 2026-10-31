@@ -344,9 +344,18 @@ function doPlayAudio(url: string, volume: number, disposables: DisposableStore):
 			})
 		);
 		disposables.add(
-			addDisposableListener(audio, 'error', e => {
-				// When the error event fires, ended might not be called
-				reject(e.error);
+			addDisposableListener(audio, 'error', () => {
+				// When the error event fires, ended might not be called.
+				// The media `error` event is a plain Event without an `error`
+				// property; the actual failure is described by `audio.error`.
+				const mediaError = audio.error;
+				reject(
+					new Error(
+						mediaError
+							? `Failed to play audio (code ${mediaError.code}): ${mediaError.message}`
+							: 'Failed to play audio'
+					)
+				);
 			})
 		);
 		audio.play().catch(e => {
@@ -394,6 +403,7 @@ export class Sound {
 	public static readonly terminalCommandSucceeded = Sound.register({ fileName: 'terminalCommandSucceeded.mp3' });
 	public static readonly codeActionTriggered = Sound.register({ fileName: 'codeActionTriggered.mp3' });
 	public static readonly codeActionApplied = Sound.register({ fileName: 'codeActionApplied.mp3' });
+	public static readonly confetti = Sound.register({ fileName: 'confetti.mp3' });
 
 	private constructor(public readonly fileName: string) {}
 }
@@ -688,11 +698,25 @@ export class AccessibilitySignal {
 		settingsKey: 'accessibility.signals.voiceRecordingStarted'
 	});
 
+	public static readonly voiceModeStarted = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceModeStarted', 'Voice Mode Started'),
+		sound: Sound.voiceRecordingStarted,
+		announcementMessage: localize('accessibility.signals.voiceModeStarted', 'Voice Mode Started'),
+		settingsKey: 'accessibility.signals.voiceModeStarted'
+	});
+
 	public static readonly voiceRecordingStopped = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.voiceRecordingStopped', 'Voice Recording Stopped'),
 		sound: Sound.voiceRecordingStopped,
 		legacySoundSettingsKey: 'audioCues.voiceRecordingStopped',
 		settingsKey: 'accessibility.signals.voiceRecordingStopped'
+	});
+
+	public static readonly voiceModeStopped = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.voiceModeStopped', 'Voice Mode Stopped'),
+		sound: Sound.voiceRecordingStopped,
+		announcementMessage: localize('accessibility.signals.voiceModeStopped', 'Voice Mode Stopped'),
+		settingsKey: 'accessibility.signals.voiceModeStopped'
 	});
 
 	public static readonly editsKept = AccessibilitySignal.register({

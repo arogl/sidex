@@ -49,6 +49,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	declare readonly _serviceBrand: undefined;
 
 	@memoize
+	get appSharedDataHome(): URI {
+		return joinPath(this.userRoamingDataHome, 'sharedData');
+	}
+
+	@memoize
 	get remoteAuthority(): string | undefined {
 		return this.options.remoteAuthority;
 	}

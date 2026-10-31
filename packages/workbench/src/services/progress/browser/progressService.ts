@@ -197,8 +197,8 @@ export class ProgressService extends Disposable implements IProgressService {
 		if (idx < this.windowProgressStack.length) {
 			const [options, progress] = this.windowProgressStack[idx];
 
-			const progressTitle = options.title;
-			const progressMessage = progress.value?.message;
+			const progressTitle = options.title?.toString();
+			const progressMessage = progress.value?.message?.toString();
 			const progressCommand = options.command;
 			let text: string;
 			let title: string;
@@ -315,7 +315,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			this.withWindowProgress(
 				{
 					location: ProgressLocation.Window,
-					title: options.title ? parseLinkedText(options.title).toString() : undefined, // convert markdown links => string
+					title: options.title ? parseLinkedText(options.title.toString()).toString() : undefined, // convert markdown links => string
 					command: 'notifications.showList',
 					type: options.type
 				},
@@ -323,7 +323,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					function reportProgress(step: IProgressStep) {
 						if (step.message) {
 							progress.report({
-								message: parseLinkedText(step.message).toString() // convert markdown links => string
+								message: parseLinkedText(step.message.toString()).toString() // convert markdown links => string
 							});
 						}
 					}
@@ -449,9 +449,9 @@ export class ProgressService extends Disposable implements IProgressService {
 		const updateNotification = (step?: IProgressStep): void => {
 			// full message (inital or update)
 			if (step?.message && options.title) {
-				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/microsoft/vscode/issues/50932)
+				titleAndMessage = `${options.title.toString()}: ${step.message.toString()}`; // always prefix with overall title if we have it (https://github.com/microsoft/vscode/issues/50932)
 			} else {
-				titleAndMessage = options.title || step?.message;
+				titleAndMessage = options.title?.toString() || step?.message?.toString();
 			}
 
 			if (!notificationHandle && titleAndMessage) {
@@ -719,7 +719,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const promise = task({
 			report: progress => {
-				updateDialog(progress.message);
+				updateDialog(progress.message?.toString());
 			}
 		});
 
@@ -729,7 +729,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		});
 
 		if (options.title) {
-			updateDialog(options.title);
+			updateDialog(options.title.toString());
 		}
 
 		return promise;

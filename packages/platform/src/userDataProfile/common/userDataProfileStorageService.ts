@@ -29,6 +29,7 @@ export interface IProfileStorageChanges {
 export interface IStorageValue {
 	readonly value: string | undefined;
 	readonly target: StorageTarget;
+	readonly scope?: StorageScope;
 }
 
 export const IUserDataProfileStorageService = createDecorator<IUserDataProfileStorageService>(
@@ -38,10 +39,19 @@ export interface IUserDataProfileStorageService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<IProfileStorageChanges>;
 	readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>>;
+
+	/**
+	 * Update the given profile storage data in the profile storage
+	 * @param profile The profile to which the data has to be written to
+	 * @param data Data that has to be updated
+	 * @param target Storage target of the data
+	 * @param scope Storage scope of the data (defaults to PROFILE)
+	 */
 	updateStorageData(
 		profile: IUserDataProfile,
 		data: Map<string, string | undefined | null>,
-		target: StorageTarget
+		target: StorageTarget,
+		scope?: StorageScope
 	): Promise<void>;
 	withProfileScopedStorageService<T>(
 		profile: IUserDataProfile,
@@ -70,16 +80,19 @@ export abstract class AbstractUserDataProfileStorageService
 	}
 
 	async readStorageData(profile: IUserDataProfile): Promise<Map<string, IStorageValue>> {
-		return this.withProfileScopedStorageService(profile, async storageService => this.getItems(storageService));
+		return this.withProfileScopedStorageService(profile, async storageService =>
+			this.getItems(storageService, profile)
+		);
 	}
 
 	async updateStorageData(
 		profile: IUserDataProfile,
 		data: Map<string, string | undefined | null>,
-		target: StorageTarget
+		target: StorageTarget,
+		scope = StorageScope.PROFILE
 	): Promise<void> {
 		return this.withProfileScopedStorageService(profile, async storageService =>
-			this.writeItems(storageService, data, target)
+			this.writeItems(storageService, data, target, scope)
 		);
 	}
 
@@ -117,25 +130,30 @@ export abstract class AbstractUserDataProfileStorageService
 		}
 	}
 
-	private getItems(storageService: IStorageService): Map<string, IStorageValue> {
+	private getItems(storageService: IStorageService, profile: IUserDataProfile): Map<string, IStorageValue> {
 		const result = new Map<string, IStorageValue>();
-		const populate = (target: StorageTarget) => {
-			for (const key of storageService.keys(StorageScope.PROFILE, target)) {
-				result.set(key, { value: storageService.get(key, StorageScope.PROFILE), target });
+		const populate = (scope: StorageScope, target: StorageTarget) => {
+			for (const key of storageService.keys(scope, target)) {
+				result.set(key, { value: storageService.get(key, scope), target, scope });
 			}
 		};
-		populate(StorageTarget.USER);
-		populate(StorageTarget.MACHINE);
+		populate(StorageScope.PROFILE, StorageTarget.USER);
+		populate(StorageScope.PROFILE, StorageTarget.MACHINE);
+		if (profile.isDefault) {
+			populate(StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+			populate(StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		}
 		return result;
 	}
 
 	private writeItems(
 		storageService: IStorageService,
 		items: Map<string, string | undefined | null>,
-		target: StorageTarget
+		target: StorageTarget,
+		scope = StorageScope.PROFILE
 	): void {
 		storageService.storeAll(
-			Array.from(items.entries()).map(([key, value]) => ({ key, value, scope: StorageScope.PROFILE, target })),
+			Array.from(items.entries()).map(([key, value]) => ({ key, value, scope, target })),
 			true
 		);
 	}

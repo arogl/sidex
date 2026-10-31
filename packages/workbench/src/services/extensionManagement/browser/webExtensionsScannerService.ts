@@ -1091,8 +1091,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				this.productService.date,
 				webExtension.location,
 				manifest,
-				false,
-				validateApiVersion
+				false
 			)
 		);
 		let isValid = true;
