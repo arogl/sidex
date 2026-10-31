@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '@sidex/base/common/async.js';
+import { rejectIfNotCanceled, RunOnceScheduler } from '@sidex/base/common/async.js';
 import { CancellationTokenSource } from '@sidex/base/common/cancellation.js';
 import { Disposable, toDisposable } from '@sidex/base/common/lifecycle.js';
 import {
@@ -12,7 +12,6 @@ import {
 	ISettableObservable,
 	ITransaction,
 	autorun,
-	autorunWithStore,
 	derived,
 	observableSignal,
 	observableSignalFromEvent,
@@ -343,8 +342,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		);
 
 		this._register(
-			autorunWithStore(async (reader, store) => {
+			autorun(async reader => {
 				/** @description compute diff */
+				const store = reader.store;
 
 				// So that they get recomputed when these settings change
 				this._options.hideUnchangedRegionsMinimumLineCount.read(reader);
@@ -376,18 +376,20 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					})
 				);
 
-				let result = await documentDiffProvider.diffProvider.computeDiff(
-					model.original,
-					model.modified,
-					{
-						ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
-						maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
-						computeMoves: this._options.showMoves.read(reader)
-					},
-					this._cancellationTokenSource.token
-				);
+				let result = await documentDiffProvider.diffProvider
+					.computeDiff(
+						model.original,
+						model.modified,
+						{
+							ignoreTrimWhitespace: this._options.ignoreTrimWhitespace.read(reader),
+							maxComputationTimeMs: this._options.maxComputationTimeMs.read(reader),
+							computeMoves: this._options.showMoves.read(reader)
+						},
+						this._cancellationTokenSource.token
+					)
+					.catch(rejectIfNotCanceled);
 
-				if (this._cancellationTokenSource.token.isCancellationRequested) {
+				if (!result || this._cancellationTokenSource.token.isCancellationRequested) {
 					return;
 				}
 				if (model.original.isDisposed() || model.modified.isDisposed()) {
@@ -455,7 +457,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	}
 
 	public async waitForDiff(): Promise<void> {
-		await waitForState(this.isDiffUpToDate, s => s);
+		await waitForState(this.isDiffUpToDate, s => s, undefined, this._cancellationTokenSource.token).catch(
+			rejectIfNotCanceled
+		);
 	}
 
 	public serializeState(): SerializedState {

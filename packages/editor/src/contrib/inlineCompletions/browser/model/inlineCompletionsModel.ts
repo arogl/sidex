@@ -33,6 +33,7 @@ import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import product from '@sidex/platform/product/common/product.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../../common/core/cursorColumns.js';
 import { LineRange } from '../../../../common/core/ranges/lineRange.js';
@@ -59,7 +60,7 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { getEndPositionsAfterApplying, removeTextReplacementCommonSuffixPrefix } from '../utils.js';
-import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
+import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from '@sidex/base/browser/animatedValue.js';
 import { computeGhostText } from './computeGhostText.js';
 import {
 	GhostText,
@@ -114,7 +115,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		return isSuggestionInViewport(this._editor, state.inlineSuggestion);
+		return isSuggestionInViewport(this._editor, state.inlineSuggestion, reader);
 	});
 	public get isAcceptingPartially() {
 		return this._isAcceptingPartially;
@@ -150,6 +151,7 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _enabled: IObservable<boolean>,
+		private readonly _isSuppressed: () => boolean,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -167,7 +169,8 @@ export class InlineCompletionsModel extends Disposable {
 				this.textModel,
 				this._textModelVersionId,
 				this._debounceValue,
-				this.primaryPosition
+				this.primaryPosition,
+				product.defaultChatAgent?.completionsEnablementSetting
 			)
 		);
 		this.lastTriggerKind = this._source.inlineCompletions.map(this, v => v?.request?.context.triggerKind);
@@ -466,6 +469,7 @@ export class InlineCompletionsModel extends Disposable {
 			this._forceUpdateExplicitlySignal.read(reader);
 			this._fetchSpecificProviderSignal.read(reader);
 			const shouldUpdate =
+				!this._isSuppressed() &&
 				((this._enabled.read(reader) && this._selectedSuggestItem.read(reader)) || this._isActive.read(reader)) &&
 				(!this._inlineCompletionsService.isSnoozing() ||
 					changeSummary.inlineCompletionTriggerKind === InlineCompletionTriggerKind.Explicit);
@@ -1332,7 +1336,10 @@ export class InlineCompletionsModel extends Disposable {
 				const edits = [primaryEdit, ...getSecondaryEdits(this.textModel, positions, primaryEdit)].filter(isDefined);
 				const selections = getEndPositionsAfterApplying(edits).map(p => Selection.fromPositions(p));
 
-				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, type));
+				editor.edit(
+					TextEdit.fromParallelReplacementsUnsorted(edits),
+					this._getMetadata(completion, this.textModel.getLanguageId(), type)
+				);
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
 				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Smooth);
 			} finally {
@@ -1466,7 +1473,8 @@ export class InlineCompletionsModel extends Disposable {
 	 * Used for cross-file inline edits.
 	 */
 	public transplantCompletion(item: InlineSuggestionItem): void {
-		item.addRef();
+		// No explicit addRef needed: `seedWithCompletion` creates a new `InlineCompletionsState`
+		// which calls `addRef` on every item it holds and pairs it with `removeRef` in dispose.
 		transaction(tx => {
 			this._source.seedWithCompletion(item, tx);
 			this._isActive.set(true, tx);
@@ -1553,14 +1561,13 @@ class FadeoutDecoration extends Disposable {
 			)
 		);
 
-		const animation = new AnimatedValue(1, 0, 1000, easeOutCubic);
-		const val = new ObservableAnimatedValue(animation);
+		const val = new ObservableAnimatedValue(AnimatedValue.startNow(1, 0, 1000, easeOutCubic));
 
 		this._register(
 			autorun(reader => {
 				const opacity = val.getValue(reader);
 				editor.getContainerDomNode().style.setProperty('--animation-opacity', opacity.toString());
-				if (animation.isFinished()) {
+				if (val.isFinished(reader)) {
 					this.dispose();
 				}
 			})

@@ -167,6 +167,11 @@ export namespace AccessibilityHelpNLS {
 		'<keybinding:chatEditor.action.toggleDiff>',
 		'<keybinding:chatEditor.action.acceptAllEdits>'
 	);
+	export const editorDictation = nls.localize(
+		'editorDictation',
+		'Start or stop dictation in the editor{0}.',
+		'<keybinding:workbench.action.editorDictation.start>'
+	);
 }
 
 export namespace InspectTokensNLS {

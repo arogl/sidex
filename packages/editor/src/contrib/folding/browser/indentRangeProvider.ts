@@ -133,8 +133,15 @@ export function computeRanges(
 	const result = new RangesCollector(foldingRangesLimit);
 
 	let pattern: RegExp | undefined = undefined;
+	let startPattern: RegExp | undefined = undefined;
+	let endPattern: RegExp | undefined = undefined;
 	if (markers) {
-		pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`);
+		if (markers.start.flags === markers.end.flags) {
+			pattern = new RegExp(`(${markers.start.source})|(?:${markers.end.source})`, markers.start.flags);
+		} else {
+			startPattern = markers.start;
+			endPattern = markers.end;
+		}
 	}
 
 	const previousRegions: PreviousRegion[] = [];
@@ -154,10 +161,28 @@ export function computeRanges(
 			}
 			continue; // only whitespace
 		}
+		let isStartMatch = false;
+		let isEndMatch = false;
 		let m;
-		if (pattern && (m = lineContent.match(pattern))) {
+		if (pattern) {
+			pattern.lastIndex = 0;
+			if ((m = pattern.exec(lineContent))) {
+				isStartMatch = !!m[1];
+				isEndMatch = !isStartMatch;
+			}
+		} else {
+			if (startPattern) {
+				startPattern.lastIndex = 0;
+				isStartMatch = startPattern.test(lineContent);
+			}
+			if (!isStartMatch && endPattern) {
+				endPattern.lastIndex = 0;
+				isEndMatch = endPattern.test(lineContent);
+			}
+		}
+		if (isStartMatch || isEndMatch) {
 			// folding pattern match
-			if (m[1]) {
+			if (isStartMatch) {
 				// start pattern match
 				// discard all regions until the folding pattern
 				let i = previousRegions.length - 1;

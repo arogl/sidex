@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '@sidex/base/browser/dom.js';
+import * as aria from '@sidex/base/browser/ui/aria/aria.js';
 import { ScrollableElement } from '@sidex/base/browser/ui/scrollbar/scrollableElement.js';
 import { isNonEmptyArray } from '@sidex/base/common/arrays.js';
 import { Color } from '@sidex/base/common/color.js';
@@ -130,6 +131,7 @@ class MessageWidget {
 
 		dom.clearNode(this._messageBlock);
 		this._messageBlock.setAttribute('aria-label', this.getAriaLabel(marker));
+		aria.status(this.getAriaLabel(marker));
 		this._editor.applyFontInfo(this._messageBlock);
 		let lastLineElement = this._messageBlock;
 		for (const line of lines) {
@@ -161,7 +163,7 @@ class MessageWidget {
 					this._codeLink.setAttribute('href', `${code.target.toString()}`);
 
 					this._codeLink.onclick = e => {
-						this._openerService.open(code.target, { allowCommands: true });
+						this._openerService.open(code.target);
 						e.preventDefault();
 						e.stopPropagation();
 					};
@@ -235,8 +237,9 @@ class MessageWidget {
 
 		let ariaLabel = nls.localize(
 			'marker aria',
-			'{0} at {1}. ',
+			'{0}: {1} at {2}. ',
 			severityLabel,
+			marker.message,
 			marker.startLineNumber + ':' + marker.startColumn
 		);
 		const model = this._editor.getModel();

@@ -67,6 +67,7 @@ export class SuggestDetailsWidget {
 		this._header = dom.append(this._body, dom.$('.header'));
 		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', 'Close');
+		this._close.ariaLabel = nls.localize('details.close', 'Close');
 		this._close.role = 'button';
 		this._close.tabIndex = -1;
 		this._type = dom.append(this._header, dom.$('p.type'));
@@ -487,7 +488,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		const verticalPlacement = preferAlignAtTop ? southPlacement : northPlacement;
 		const placements = [eastPlacement, westPlacement, verticalPlacement];
 		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
-
 		// top/bottom placement
 		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
 		let alignAtTop: boolean;
@@ -514,7 +514,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 				maxSize = placement.maxSizeTop;
 			}
 		}
-
 		let { top, left } = placement;
 		if (placement === northPlacement) {
 			// For NORTH placement, position the details above the anchor
