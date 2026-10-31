@@ -9,6 +9,7 @@ import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
 import { QuickInputController } from '@sidex/platform/quickinput/browser/quickInputController.js';
 import { QuickInputService as BaseQuickInputService } from '@sidex/platform/quickinput/browser/quickInputService.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
@@ -24,9 +25,10 @@ export class QuickInputService extends BaseQuickInputService {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@ILayoutService layoutService: ILayoutService
+		@ILayoutService layoutService: ILayoutService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(instantiationService, contextKeyService, themeService, layoutService, configurationService);
+		super(instantiationService, contextKeyService, themeService, layoutService, configurationService, openerService);
 
 		this.registerListeners();
 	}

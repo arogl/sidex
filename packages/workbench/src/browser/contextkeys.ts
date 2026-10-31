@@ -18,12 +18,14 @@ import {
 	IsDevelopmentContext,
 	IsIOSContext,
 	ProductQualityContext,
-	IsMobileContext
+	IsMobileContext,
+	IsChromeOSContext
 } from '@sidex/platform/contextkey/common/contextkeys.js';
 import {
 	SplitEditorsVertically,
 	InEditorZenModeContext,
 	AuxiliaryBarVisibleContext,
+	SecondarySideBarVisibleContext,
 	SideBarVisibleContext,
 	PanelAlignmentContext,
 	PanelMaximizedContext,
@@ -116,6 +118,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private panelAlignmentContext: IContextKey<string>;
 	private panelMaximizedContext: IContextKey<boolean>;
 	private auxiliaryBarVisibleContext: IContextKey<boolean>;
+	private secondarySideBarVisibleContext: IContextKey<boolean>;
 	private auxiliaryBarMaximizedContext: IContextKey<boolean>;
 	private editorTabsVisibleContext: IContextKey<boolean>;
 	private titleAreaVisibleContext: IContextKey<boolean>;
@@ -138,6 +141,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsMacContext.bindTo(this.contextKeyService);
 		IsLinuxContext.bindTo(this.contextKeyService);
 		IsWindowsContext.bindTo(this.contextKeyService);
+		IsChromeOSContext.bindTo(this.contextKeyService);
 
 		IsWebContext.bindTo(this.contextKeyService);
 		IsMacNativeContext.bindTo(this.contextKeyService);
@@ -237,6 +241,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Editor Area
 		this.mainEditorAreaVisibleContext = MainEditorAreaVisibleContext.bindTo(this.contextKeyService);
+		this.mainEditorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		this.editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.contextKeyService);
 
 		// Sidebar
@@ -261,6 +266,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Auxiliary Bar
 		this.auxiliaryBarVisibleContext = AuxiliaryBarVisibleContext.bindTo(this.contextKeyService);
 		this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		this.secondarySideBarVisibleContext = SecondarySideBarVisibleContext.bindTo(this.contextKeyService);
+		this.secondarySideBarVisibleContext.set(this.layoutService.isSecondarySideBarVisible());
 		this.auxiliaryBarMaximizedContext = AuxiliaryBarMaximizedContext.bindTo(this.contextKeyService);
 		this.auxiliaryBarMaximizedContext.set(this.layoutService.isAuxiliaryBarMaximized());
 
@@ -331,6 +338,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 				this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
 				this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 				this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+				this.secondarySideBarVisibleContext.set(this.layoutService.isSecondarySideBarVisible());
 				this.sideBarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
 
 				this.updateTitleBarContextKeys();

@@ -57,6 +57,9 @@ import {
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '@sidex/platform/window/common/window.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
+import { onDidChangeNotificationRowHeight } from './notificationsViewer.js';
+import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
+import { logNotificationInteraction } from '../../../common/notificationTelemetry.js';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 	private static readonly MAX_DIMENSIONS = new Dimension(500, 400);
@@ -90,7 +93,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(themeService);
 
@@ -205,6 +209,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		// Mark as visible
 		this.model.notifications.forEach(notification => notification.updateVisibility(true));
+		notificationsList.setTelemetryVisibility(true);
 
 		// Context Key
 		this.notificationsCenterVisibleContextKey.set(true);
@@ -224,7 +229,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			clearAllAction.enabled = false;
 		} else {
 			notificationsCenterTitle.textContent = localize('notifications', 'Notifications');
-			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress);
+			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasActiveProgress);
 		}
 	}
 
@@ -247,7 +252,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		const toolbarContainer = $('.notifications-center-header-toolbar');
 		this.notificationsCenterHeader.appendChild(toolbarContainer);
 
-		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
+		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner, 'center'));
 
 		const that = this;
 		const notificationsToolBar = this._register(
@@ -405,13 +410,13 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		});
 
 		// Notifications List
-		this.notificationsList = this.instantiationService.createInstance(
-			NotificationsList,
-			this.notificationsCenterContainer,
-			{
+		this.notificationsList = this._register(
+			this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {
+				telemetrySurface: 'center',
 				widgetAriaLabel: localize('notificationsCenterWidgetAriaLabel', 'Notifications Center')
-			}
+			})
 		);
+		this._register(onDidChangeNotificationRowHeight(() => this.notificationsList?.updateNotificationHeights()));
 		this.container.appendChild(this.notificationsCenterContainer);
 	}
 
@@ -449,6 +454,11 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 					case NotificationViewItemContentChangeKind.MESSAGE:
 						if (e.item.expanded) {
 							notificationsList.updateNotificationHeight(e.item);
+						}
+						break;
+					case NotificationViewItemContentChangeKind.PROGRESS:
+						if (e.activeProgressChanged) {
+							notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 						}
 						break;
 				}
@@ -556,12 +566,15 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	clearAll(): void {
+		const surface = this.isVisible ? 'center' : undefined;
+
 		// Hide notifications center first
 		this.hide();
 
 		// Close all
 		for (const notification of [...this.model.notifications] /* copy array since we modify it from closing */) {
-			if (!notification.hasProgress) {
+			if (!notification.hasActiveProgress) {
+				logNotificationInteraction(this.telemetryService, notification, 'clearAll', surface);
 				notification.close();
 			}
 			this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);

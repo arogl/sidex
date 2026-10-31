@@ -39,7 +39,8 @@ import {
 	IViewContainersRegistry,
 	Extensions as ViewContainerExtensions,
 	ViewContainerLocation,
-	IViewsRegistry
+	IViewsRegistry,
+	WindowEnablement
 } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { getVisbileViewContextKey, FocusedViewContext } from '../../../common/contextkeys.js';
@@ -162,7 +163,8 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(
 			Markers.MARKERS_CONTAINER_ID,
 			{ mergeViewWithContainerWhenSingleView: true }
 		]),
-		storageId: Markers.MARKERS_VIEW_STORAGE_ID
+		storageId: Markers.MARKERS_VIEW_STORAGE_ID,
+		windowEnablement: WindowEnablement.Both
 	},
 	ViewContainerLocation.Panel,
 	{ doNotRegisterOpenCommand: true }
@@ -182,7 +184,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 				mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, '&&Problems'),
 				keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM },
 				order: 0
-			}
+			},
+			windowEnablement: WindowEnablement.Both
 		}
 	],
 	VIEW_CONTAINER

@@ -5,7 +5,13 @@
 
 import { Dimension } from '@sidex/base/browser/dom.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
-import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
+import {
+	IEditorGroupMenuIds,
+	IEditorGroupsView,
+	IEditorGroupView,
+	IEditorPartsView,
+	IInternalEditorOpenOptions
+} from './editor.js';
 import { IEditorTabsControl } from './editorTabsControl.js';
 import { MultiEditorTabsControl } from './multiEditorTabsControl.js';
 import { IEditorPartOptions } from '../../../common/editor.js';
@@ -28,6 +34,9 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		private readonly groupsView: IEditorGroupsView,
 		private readonly groupView: IEditorGroupView,
 		private readonly model: IReadonlyEditorGroupModel,
+		private readonly menuIds: IEditorGroupMenuIds | undefined,
+		private readonly breadcrumbsInHeader: boolean,
+		private readonly useModernUITabs: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -42,7 +51,10 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 				editorPartsView,
 				this.groupsView,
 				this.groupView,
-				stickyModel
+				stickyModel,
+				this.menuIds,
+				this.breadcrumbsInHeader,
+				this.useModernUITabs
 			)
 		);
 		this.unstickyEditorTabsControl = this._register(
@@ -52,7 +64,10 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 				editorPartsView,
 				this.groupsView,
 				this.groupView,
-				unstickyModel
+				unstickyModel,
+				this.menuIds,
+				this.breadcrumbsInHeader,
+				this.useModernUITabs
 			)
 		);
 	}
@@ -214,6 +229,10 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 	updateEditorLabel(editor: EditorInput): void {
 		this.getEditorTabsController(editor).updateEditorLabel(editor);
+	}
+
+	updateEditorCapabilities(editor: EditorInput): void {
+		this.getEditorTabsController(editor).updateEditorCapabilities(editor);
 	}
 
 	updateEditorDirty(editor: EditorInput): void {

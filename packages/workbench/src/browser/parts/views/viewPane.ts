@@ -418,6 +418,16 @@ export abstract class ViewPane extends Pane implements IView {
 
 	readonly menuActions: ViewMenuActions;
 
+	/**
+	 * Additional menu groups (beyond `navigation`) whose actions should be
+	 * rendered as primary (inline) actions in the title action bar. Separators
+	 * are rendered between groups in the primary actions. Subclasses can
+	 * override this to customize grouping in the title action bar.
+	 */
+	protected get primaryActionGroups(): string[] | undefined {
+		return undefined;
+	}
+
 	private progressBar?: ProgressBar;
 	private progressIndicator?: IProgressIndicator;
 
@@ -486,7 +496,8 @@ export abstract class ViewPane extends Pane implements IView {
 				ViewMenuActions,
 				options.titleMenuId ?? MenuId.ViewTitle,
 				MenuId.ViewTitleContext,
-				{ shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }
+				{ shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true },
+				{ primaryActionGroups: this.primaryActionGroups }
 			)
 		);
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));

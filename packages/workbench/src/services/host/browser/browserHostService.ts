@@ -51,7 +51,7 @@ import { IInstantiationService } from '@sidex/platform/instantiation/common/inst
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
 import { BrowserLifecycleService } from '../../lifecycle/browser/lifecycleService.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
-import { getWorkspaceIdentifier } from '../../workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '@sidex/platform/workspaces/common/workspaceIdentifier.js';
 import { localize } from '@sidex/base/nls.js';
 import Severity from '@sidex/base/common/severity.js';
 import { IDialogService } from '@sidex/platform/dialogs/common/dialogs.js';
@@ -769,6 +769,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
 		mainWindow.close();
+	}
+
+	async shutdown(): Promise<void> {
+		return this.close();
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {

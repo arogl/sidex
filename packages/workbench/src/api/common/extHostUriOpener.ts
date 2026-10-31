@@ -8,6 +8,7 @@ import { toDisposable } from '@sidex/base/common/lifecycle.js';
 import { Schemas } from '@sidex/base/common/network.js';
 import { URI, UriComponents } from '@sidex/base/common/uri.js';
 import * as languages from '@sidex/editor/common/languages.js';
+import { ViewColumn } from '@sidex/platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '@sidex/platform/extensions/common/extensions.js';
 import type * as vscode from 'vscode';
 import { ExtHostUriOpenersShape, IMainContext, MainContext, MainThreadUriOpenersShape } from './extHost.protocol.js';
@@ -63,7 +64,7 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 
 	async $openUri(
 		id: string,
-		context: { resolvedUri: UriComponents; sourceUri: UriComponents },
+		context: { resolvedUri: UriComponents; sourceUri: UriComponents; viewColumn?: ViewColumn },
 		token: CancellationToken
 	): Promise<void> {
 		const opener = this._openers.get(id);
@@ -74,7 +75,8 @@ export class ExtHostUriOpeners implements ExtHostUriOpenersShape {
 		return opener.openExternalUri(
 			URI.revive(context.resolvedUri),
 			{
-				sourceUri: URI.revive(context.sourceUri)
+				sourceUri: URI.revive(context.sourceUri),
+				viewColumn: context.viewColumn
 			},
 			token
 		);

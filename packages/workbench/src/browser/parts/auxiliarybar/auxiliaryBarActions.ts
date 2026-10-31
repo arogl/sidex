@@ -9,11 +9,12 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '@sidex/platform/
 import { ContextKeyExpr } from '@sidex/platform/contextkey/common/contextkey.js';
 import { registerIcon } from '@sidex/platform/theme/common/iconRegistry.js';
 import { Categories } from '@sidex/platform/action/common/actionCommonCategories.js';
-import { alert } from '@sidex/base/browser/ui/aria/aria.js';
 import {
 	AuxiliaryBarMaximizedContext,
 	AuxiliaryBarVisibleContext,
-	IsAuxiliaryWindowContext
+	IsAuxiliaryWindowContext,
+	IsSessionsWindowContext,
+	SecondarySideBarVisibleContext
 } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import {
@@ -69,7 +70,7 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 			id: ToggleAuxiliaryBarAction.ID,
 			title: ToggleAuxiliaryBarAction.LABEL,
 			toggled: {
-				condition: AuxiliaryBarVisibleContext,
+				condition: SecondarySideBarVisibleContext,
 				title: localize('closeSecondarySideBar', 'Hide Secondary Side Bar'),
 				icon: closeIcon,
 				mnemonicTitle: localize({ key: 'miCloseSecondarySideBar', comment: ['&& denotes a mnemonic'] }, '&&Sidex')
@@ -93,23 +94,15 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
-					order: 2
+					order: 2,
+					when: IsSessionsWindowContext.negate()
 				}
 			]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-
-		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
-
-		// Announce visibility change to screen readers
-		const alertMessage = isCurrentlyVisible
-			? localize('auxiliaryBarHidden', 'Secondary Side Bar hidden')
-			: localize('auxiliaryBarVisible', 'Secondary Side Bar shown');
-		alert(alertMessage);
+		accessor.get(IWorkbenchLayoutService).toggleSecondarySideBar();
 	}
 }
 
@@ -177,7 +170,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '2_pane_toggles',
+			group: 'navigation',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
 				title: localize('toggleSecondarySideBar', 'Toggle Secondary Side Bar'),
@@ -198,7 +191,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: '2_pane_toggles',
+			group: 'navigation',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
 				title: localize('toggleSecondarySideBar', 'Toggle Secondary Side Bar'),

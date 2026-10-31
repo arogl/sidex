@@ -95,6 +95,7 @@ class DropOverlay extends Themable {
 
 	constructor(
 		private readonly groupView: IEditorGroupView,
+		private readonly supportsSplitting: boolean,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -220,8 +221,8 @@ class DropOverlay extends Themable {
 					// Position overlay and conditionally enable or disable
 					// editor group splitting support based on setting and
 					// keymodifiers used.
-					let splitOnDragAndDrop = !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
-					if (this.isToggleSplitOperation(e)) {
+					let splitOnDragAndDrop = this.supportsSplitting && !!this.groupView.groupsView.partOptions.splitOnDragAndDrop;
+					if (this.supportsSplitting && this.isToggleSplitOperation(e)) {
 						splitOnDragAndDrop = !splitOnDragAndDrop;
 					}
 					this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup, splitOnDragAndDrop);
@@ -447,6 +448,16 @@ class DropOverlay extends Themable {
 
 		const editorControlWidth = this.groupView.element.clientWidth;
 		const editorControlHeight = this.groupView.element.clientHeight - this.getOverlayOffsetHeight();
+
+		if (!enableSplitting) {
+			this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+			this.toggleDropIntoPrompt(true);
+			const overlay = assertReturnsDefined(this.overlay);
+			overlay.style.opacity = '1';
+			setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
+			this.currentDropOperation = { splitDirection: undefined };
+			return;
+		}
 
 		let edgeWidthThresholdFactor: number;
 		let edgeHeightThresholdFactor: number;
@@ -714,7 +725,11 @@ export class EditorDropTarget extends Themable {
 			if (!this.overlay) {
 				const targetGroupView = this.findTargetGroupView(target);
 				if (targetGroupView) {
-					this._overlay = this.instantiationService.createInstance(DropOverlay, targetGroupView);
+					this._overlay = this.instantiationService.createInstance(
+						DropOverlay,
+						targetGroupView,
+						this.delegate.supportsSplitting !== false
+					);
 				}
 			}
 		}

@@ -73,6 +73,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private readonly _lspAddons: DisposableMap<string, LspCompletionProviderAddon> = this.add(new DisposableMap());
 	private readonly _lspModelProvider: MutableDisposable<LspTerminalModelContentProvider> = new MutableDisposable();
+	private readonly _lspResources = this.add(new MutableDisposable<DisposableStore>());
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined {
@@ -110,6 +111,8 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 					if (!completionsEnabled) {
 						this._addon.clear();
 						this._lspAddons.clearAndDisposeAll();
+						this._lspModelProvider.clear();
+						this._lspResources.clear();
 					}
 					const xtermRaw = this._ctx.instance.xterm?.raw;
 					if (!!xtermRaw && completionsEnabled) {
@@ -157,16 +160,20 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private async _loadLspCompletionAddon(xterm: RawXtermTerminal): Promise<void> {
+		this._lspAddons.clearAndDisposeAll();
+		this._lspModelProvider.clear();
+		this._lspResources.clear();
+
 		let lspTerminalObj = undefined;
 		// TODO: Change to always load after settings update for terminal suggest provider
 		if (
 			!this._ctx.instance.shellType ||
 			!(lspTerminalObj = getTerminalLspSupportedLanguageObj(this._ctx.instance.shellType))
 		) {
-			this._lspAddons.clearAndDisposeAll();
 			return;
 		}
 
+		const resources = (this._lspResources.value = new DisposableStore());
 		const virtualTerminalDocumentUri = createTerminalLanguageVirtualUri(
 			this._ctx.instance.instanceId,
 			lspTerminalObj.extension
@@ -180,10 +187,13 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			virtualTerminalDocumentUri,
 			this._ctx.instance.shellType
 		);
-		this.add(this._lspModelProvider.value);
 
 		const textVirtualModel = await this._textModelService.createModelReference(virtualTerminalDocumentUri);
-		this.add(textVirtualModel);
+		if (resources.isDisposed) {
+			textVirtualModel.dispose();
+			return;
+		}
+		resources.add(textVirtualModel);
 
 		const virtualProviders = this._languageFeaturesService.completionProvider.all(
 			textVirtualModel.object.textEditorModel
@@ -200,7 +210,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			);
 			this._lspAddons.set(provider._debugDisplayName, lspCompletionProviderAddon);
 			xterm.loadAddon(lspCompletionProviderAddon);
-			this.add(
+			resources.add(
 				this._terminalCompletionService.registerTerminalCompletionProvider(
 					'lsp',
 					lspCompletionProviderAddon.id,

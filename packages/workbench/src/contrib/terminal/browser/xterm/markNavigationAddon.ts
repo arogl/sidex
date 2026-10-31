@@ -15,7 +15,6 @@ import type { Terminal, IMarker, ITerminalAddon, IDecoration, IBufferRange } fro
 import { timeout } from '@sidex/base/common/async.js';
 import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from '../../common/terminalColorRegistry.js';
-import { getWindow } from '@sidex/base/browser/dom.js';
 import {
 	ICurrentPartialCommand,
 	isFullTerminalCommand
@@ -92,13 +91,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 
 		if (markCapability && !skipEmptyCommands) {
-			let next = markCapability.markers().next()?.value;
-			const arr: IMarker[] = [];
-			while (next) {
-				arr.push(next);
-				next = markCapability.markers().next()?.value;
-			}
-			markers = arr;
+			markers = [...markCapability.markers()];
 		}
 		return markers;
 	}
@@ -465,9 +458,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 						}
 					} else {
 						element.classList.add('terminal-scroll-highlight');
-					}
-					if (this._terminal?.element) {
-						element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 					}
 				});
 				// TODO: This is not efficient for a large decorationCount

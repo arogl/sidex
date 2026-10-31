@@ -15,7 +15,9 @@ import {
 	MainThreadProgressShape,
 	MainContext,
 	ExtHostProgressShape,
-	ExtHostContext
+	ExtHostContext,
+	IProgressOptionsDto,
+	IProgressStepDto
 } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ICommandService } from '@sidex/platform/commands/common/commands.js';
@@ -23,6 +25,12 @@ import { localize } from '@sidex/base/nls.js';
 import { onUnexpectedExternalError } from '@sidex/base/common/errors.js';
 import { toAction } from '@sidex/base/common/actions.js';
 import { NotificationPriority } from '@sidex/platform/notification/common/notification.js';
+import { legacyExtensionLinkParsing } from '@sidex/platform/notification/common/notificationLegacy.js';
+import {
+	extensionNotificationTelemetry,
+	NotificationActionTelemetryId,
+	withNotificationActionTelemetry
+} from '@sidex/platform/notification/common/notificationTelemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
@@ -46,29 +54,37 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		this._progress.clear();
 	}
 
-	async $startProgress(handle: number, options: IProgressOptions, extensionId?: string): Promise<void> {
+	async $startProgress(handle: number, options: IProgressOptionsDto, extensionId?: string): Promise<void> {
 		const task = this._createTask(handle);
+		let progressOptions: IProgressOptions = {
+			...options,
+			legacyExtensionLinkParsing,
+			telemetry: options.telemetryId ?? extensionNotificationTelemetry(extensionId, 'progress')
+		};
 
 		if (options.location === ProgressLocation.Notification && extensionId) {
 			const sourceIsUrgent = MainThreadProgress.URGENT_PROGRESS_SOURCES.includes(extensionId);
 			const notificationOptions: IProgressNotificationOptions = {
-				...options,
+				...progressOptions,
 				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,
 				location: ProgressLocation.Notification,
 				secondaryActions: [
-					toAction({
-						id: extensionId,
-						label: localize('manageExtension', 'Manage Extension'),
-						run: () => this._commandService.executeCommand('_extensions.manage', extensionId)
-					})
+					withNotificationActionTelemetry(
+						toAction({
+							id: extensionId,
+							label: localize('manageExtension', 'Manage Extension'),
+							run: () => this._commandService.executeCommand('_extensions.manage', extensionId)
+						}),
+						NotificationActionTelemetryId.ManageExtension
+					)
 				]
 			};
 
-			options = notificationOptions;
+			progressOptions = notificationOptions;
 		}
 
 		try {
-			this._progressService.withProgress(options, task, () => this._proxy.$acceptProgressCanceled(handle));
+			this._progressService.withProgress(progressOptions, task, () => this._proxy.$acceptProgressCanceled(handle));
 		} catch (err) {
 			// the withProgress-method will throw synchronously when invoked with bad options
 			// which is then an enternal/extension error
@@ -76,7 +92,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		}
 	}
 
-	$progressReport(handle: number, message: IProgressStep): void {
+	$progressReport(handle: number, message: IProgressStepDto): void {
 		const entry = this._progress.get(handle);
 		entry?.progress.report(message);
 	}

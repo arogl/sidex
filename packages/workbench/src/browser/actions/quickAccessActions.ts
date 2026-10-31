@@ -19,6 +19,7 @@ import {
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
 import { CommandsRegistry, ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '@sidex/platform/chat/common/chatSettings.js';
 import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
 import { ILocalizedString } from '@sidex/platform/action/common/action.js';
@@ -195,7 +196,9 @@ registerAction2(
 
 			const configurationService = accessor.get(IConfigurationService);
 			const commandService = accessor.get(ICommandService);
-			const useUnifiedQuickAccess = configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
+			const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true;
+			const useUnifiedQuickAccess =
+				!aiFeaturesDisabled && configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
 			if (useUnifiedQuickAccess) {
 				try {
 					await commandService.executeCommand('workbench.action.unifiedQuickAccess');

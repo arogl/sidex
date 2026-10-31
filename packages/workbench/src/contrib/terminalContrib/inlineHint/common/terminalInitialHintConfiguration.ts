@@ -21,6 +21,7 @@ export const terminalInitialHintConfiguration: IStringDictionary<IConfigurationP
 			`\`#${TerminalSettingId.SendKeybindingsToShell}#\``
 		),
 		type: 'boolean',
-		default: true
+		default: true,
+		agentsWindow: { default: false }
 	}
 };

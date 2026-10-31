@@ -688,7 +688,7 @@ export class PredictionStats extends Disposable {
 		const latencies = this._stats
 			.filter(([, correct]) => correct)
 			.map(([s]) => s)
-			.sort();
+			.sort((a, b) => a - b);
 
 		return {
 			count: latencies.length,

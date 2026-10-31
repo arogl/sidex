@@ -10,7 +10,7 @@ import {
 	PickerQuickAccessProvider,
 	TriggerAction
 } from '@sidex/platform/quickinput/browser/pickerQuickAccess.js';
-import { matchesFuzzy } from '@sidex/base/common/filters.js';
+import { matchesFuzzyIconAware, parseLabelWithIcons } from '@sidex/base/common/iconLabels.js';
 import {
 	ITerminalEditorService,
 	ITerminalGroupService,
@@ -120,7 +120,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		if (uriClasses) {
 			iconClasses.push(...uriClasses);
 		}
-		const highlights = matchesFuzzy(filter, label, true);
+		const highlights = matchesFuzzyIconAware(filter, parseLabelWithIcons(label), true);
 		if (highlights) {
 			return {
 				label,

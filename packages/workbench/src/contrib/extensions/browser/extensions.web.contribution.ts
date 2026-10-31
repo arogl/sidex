@@ -6,10 +6,12 @@
 import { localize } from '@sidex/base/nls.js';
 import { Registry } from '@sidex/platform/registry/common/platform.js';
 import { SyncDescriptor } from '@sidex/platform/instantiation/common/descriptors.js';
+import { registerAction2 } from '@sidex/platform/actions/common/actions.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { RuntimeExtensionsEditor } from './browserRuntimeExtensionsEditor.js';
 import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
 import { EditorExtensions } from '../../../common/editor.js';
+import { ShowRuntimeExtensionsAction } from './abstractRuntimeExtensionsEditor.js';
 
 // Running Extensions
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -20,3 +22,5 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[new SyncDescriptor(RuntimeExtensionsInput)]
 );
+
+registerAction2(ShowRuntimeExtensionsAction);

@@ -15,6 +15,7 @@ import product from '@sidex/platform/product/common/product.js';
 import { Registry } from '@sidex/platform/registry/common/platform.js';
 import {
 	ConfigurationKeyValuePairs,
+	ConfigurationMigration,
 	ConfigurationMigrationWorkbenchContribution,
 	DynamicWindowConfiguration,
 	DynamicWorkbenchSecurityConfiguration,
@@ -26,12 +27,17 @@ import {
 } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
 import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
+import { ACCOUNTS_AVATAR_SETTING } from '../services/authentication/common/authentication.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
+import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
 import {
 	ActivityBarPosition,
 	EditorActionsLocation,
 	EditorTabsMode,
-	LayoutSettings
+	LayoutSettings,
+	ModernUIDensity,
+	ModernUIEditorTabStyle,
+	ModernUIFrostedGlassOpacity
 } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
 
@@ -147,7 +153,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.editorActionsLocation.hidden', 'Editor actions are not shown.')
 				],
 				markdownDescription: localize('editorActionsLocation', 'Controls where the editor actions are shown.'),
-				default: 'default'
+				default: 'default',
+				agentsWindow: { default: 'default', readOnly: true }
 			},
 			'workbench.editor.alwaysShowEditorActions': {
 				type: 'boolean',
@@ -363,6 +370,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'`multiple`'
 				)
 			},
+			'workbench.editor.tabActionReserveSpace': {
+				type: 'boolean',
+				default: true,
+				description: localize(
+					'workbench.editor.tabActionReserveSpace',
+					'Controls whether Modern UI editor tabs always reserve space for tab action buttons. When disabled, clean tabs stay compact; tabs with persistent dirty or pinned indicators reserve space regardless.'
+				)
+			},
 			'workbench.editor.tabActionCloseVisibility': {
 				type: 'boolean',
 				default: true,
@@ -450,6 +465,26 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'`multiple`'
 				)
 			},
+			[LayoutSettings.MODERN_UI_DENSITY]: {
+				type: 'string',
+				enum: [ModernUIDensity.Default, ModernUIDensity.Compact],
+				enumDescriptions: [
+					localize(
+						'windowDensityLayout.default',
+						'Uses the standard spacing between workbench parts and a taller title bar in the Agents window.'
+					),
+					localize(
+						'windowDensityLayout.compact',
+						'Removes the gaps between workbench parts and reduces their internal spacing to provide more room for content. Uses a shorter title bar in the Agents window.'
+					)
+				],
+				default: ModernUIDensity.Default,
+				markdownDescription: localize(
+					{ key: 'windowDensityLayout', comment: ['{0} is a placeholder for a setting identifier.'] },
+					'Controls the spacing density of the workbench layout. Applies in the Agents window and when {0} is enabled in the editor window.',
+					'`#workbench.experimental.modernUI#`'
+				)
+			},
 			'workbench.editor.pinnedTabSizing': {
 				type: 'string',
 				enum: ['normal', 'compact', 'shrink'],
@@ -521,7 +556,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.splitSizingDistribute', 'Splits all the editor groups to equal parts.'),
 					localize('workbench.editor.splitSizingSplit', 'Splits the active editor group to equal parts.')
 				],
-				description: localize('splitSizing', 'Controls the size of editor groups when splitting them.')
+				description: localize('splitSizing', 'Controls the size of editor groups when splitting them.'),
+				keywords: ['pane']
 			},
 			'workbench.editor.splitOnDragAndDrop': {
 				type: 'boolean',
@@ -529,7 +565,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize(
 					'splitOnDragAndDrop',
 					'Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.'
-				)
+				),
+				keywords: ['pane']
 			},
 			'workbench.editor.dragToOpenWindow': {
 				type: 'boolean',
@@ -619,7 +656,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'closeEmptyGroups',
 					'Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid.'
 				),
-				default: true
+				default: true,
+				keywords: ['pane']
 			},
 			'workbench.editor.revealIfOpen': {
 				type: 'boolean',
@@ -641,7 +679,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('useModal.all', 'All editors open in a centered modal overlay.')
 				],
 				description: localize('useModal', 'Controls whether editors open in a modal overlay.'),
-				default: 'some'
+				default: 'some',
+				experiment: {
+					mode: 'startup'
+				}
 			},
 			'workbench.editor.swipeToNavigate': {
 				type: 'boolean',
@@ -652,7 +693,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: false,
 				included: isMacintosh && !isWeb
 			},
-			'workbench.editor.mouseBackForwardToNavigate': {
+			[MOUSE_BACK_FORWARD_NAVIGATION_SETTING]: {
 				type: 'boolean',
 				description: localize(
 					'mouseBackForwardToNavigate',
@@ -701,7 +742,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'restoreOnStartup',
 					'Controls whether editors are restored on startup. When disabled, only dirty editors will be restored from the previous session.'
 				),
-				default: true
+				default: true,
+				agentsWindow: { default: false, readOnly: true }
 			},
 			'workbench.editor.splitInGroupLayout': {
 				type: 'string',
@@ -758,7 +800,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						'workbench.editor.doubleClickTabToToggleEditorGroupSizes.off',
 						'No editor group is resized when double clicking on a tab.'
 					)
-				]
+				],
+				agentsWindow: { default: 'maximize', readOnly: true }
 			},
 			'workbench.editor.limit.enabled': {
 				type: 'boolean',
@@ -954,7 +997,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize(
 					'sideBarLocation',
 					'Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.'
-				)
+				),
+				agentsWindow: { default: 'left', readOnly: true }
 			},
 			'workbench.panel.showLabels': {
 				type: 'boolean',
@@ -971,7 +1015,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize(
 					'panelDefaultLocation',
 					'Controls the default location of the panel (Terminal, Debug Console, Output, Problems) in a new workspace. It can either show at the bottom, top, right, or left of the editor area.'
-				)
+				),
+				agentsWindow: { default: 'bottom', readOnly: true }
 			},
 			'workbench.panel.opensMaximized': {
 				type: 'string',
@@ -988,7 +1033,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						'workbench.panel.opensMaximized.preserve',
 						'Open the panel to the state that it was in, before it was closed.'
 					)
-				]
+				],
+				agentsWindow: { default: 'never', readOnly: true }
 			},
 			'workbench.secondarySideBar.defaultVisibility': {
 				type: 'string',
@@ -1019,7 +1065,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						'workbench.secondarySideBar.defaultVisibility.maximized',
 						'The secondary side bar is visible and maximized by default.'
 					)
-				]
+				],
+				agentsWindow: { default: 'visibleInWorkspace', readOnly: true }
 			},
 			'workbench.secondarySideBar.forceMaximized': {
 				type: 'boolean',
@@ -1028,7 +1075,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize(
 					'secondarySideBarForceMaximized',
 					'Controls whether the secondary side bar is enforced to always show maximized on startup and when there are no open editors, in layouts that support a maximized secondary side bar.'
-				)
+				),
+				agentsWindow: { default: false, readOnly: true }
 			},
 			'workbench.secondarySideBar.showLabels': {
 				type: 'boolean',
@@ -1038,7 +1086,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'Controls whether activity items in the secondary side bar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.',
 					'`#workbench.activityBar.location#`',
 					'`top`'
-				)
+				),
+				agentsWindow: { default: true, readOnly: true }
 			},
 			'workbench.statusBar.visible': {
 				type: 'boolean',
@@ -1046,7 +1095,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize(
 					'statusBarVisibility',
 					'Controls the visibility of the status bar at the bottom of the workbench.'
-				)
+				),
+				agentsWindow: { default: false, readOnly: true }
 			},
 			[NotificationsSettings.NOTIFICATIONS_POSITION]: {
 				type: 'string',
@@ -1077,6 +1127,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'Controls the visibility of the Notifications button in the title bar. Only applies when notifications are positioned at the top right.'
 				)
 			},
+			[ACCOUNTS_AVATAR_SETTING]: {
+				type: 'boolean',
+				default: true,
+				description: localize(
+					'accountsShowAvatar',
+					'Controls whether signed-in account profile images (avatars) are shown in account-related UI, such as the Accounts item in the Activity Bar.'
+				)
+			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				type: 'string',
 				enum: ['default', 'top', 'bottom', 'hidden'],
@@ -1102,7 +1160,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						'workbench.activityBar.location.hide',
 						'Hide the Activity Bar in the Primary and Secondary Side Bars.'
 					)
-				]
+				],
+				agentsWindow: { default: 'default', readOnly: true }
 			},
 			[LayoutSettings.ACTIVITY_BAR_AUTO_HIDE]: {
 				type: 'boolean',
@@ -1113,7 +1172,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'`#workbench.activityBar.location#`',
 					'`top`',
 					'`bottom`'
-				)
+				),
+				agentsWindow: { default: false, readOnly: true }
 			},
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
 				type: 'boolean',
@@ -1123,7 +1183,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'Controls whether the Activity Bar uses a compact layout with smaller icons and reduced width. This setting only applies when {0} is set to {1}.',
 					'`#workbench.activityBar.location#`',
 					'`default`'
-				)
+				),
+				agentsWindow: { default: false, readOnly: true }
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				type: 'string',
@@ -1144,7 +1205,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						'workbench.activityBar.iconClickBehavior.focus',
 						'Focus the Primary Side Bar if the clicked item is already visible.'
 					)
-				]
+				],
+				agentsWindow: { default: 'toggle', readOnly: true }
 			},
 			'workbench.view.alwaysShowHeaderActions': {
 				type: 'boolean',
@@ -1276,7 +1338,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 							'Controls whether the navigation control is shown in the custom title bar. This setting only has an effect when {0} is not set to {1}.',
 							'`#window.customTitleBarVisibility#`',
 							'`never`'
-						)
+						),
+				agentsWindow: { default: false, readOnly: true }
 			},
 			[LayoutSettings.LAYOUT_ACTIONS]: {
 				type: 'boolean',
@@ -1288,7 +1351,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 							'Controls whether the layout control is shown in the custom title bar. This setting only has an effect when {0} is not set to {1}.',
 							'`#window.customTitleBarVisibility#`',
 							'`never`'
-						)
+						),
+				agentsWindow: { default: true, readOnly: true }
 			},
 			'workbench.layoutControl.type': {
 				type: 'string',
@@ -1305,12 +1369,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize(
 					'layoutControlType',
 					'Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles.'
-				)
+				),
+				agentsWindow: { default: 'both', readOnly: true }
 			},
 			'workbench.tips.enabled': {
 				type: 'boolean',
 				default: true,
-				description: localize('tips.enabled', 'When enabled, will show the watermark tips when no editor is open.')
+				description: localize('tips.enabled', 'When enabled, will show the watermark tips when no editor is open.'),
+				agentsWindow: { default: false }
 			},
 			[LayoutSettings.SHADOWS]: {
 				type: 'boolean',
@@ -1318,6 +1384,68 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize(
 					'shadows',
 					'Controls whether shadow effects are shown around the side panels and other workbench elements.'
+				)
+			},
+			[LayoutSettings.MODERN_UI]: {
+				type: 'boolean',
+				default: true,
+				description: localize(
+					'modernUI',
+					'Controls whether the Modern UI Update is enabled. When on, the side bars and bottom panel are shown as floating cards with rounded corners and gaps, and a set of refreshed workbench styles is applied, matching the Agents window design.'
+				),
+				experiment: { mode: 'auto' }
+			},
+			[LayoutSettings.MODERN_UI_UPPERCASE_VIEW_HEADERS]: {
+				type: 'boolean',
+				default: false,
+				tags: ['experimental'],
+				markdownDescription: localize(
+					{ key: 'modernUIUppercaseViewHeaders', comment: ['{0} is a placeholder for a setting identifier.'] },
+					'Controls whether view headers, side bar titles, and panel tabs use uppercase text when {0} is enabled.',
+					'`#workbench.experimental.modernUI#`'
+				)
+			},
+			[LayoutSettings.MODERN_UI_FROSTED_GLASS]: {
+				type: 'boolean',
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+				included: isNative,
+				markdownDescription: localize(
+					{ key: 'modernUIFrostedGlass', comment: ['{0} and {1} are placeholders for setting identifiers.'] },
+					"Adds a softly blurred background to menus, the Command Palette, and other pop-ups. Available in the Agents window and in editor windows with {0} enabled. Always respects reduced transparency in your operating system's accessibility settings, as well as {1}. Uses solid backgrounds in high contrast themes or when the effect isn't supported. Turn this off if you notice display or performance issues. Your operating system's own menus and dialogs are unchanged.",
+					'`#workbench.experimental.modernUI#`',
+					'`#workbench.reduceTransparency#`'
+				)
+			},
+			[LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]: {
+				type: 'number',
+				default: ModernUIFrostedGlassOpacity.Default,
+				minimum: ModernUIFrostedGlassOpacity.Minimum,
+				maximum: ModernUIFrostedGlassOpacity.Maximum,
+				scope: ConfigurationScope.APPLICATION,
+				included: isNative,
+				markdownDescription: localize(
+					{ key: 'modernUIFrostedGlassOpacity', comment: ['{0} is a placeholder for a setting identifier.'] },
+					'Controls how see-through frosted glass backgrounds are, from 50% to 100%. Lower values reveal more of the blurred content behind them; higher values make the background more solid. Text and controls stay unchanged. Requires {0} and does not override reduced transparency settings in your operating system or VS Code.',
+					'`#workbench.modernUIFrostedGlass#`'
+				)
+			},
+			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: {
+				type: 'string',
+				enum: [ModernUIEditorTabStyle.Connected, ModernUIEditorTabStyle.Pill],
+				enumDescriptions: [
+					localize(
+						'modernUIEditorTabStyle.connected',
+						'Connect the active tab to the editor surface with an outside border and curved shoulders.'
+					),
+					localize('modernUIEditorTabStyle.pill', 'Show editor tabs as separate rounded pills.')
+				],
+				default: ModernUIEditorTabStyle.Connected,
+				tags: ['experimental'],
+				markdownDescription: localize(
+					{ key: 'modernUIEditorTabStyle', comment: ['{0} is a placeholder for a setting identifier.'] },
+					'Controls the editor tab style when {0} is enabled, and the chat and side-panel tab style in the Agents window. High contrast themes retain explicit selection and focus borders.',
+					'`#workbench.experimental.modernUI#`'
 				)
 			}
 		}
@@ -1404,7 +1532,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'window.title': {
 				type: 'string',
 				default: defaultWindowTitle,
-				markdownDescription: windowTitleDescription
+				markdownDescription: windowTitleDescription,
+				agentsWindow: { default: '${appName}', readOnly: true }
 			},
 			'window.titleSeparator': {
 				type: 'string',
@@ -1421,7 +1550,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 							'Show command launcher together with the window title. This setting only has an effect when {0} is not set to {1}.',
 							'`#window.customTitleBarVisibility#`',
 							'`never`'
-						)
+						),
+				agentsWindow: { default: false, readOnly: true }
 			},
 			'window.menuBarVisibility': {
 				type: 'string',
@@ -1491,7 +1621,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					'customMenuBarAltFocus',
 					'Controls whether the menu bar will be focused by pressing the Alt-key. This setting has no effect on toggling the menu bar with the Alt-key.'
 				),
-				included: isWindows || isLinux
+				included: isWindows || isLinux,
+				agentsWindow: { default: false, readOnly: true }
 			},
 			'window.openFilesInNewWindow': {
 				type: 'string',
@@ -1597,87 +1728,29 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			}
 		}
 	});
-
-	// Zen Mode
-	registry.registerConfiguration({
-		id: 'zenMode',
-		order: 9,
-		title: localize('zenModeConfigurationTitle', 'Zen Mode'),
-		type: 'object',
-		properties: {
-			'zenMode.fullScreen': {
-				type: 'boolean',
-				default: true,
-				description: localize(
-					'zenMode.fullScreen',
-					'Controls whether turning on Zen Mode also puts the workbench into full screen mode.'
-				)
-			},
-			'zenMode.centerLayout': {
-				type: 'boolean',
-				default: true,
-				description: localize('zenMode.centerLayout', 'Controls whether turning on Zen Mode also centers the layout.')
-			},
-			'zenMode.showTabs': {
-				type: 'string',
-				enum: ['multiple', 'single', 'none'],
-				description: localize(
-					'zenMode.showTabs',
-					'Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab, or hide the editor title area completely.'
-				),
-				enumDescriptions: [
-					localize('zenMode.showTabs.multiple', 'Each editor is displayed as a tab in the editor title area.'),
-					localize(
-						'zenMode.showTabs.single',
-						'The active editor is displayed as a single large tab in the editor title area.'
-					),
-					localize('zenMode.showTabs.none', 'The editor title area is not displayed.')
-				],
-				default: 'multiple'
-			},
-			'zenMode.hideStatusBar': {
-				type: 'boolean',
-				default: true,
-				description: localize(
-					'zenMode.hideStatusBar',
-					'Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.'
-				)
-			},
-			'zenMode.hideActivityBar': {
-				type: 'boolean',
-				default: true,
-				description: localize(
-					'zenMode.hideActivityBar',
-					'Controls whether turning on Zen Mode also hides the activity bar either at the left or right of the workbench.'
-				)
-			},
-			'zenMode.hideLineNumbers': {
-				type: 'boolean',
-				default: true,
-				description: localize(
-					'zenMode.hideLineNumbers',
-					'Controls whether turning on Zen Mode also hides the editor line numbers.'
-				)
-			},
-			'zenMode.restore': {
-				type: 'boolean',
-				default: true,
-				description: localize(
-					'zenMode.restore',
-					'Controls whether a window should restore to Zen Mode if it was exited in Zen Mode.'
-				)
-			},
-			'zenMode.silentNotifications': {
-				type: 'boolean',
-				default: true,
-				description: localize(
-					'zenMode.silentNotifications',
-					'Controls whether notifications do not disturb mode should be enabled while in Zen Mode. If true, only error notifications will pop out.'
-				)
-			}
-		}
-	});
 })();
+
+if (isNative) {
+	Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations(
+		[
+			['workbench.experimental.modernUIFrostedGlass', LayoutSettings.MODERN_UI_FROSTED_GLASS],
+			['workbench.experimental.modernUIFrostedGlassOpacity', LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]
+		].map<ConfigurationMigration>(([key, newKey]) => ({
+			key,
+			includeApplication: true,
+			migrateFn: (value: unknown, valueAccessor) => {
+				const result: ConfigurationKeyValuePairs = [];
+				if (value !== undefined) {
+					result.push([key, { value: undefined }]);
+					if (valueAccessor(newKey) === undefined) {
+						result.push([newKey, { value }]);
+					}
+				}
+				return result;
+			}
+		}))
+	);
+}
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
 	{
@@ -1749,6 +1822,33 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}
+]);
+
+// Migrate the previous standalone experiments (`workbench.experimental.floatingPanels`
+// and `workbench.experimental.styleOverrides`) onto the consolidated
+// `workbench.experimental.modernUI` toggle. Either of the old settings being on
+// enables the unified Modern UI Update experiment.
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'workbench.experimental.floatingPanels',
+		migrateFn: (value: unknown, valueAccessor) => {
+			const result: ConfigurationKeyValuePairs = [['workbench.experimental.floatingPanels', { value: undefined }]];
+			if (value === true && valueAccessor(LayoutSettings.MODERN_UI) === undefined) {
+				result.push([LayoutSettings.MODERN_UI, { value: true }]);
+			}
+			return result;
+		}
+	},
+	{
+		key: 'workbench.experimental.styleOverrides',
+		migrateFn: (value: unknown, valueAccessor) => {
+			const result: ConfigurationKeyValuePairs = [['workbench.experimental.styleOverrides', { value: undefined }]];
+			if (Array.isArray(value) && value.length > 0 && valueAccessor(LayoutSettings.MODERN_UI) === undefined) {
+				result.push([LayoutSettings.MODERN_UI, { value: true }]);
 			}
 			return result;
 		}

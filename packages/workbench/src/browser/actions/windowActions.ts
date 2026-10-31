@@ -56,6 +56,8 @@ import { IConfigurationService } from '@sidex/platform/configuration/common/conf
 import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from '@sidex/platform/backup/common/backup.js';
 import { getActiveElement, getActiveWindow, isHTMLElement } from '@sidex/base/browser/dom.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { isEqual } from '@sidex/base/common/resources.js';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -116,6 +118,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		const languageService = accessor.get(ILanguageService);
 		const hostService = accessor.get(IHostService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		const [mainWindows, recentlyOpened, dirtyWorkspacesAndFolders] = await Promise.all([
 			hostService.getWindows({ includeAuxiliaryWindows: false }),
@@ -172,7 +175,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 				: openedInWindows.get(recent.workspace.configPath);
 
 			workspacePicks.push(
-				this.toQuickPick(modelService, languageService, labelService, recent, { isDirty, windowState })
+				this.toQuickPick(modelService, languageService, labelService, environmentService, recent, {
+					isDirty,
+					windowState
+				})
 			);
 		}
 
@@ -180,7 +186,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		for (const dirtyWorkspaceOrFolder of dirtyWorkspacesAndFolders) {
 			if (isFolderBackupInfo(dirtyWorkspaceOrFolder) && !recentFolders.has(dirtyWorkspaceOrFolder.folderUri)) {
 				workspacePicks.push(
-					this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, {
+					this.toQuickPick(modelService, languageService, labelService, environmentService, dirtyWorkspaceOrFolder, {
 						isDirty: true,
 						windowState: undefined
 					})
@@ -190,7 +196,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 				!recentWorkspaces.has(dirtyWorkspaceOrFolder.workspace.configPath)
 			) {
 				workspacePicks.push(
-					this.toQuickPick(modelService, languageService, labelService, dirtyWorkspaceOrFolder, {
+					this.toQuickPick(modelService, languageService, labelService, environmentService, dirtyWorkspaceOrFolder, {
 						isDirty: true,
 						windowState: undefined
 					})
@@ -199,14 +205,19 @@ abstract class BaseOpenRecentAction extends Action2 {
 		}
 
 		const filePicks = recentlyOpened.files.map(p =>
-			this.toQuickPick(modelService, languageService, labelService, p, { isDirty: false, windowState: undefined })
+			this.toQuickPick(modelService, languageService, labelService, environmentService, p, {
+				isDirty: false,
+				windowState: undefined
+			})
 		);
 
-		// focus second entry if the first recent workspace is the current workspace
+		// Focus the second entry when the first one represents the current workspace.
 		const firstEntry = recentlyOpened.workspaces[0];
 		const autoFocusSecondEntry: boolean =
 			firstEntry &&
-			contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri);
+			(contextService.isCurrentWorkspace(isRecentWorkspace(firstEntry) ? firstEntry.workspace : firstEntry.folderUri) ||
+				(isRecentWorkspace(firstEntry) &&
+					isEqual(firstEntry.workspace.configPath, environmentService.agentSessionsWorkspace)));
 
 		let keyMods: IKeyMods | undefined;
 
@@ -294,6 +305,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 		modelService: IModelService,
 		languageService: ILanguageService,
 		labelService: ILabelService,
+		environmentService: IWorkbenchEnvironmentService,
 		recent: IRecent,
 		kind: { isDirty: boolean; windowState?: { isActive: boolean } }
 	): IRecentlyOpenedPick {
@@ -328,7 +340,10 @@ abstract class BaseOpenRecentAction extends Action2 {
 			fullLabel = recent.label || labelService.getUriLabel(resource, { appendWorkspaceSuffix: true });
 		}
 
-		const { name, parentPath } = splitRecentLabel(fullLabel);
+		const { name, parentPath } =
+			isRecentWorkspace(recent) && isEqual(recent.workspace.configPath, environmentService.agentSessionsWorkspace)
+				? { name: fullLabel, parentPath: undefined }
+				: splitRecentLabel(fullLabel);
 
 		const buttons: IQuickInputButton[] = [];
 		if (kind.isDirty) {

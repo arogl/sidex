@@ -54,11 +54,7 @@ import {
 import { URI } from '@sidex/base/common/uri.js';
 import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
 import { IEditableData } from '../../../common/views.js';
-import { IContextViewService } from '@sidex/platform/contextview/browser/contextView.js';
-import { InputBox, MessageType } from '@sidex/base/browser/ui/inputbox/inputBox.js';
-import { createSingleCallFunction } from '@sidex/base/common/functional.js';
-import { IKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
-import { KeyCode } from '@sidex/base/common/keyCodes.js';
+import { InlineEditInputBox } from '../../../browser/parts/views/inlineEditInputBox.js';
 import { CodeDataTransfers, containsDragType, getPathForFile } from '@sidex/platform/dnd/browser/dnd.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
@@ -66,7 +62,6 @@ import { IProcessDetails } from '@sidex/platform/terminal/common/terminalProcess
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
 import { getInstanceHoverInfo } from './terminalTooltip.js';
-import { defaultInputBoxStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 import { Emitter } from '@sidex/base/common/event.js';
 import { Schemas } from '@sidex/base/common/network.js';
 import { getColorForSeverity } from './terminalStatusList.js';
@@ -133,8 +128,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 					container,
 					instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER),
 					() => this.getSelectedElements(),
-					() => this.hasText,
-					() => this.hasActionBar
+					{
+						getHasText: () => this.hasText,
+						getHasActionBar: () => this.hasActionBar
+					}
 				)
 			],
 			{
@@ -330,8 +327,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		_container: HTMLElement,
 		private readonly _labels: ResourceLabels,
 		private readonly _getSelection: () => ITerminalInstance[],
-		private readonly _getHasText: () => boolean,
-		private readonly _getHasActionBar: () => boolean,
+		private readonly _getVisibilityState: ITerminalTabsRendererOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -342,7 +338,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IListService private readonly _listService: IListService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@ICommandService private readonly _commandService: ICommandService
 	) {}
 
@@ -408,8 +403,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
-		const hasText = this._getHasText();
-		const hasActionBar = this._getHasActionBar();
+		const hasText = this._getVisibilityState.getHasText();
+		const hasActionBar = this._getVisibilityState.getHasActionBar();
 
 		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
@@ -434,6 +429,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
 		template.context.hoverActions = hoverInfo.actions;
 
+		// While editing, the title is shown in the input box next to the icon instead of in the label
+		const editableData = this._terminalEditingService.getEditableData(instance);
+
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		let label: string = '';
 		if (!hasText) {
@@ -450,7 +448,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			// Only add the title if the icon is set, this prevents the title jumping around for
 			// example when launching with a ShellLaunchConfig.name and no icon
 			if (instance.icon) {
-				label += `$(${iconId}) ${instance.title}`;
+				label += editableData ? `$(${iconId})` : `$(${iconId}) ${instance.title}`;
 			}
 		}
 
@@ -482,7 +480,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			{
 				resource: instance.resource,
 				name: label,
-				description: hasText ? instance.description : undefined
+				description: hasText && !editableData ? instance.description : undefined
 			},
 			{
 				fileDecorations: {
@@ -496,7 +494,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				extraClasses
 			}
 		);
-		const editableData = this._terminalEditingService.getEditableData(instance);
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
 			template.elementDisposables.add(
@@ -515,83 +512,20 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		instance: ITerminalInstance,
 		editableData: IEditableData
 	): IDisposable {
-		const value = instance.title || '';
-
-		const inputBox = new InputBox(container, this._contextViewService, {
-			validationOptions: {
-				validation: value => {
-					const message = editableData.validationMessage(value);
-					if (!message || message.severity !== Severity.Error) {
-						return null;
-					}
-
-					return {
-						content: message.content,
-						formatContent: true,
-						type: MessageType.ERROR
-					};
-				}
-			},
-			ariaLabel: localize('terminalInputAriaLabel', 'Type terminal name. Press Enter to confirm or Escape to cancel.'),
-			inputBoxStyles: defaultInputBoxStyles
-		});
-		inputBox.element.style.height = '22px';
-		inputBox.value = value;
-		inputBox.focus();
-		inputBox.select({ start: 0, end: value.length });
-
-		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
-			inputBox.element.style.display = 'none';
-			const value = inputBox.value;
-			dispose(toDispose);
-			inputBox.element.remove();
-			if (finishEditing) {
-				editableData.onFinish(value, success);
-			}
-		});
-
-		const showInputBoxNotification = () => {
-			if (inputBox.isInputValid()) {
-				const message = editableData.validationMessage(inputBox.value);
-				if (message) {
-					inputBox.showMessage({
-						content: message.content,
-						formatContent: true,
-						type:
-							message.severity === Severity.Info
-								? MessageType.INFO
-								: message.severity === Severity.Warning
-									? MessageType.WARNING
-									: MessageType.ERROR
-					});
-				} else {
-					inputBox.hideMessage();
-				}
-			}
-		};
-		showInputBoxNotification();
-
-		const toDispose = [
-			inputBox,
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				e.stopPropagation();
-				if (e.equals(KeyCode.Enter)) {
-					done(inputBox.isInputValid(), true);
-				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
-				}
-			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (_e: IKeyboardEvent) => {
-				showInputBoxNotification();
-			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
-				done(inputBox.isInputValid(), true);
+		const disposables = new DisposableStore();
+		const inputBox = disposables.add(
+			this._instantiationService.createInstance(InlineEditInputBox, container, editableData, {
+				value: instance.title || '',
+				ariaLabel: localize('terminalInputAriaLabel', 'Type terminal name. Press Enter to confirm or Escape to cancel.')
 			})
-		];
+		).inputBox;
 
-		return toDisposable(() => {
-			done(false, false);
-		});
+		// Prevent terminal tab keybindings, such as kill on Delete, from running while editing
+		disposables.add(
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, e => e.stopPropagation())
+		);
+
+		return disposables;
 	}
 
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
@@ -678,6 +612,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
 	}
+}
+
+interface ITerminalTabsRendererOptions {
+	getHasText: () => boolean;
+	getHasActionBar: () => boolean;
 }
 
 interface ITerminalTabEntryTemplate {

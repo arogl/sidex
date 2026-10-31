@@ -32,7 +32,7 @@ import {
 } from '@sidex/platform/workspace/common/workspace.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
-import { getWorkspaceIdentifier } from './workspaces.js';
+import { getWorkspaceIdentifier } from '@sidex/platform/workspaces/common/workspaceIdentifier.js';
 import { IFileService, FileOperationError, FileOperationResult } from '@sidex/platform/files/common/files.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { joinPath } from '@sidex/base/common/resources.js';

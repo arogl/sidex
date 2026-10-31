@@ -49,7 +49,8 @@ import {
 	IViewContainersRegistry,
 	ViewContainerLocation,
 	Extensions as ViewContainerExtensions,
-	IViewsRegistry
+	IViewsRegistry,
+	WindowEnablement
 } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -142,7 +143,8 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(
 			{ mergeViewWithContainerWhenSingleView: true }
 		]),
 		storageId: OUTPUT_VIEW_ID,
-		hideIfEmpty: true
+		hideIfEmpty: true,
+		windowEnablement: WindowEnablement.Both
 	},
 	ViewContainerLocation.Panel,
 	{ doNotRegisterOpenCommand: true }
@@ -167,7 +169,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 					}
 				},
 				order: 1
-			}
+			},
+			windowEnablement: WindowEnablement.Both
 		}
 	],
 	VIEW_CONTAINER

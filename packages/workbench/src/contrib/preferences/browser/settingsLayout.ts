@@ -6,6 +6,7 @@
 import { isWeb, isWindows } from '@sidex/base/common/platform.js';
 import { localize } from '@sidex/base/nls.js';
 import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
+import { ChatAIDisabledSettingId } from '@sidex/platform/chat/common/chatSettings.js';
 
 export interface ITOCFilter {
 	include?: {
@@ -216,7 +217,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.alternativeToolAction.*',
 						'chat.codeBlock.*',
 						'chat.editing.explainChanges.enabled',
-						'chat.editMode.hidden',
 						'chat.editorAssociations',
 						'chat.extensionUnification.*',
 						'chat.inlineReferences.*',
@@ -266,7 +266,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.useHooks',
 						'chat.includeApplyingInstructions',
 						'chat.includeReferencedInstructions',
-						'chat.sendElementsToChat.*',
 						'chat.useClaudeMdFile'
 					]
 				},
@@ -278,7 +277,7 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'chat/miscellaneous',
 					label: localize('chatMiscellaneous', 'Miscellaneous'),
-					settings: ['chat.disableAIFeatures', 'chat.allowAnonymousAccess']
+					settings: [ChatAIDisabledSettingId, 'chat.allowAnonymousAccess']
 				}
 			]
 		},

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assert } from '@sidex/base/common/assert.js';
-import { DeferredPromise } from '@sidex/base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '@sidex/base/common/async.js';
 import { CancellationToken } from '@sidex/base/common/cancellation.js';
+import { CancellationError } from '@sidex/base/common/errors.js';
 import { Event } from '@sidex/base/common/event.js';
 import { Iterable } from '@sidex/base/common/iterator.js';
-import { IDisposable } from '@sidex/base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '@sidex/base/common/lifecycle.js';
 import { LinkedList } from '@sidex/base/common/linkedList.js';
 import { MarshalledId } from '@sidex/base/common/marshallingIds.js';
 import { IObservable } from '@sidex/base/common/observable.js';
@@ -177,21 +178,34 @@ export const expandAndGetTestById = async (
 };
 
 /**
- * Waits for the test to no longer be in the "busy" state.
+ * Waits for the test to no longer be busy, optionally including pending discovery expansion.
  */
-export const waitForTestToBeIdle = (testService: ITestService, test: IncrementalTestCollectionItem) => {
-	if (!test.item.busy) {
+export const waitForTestToBeIdle = (
+	testService: ITestService,
+	test: IncrementalTestCollectionItem,
+	token = CancellationToken.None,
+	waitForExpansion = false
+) => {
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+	const isBusy = (item: IncrementalTestCollectionItem | undefined) =>
+		item?.item.busy || (waitForExpansion && item?.expand === TestItemExpandState.BusyExpanding);
+	if (!isBusy(test)) {
 		return;
 	}
 
-	return new Promise<void>(resolve => {
-		const l = testService.onDidProcessDiff(() => {
-			if (testService.collection.getNodeById(test.item.extId)?.item.busy !== true) {
-				resolve(); // removed, or no longer busy
-				l.dispose();
-			}
-		});
-	});
+	const store = new DisposableStore();
+	return new Promise<void>((resolve, reject) => {
+		store.add(
+			testService.onDidProcessDiff(() => {
+				if (!isBusy(testService.collection.getNodeById(test.item.extId))) {
+					resolve();
+				}
+			})
+		);
+		store.add(token.onCancellationRequested(() => reject(new CancellationError())));
+	}).finally(() => store.dispose());
 };
 
 /**
@@ -203,15 +217,22 @@ export const testsInFile = async function* (
 	ident: IUriIdentityService,
 	uri: URI,
 	waitForIdle = true,
-	descendInFile = true
+	descendInFile = true,
+	token = CancellationToken.None
 ): AsyncIterable<readonly IncrementalTestCollectionItem[]> {
+	// Canonicalize the URI so that comparisons against test item URIs (which are
+	// stored in their canonical form via asCanonicalUri() during deserialization)
+	// work correctly in remote environments such as WSL, SSH, and dev containers
+	// where URI.file(path) may produce a non-canonical form. Fixes #275268.
+	const canonicalUri = ident.asCanonicalUri(uri);
+
 	// In this function we go to a bit of effort to avoid awaiting unnecessarily
 	// and bulking the test collections we do collect for consumers. This fixes
 	// a performance issue (#235819) where a large number of tests in a file
 	// would cause a long delay switching editors.
-	const queue = new LinkedList<Iterable<string> | DeferredPromise<Iterable<string>>>();
+	const queue = new LinkedList<Iterable<string> | DeferredPromise<() => Iterable<string>>>();
 
-	const existing = [...testService.collection.getNodeByUrl(uri)].sort(
+	const existing = [...testService.collection.getNodeByUrl(canonicalUri)].sort(
 		(a, b) => a.item.extId.length - b.item.extId.length
 	);
 
@@ -231,22 +252,28 @@ export const testsInFile = async function* (
 	let _n = 0;
 	let gather: IncrementalTestCollectionItem[] = [];
 	while (queue.size > 0) {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const next = queue.pop()!;
 		let ids: Iterable<string>;
 		if (!(next instanceof DeferredPromise)) {
 			ids = next;
 		} else if (next.isSettled) {
-			ids = next.value || Iterable.empty();
+			ids = next.value?.() || Iterable.empty();
 		} else {
 			if (gather.length) {
 				yield gather;
 				gather = [];
 			}
-			ids = await next.p;
+			ids = (await raceCancellationError(next.p, token))();
 		}
 
 		for (const id of ids) {
-			_n++;
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			n++;
 			const test = testService.collection.getNodeById(id);
 			if (!test) {
 				continue; // possible because we expand async and things could delete
@@ -257,7 +284,7 @@ export const testsInFile = async function* (
 				continue;
 			}
 
-			if (ident.extUri.isEqual(uri, test.item.uri)) {
+			if (ident.extUri.isEqual(canonicalUri, test.item.uri)) {
 				gather.push(test);
 
 				if (!descendInFile) {
@@ -265,21 +292,31 @@ export const testsInFile = async function* (
 				}
 			}
 
-			if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+			if (ident.extUri.isEqualOrParent(canonicalUri, test.item.uri)) {
 				let prom: Promise<void> | undefined;
 				if (test.expand === TestItemExpandState.Expandable) {
 					prom = testService.collection.expand(test.item.extId, 1);
 				}
 				if (waitForIdle) {
 					if (prom) {
-						prom = prom.then(() => waitForTestToBeIdle(testService, test));
+						prom = prom.then(() => waitForTestToBeIdle(testService, test, token));
 					} else if (test.item.busy) {
-						prom = waitForTestToBeIdle(testService, test);
+						prom = waitForTestToBeIdle(testService, test, token);
 					}
 				}
 
 				if (prom) {
-					queue.push(DeferredPromise.fromPromise(prom.then(() => test.children)));
+					// Queue errors as values so abandoned batches cannot produce unhandled rejections.
+					queue.push(
+						DeferredPromise.fromPromise<() => Iterable<string>>(
+							prom.then(
+								() => () => test.children,
+								error => () => {
+									throw error;
+								}
+							)
+						)
+					);
 				} else if (test.children.size) {
 					queue.push(test.children);
 				}
@@ -465,6 +502,9 @@ export interface ITestService {
 	 * Gets a registered test controller by ID.
 	 */
 	getTestController(controllerId: string): IMainThreadTestController | undefined;
+
+	/** Gets the currently registered test controllers, independently of published test roots. */
+	getTestControllers(): Iterable<IMainThreadTestController>;
 
 	/**
 	 * Refreshes tests for the controller, or all controllers if no ID is given.

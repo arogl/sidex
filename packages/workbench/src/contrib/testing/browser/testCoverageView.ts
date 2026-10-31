@@ -862,12 +862,12 @@ registerAction2(
 			const previousSelection = coverageService.filterToTest.get();
 			const previousSelectionStr = previousSelection?.toString();
 
-			type TItem = { label: string; testId?: TestId };
+			type TItem = { label: string; description?: string; testId?: TestId };
 
 			const items: QuickPickInput<TItem>[] = [
 				{ label: coverUtils.labels.allTests, id: undefined },
 				{ type: 'separator' },
-				...tests.map(testId => ({ label: coverUtils.getLabelForItem(result, testId, commonPrefix), testId }))
+				...tests.map(testId => ({ ...coverUtils.getLabelForItem(result, testId, commonPrefix), testId }))
 			];
 
 			quickInputService

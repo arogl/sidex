@@ -683,6 +683,12 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 						}
 						continue;
 					}
+					if (
+						setting.key === mcpConfigurationSection &&
+						this.settingsEditorModel instanceof WorkspaceConfigurationEditorModel
+					) {
+						continue;
+					}
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
 						this.handleUnstableSettingConfiguration(setting, configuration, markerData);
@@ -720,7 +726,8 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		if (!configuration.policy) {
 			return false;
 		}
-		if (this.configurationService.inspect(setting.key).policyValue === undefined) {
+		const policyValue = this.configurationService.inspect(setting.key).policyValue;
+		if (policyValue === undefined) {
 			return false;
 		}
 		if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.DEFAULT) {
@@ -730,10 +737,12 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize(
-				'unsupportedPolicySetting',
-				'This setting cannot be applied because it is configured in the system policy.'
-			)
+			message:
+				configuration.policyValueDescription?.(policyValue, setting.value) ??
+				nls.localize(
+					'unsupportedPolicySetting',
+					'This setting cannot be applied because it is configured in the system policy.'
+				)
 		});
 		return true;
 	}
@@ -991,6 +1000,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		'folders',
 		'tasks',
 		'launch',
+		mcpConfigurationSection,
 		'extensions',
 		'settings',
 		'remoteAuthority',

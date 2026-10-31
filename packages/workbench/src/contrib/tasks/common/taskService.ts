@@ -88,7 +88,7 @@ export interface ICustomizationProperties {
 	isBackground?: boolean;
 	color?: string;
 	icon?: string;
-	inSessions?: boolean;
+	inAgents?: boolean;
 }
 
 export interface ITaskFilter {

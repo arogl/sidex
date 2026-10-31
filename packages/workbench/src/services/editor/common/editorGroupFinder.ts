@@ -27,7 +27,9 @@ import {
 	MODAL_GROUP,
 	MODAL_GROUP_TYPE,
 	PreferredGroup,
-	SIDE_GROUP
+	SIDE_GROUP,
+	USE_MODAL_EDITOR_SETTING,
+	UseModalEditorMode
 } from './editorService.js';
 
 type FindGroupResult =
@@ -100,10 +102,15 @@ function handleGroupResult(
 	configurationService: IConfigurationService
 ): FindGroupResult {
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
-	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
+	const modalEditorMode = configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING);
 	const editorInput = isEditorInputWithOptions(editor) ? editor.editor : isEditorInput(editor) ? editor : undefined;
+	// The `RequiresModal` capability is honored unless the user has explicitly
+	// disabled modal editors via `workbench.editor.useModal: 'off'`, in which
+	// case the user preference wins.
 	const requiresModal =
-		editorInput instanceof EditorInput && editorInput.hasCapability(EditorInputCapabilities.RequiresModal);
+		editorInput instanceof EditorInput &&
+		editorInput.hasCapability(EditorInputCapabilities.RequiresModal) &&
+		modalEditorMode !== 'off';
 	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all' && !requiresModal) {
 		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
 		// or when the setting is configured to open all editors modal or when the
@@ -178,8 +185,13 @@ function doFindGroup(
 	const editor = isEditorInputWithOptions(input) ? input.editor : input;
 	const options = input.options;
 
-	// Group: Force modal if the editor has the RequiresModal capability
-	if (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.RequiresModal)) {
+	// Group: Force modal if the editor has the RequiresModal capability,
+	// but respect `workbench.editor.useModal: 'off'` as an explicit opt-out.
+	if (
+		isEditorInput(editor) &&
+		editor.hasCapability(EditorInputCapabilities.RequiresModal) &&
+		configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) !== 'off'
+	) {
 		group = editorGroupService.createModalEditorPart(options?.modal).then(part => part.activeGroup);
 	}
 
@@ -215,7 +227,7 @@ function doFindGroup(
 	// Group: Modal (gated behind a setting)
 	else if (
 		preferredGroup === MODAL_GROUP &&
-		configurationService.getValue<string>('workbench.editor.useModal') !== 'off'
+		configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) !== 'off'
 	) {
 		group = editorGroupService.createModalEditorPart(options?.modal).then(part => part.activeGroup);
 	}
@@ -272,7 +284,7 @@ function doFindGroup(
 	}
 
 	// Force modal editor part: redirect to the modal group when setting is 'on'
-	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'all') {
+	if (!group && configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all') {
 		group = editorGroupService.createModalEditorPart(options?.modal).then(part => part.activeGroup);
 	}
 

@@ -385,6 +385,10 @@ export class TestService extends Disposable implements ITestService {
 		return this.testControllers.get().get(id);
 	}
 
+	public getTestControllers(): Iterable<IMainThreadTestController> {
+		return this.testControllers.get().values();
+	}
+
 	/**
 	 * @inheritdoc
 	 */

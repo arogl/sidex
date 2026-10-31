@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from '@sidex/base/common/actions.js';
+import { IAction, toAction } from '@sidex/base/common/actions.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
+import { Emitter, Event } from '@sidex/base/common/event.js';
+import { DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
+import { URI } from '@sidex/base/common/uri.js';
 import { localize } from '@sidex/base/nls.js';
 import {
 	IAccessibleViewService,
@@ -23,8 +26,16 @@ import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantia
 import { IListService, WorkbenchList } from '@sidex/platform/list/browser/listService.js';
 import { getNotificationFromContext } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
-import { INotificationViewItem } from '../../../common/notifications.js';
+import { INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
 import { withSeverityPrefix } from '@sidex/platform/notification/common/notification.js';
+import { NotificationText } from '@sidex/platform/notification/common/notificationMessage.js';
+import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
+import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
+import {
+	logNotificationAction,
+	logNotificationInteraction,
+	logNotificationShown
+} from '../../../common/notificationTelemetry.js';
 
 export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
@@ -36,12 +47,15 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 		const listService = accessor.get(IListService);
 		const commandService = accessor.get(ICommandService);
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+		const openerService = accessor.get(IOpenerService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		function getProvider() {
-			const notification = getNotificationFromContext(listService);
-			if (!notification) {
+			const initialNotification = getNotificationFromContext(listService);
+			if (!initialNotification) {
 				return;
 			}
+			let notification = initialNotification;
 			commandService.executeCommand('notifications.showList');
 			let notificationIndex: number | undefined;
 			const list = listService.lastFocusedList;
@@ -62,12 +76,8 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 				}
 			}
 
-			function getContentForNotification(): string | undefined {
-				const notification = getNotificationFromContext(listService);
-				const message = notification?.message.original.toString();
-				if (!notification || !message) {
-					return;
-				}
+			function getContentForNotification(): string {
+				const message = notification.message.original.toString();
 				return withSeverityPrefix(
 					notification.source
 						? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source)
@@ -75,26 +85,81 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 					notification.severity
 				);
 			}
-			const content = getContentForNotification();
+			let content = getContentForNotification();
 			if (!content) {
 				return;
 			}
-			notification.onDidClose(() => accessibleViewService.next());
-			return new AccessibleContentProvider(
+			const resources = new DisposableStore();
+			const onDidChangeContent = resources.add(new Emitter<void>());
+			let notificationListeners: DisposableStore | undefined;
+
+			function updateContent(): void {
+				content = getContentForNotification();
+				provider.actions = getActionsFromNotification(
+					notification,
+					accessibilitySignalService,
+					openerService,
+					telemetryService
+				);
+			}
+
+			function listenToNotification(): void {
+				if (!notificationListeners || notificationListeners.isDisposed) {
+					return;
+				}
+				notificationListeners.clear();
+				notificationListeners.add(Event.once(notification.onDidClose)(() => accessibleViewService.next()));
+				notificationListeners.add(
+					notification.onDidChangeContent(event => {
+						if (
+							event.kind === NotificationViewItemContentChangeKind.MESSAGE ||
+							event.kind === NotificationViewItemContentChangeKind.ACTIONS ||
+							event.kind === NotificationViewItemContentChangeKind.SEVERITY
+						) {
+							updateContent();
+							onDidChangeContent.fire();
+						}
+					})
+				);
+			}
+
+			function updateNotification(): string | undefined {
+				const focusedNotification = getNotificationFromContext(listService);
+				if (!focusedNotification) {
+					return;
+				}
+				notification = focusedNotification;
+				if (list instanceof WorkbenchList) {
+					notificationIndex = list.indexOf(notification);
+				}
+				updateContent();
+				listenToNotification();
+				logNotificationShown(telemetryService, notification, 'accessibleView');
+				return content;
+			}
+
+			const provider = new AccessibleContentProvider(
 				AccessibleViewProviderId.Notification,
 				{ type: AccessibleViewType.View },
 				() => content,
 				() => focusList(),
 				'accessibility.verbosity.notification',
-				undefined,
-				getActionsFromNotification(notification, accessibilitySignalService),
+				() => {
+					notificationListeners?.dispose();
+					notificationListeners = new DisposableStore();
+					updateContent();
+					listenToNotification();
+					logNotificationShown(telemetryService, notification, 'accessibleView');
+					return notificationListeners;
+				},
+				getActionsFromNotification(notification, accessibilitySignalService, openerService, telemetryService),
 				() => {
 					if (!list) {
 						return;
 					}
 					focusList();
 					list.focusNext();
-					return getContentForNotification();
+					return updateNotification();
 				},
 				() => {
 					if (!list) {
@@ -102,9 +167,15 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 					}
 					focusList();
 					list.focusPrevious();
-					return getContentForNotification();
-				}
+					return updateNotification();
+				},
+				onDidChangeContent.event
 			);
+			provider.onDispose = () => {
+				notificationListeners?.dispose();
+				resources.dispose();
+			};
+			return provider;
 		}
 		return getProvider();
 	}
@@ -112,44 +183,61 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 
 function getActionsFromNotification(
 	notification: INotificationViewItem,
-	accessibilitySignalService: IAccessibilitySignalService
-): IAction[] | undefined {
-	let actions = undefined;
-	if (notification.actions) {
-		actions = [];
-		if (notification.actions.primary) {
-			actions.push(...notification.actions.primary);
-		}
-		if (notification.actions.secondary) {
-			actions.push(...notification.actions.secondary);
-		}
-	}
-	if (actions) {
-		for (const action of actions) {
-			action.class = ThemeIcon.asClassName(Codicon.bell);
-			const initialAction = action.run;
-			action.run = () => {
-				initialAction();
+	accessibilitySignalService: IAccessibilitySignalService,
+	openerService: IOpenerService,
+	telemetryService: ITelemetryService
+): IAction[] {
+	const actions = [...(notification.actions?.primary ?? []), ...(notification.actions?.secondary ?? [])].map(action =>
+		toAction({
+			id: action.id,
+			label: action.label,
+			tooltip: action.tooltip,
+			enabled: action.enabled,
+			checked: action.checked,
+			class: ThemeIcon.asClassName(Codicon.bell),
+			run: () => {
+				logNotificationAction(telemetryService, notification, action, 'accessibleView');
+				const result = action.run();
 				notification.close();
-			};
-		}
-	}
-	const manageExtension = actions?.find(a => a.label.includes('Manage Extension'));
+				return result;
+			}
+		})
+	);
+	const manageExtension = actions.find(a => a.label.includes('Manage Extension'));
 	if (manageExtension) {
 		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
 	}
-	if (actions) {
-		actions.push({
-			id: 'clearNotification',
-			label: localize('clearNotification', 'Clear Notification'),
-			tooltip: localize('clearNotification', 'Clear Notification'),
-			run: () => {
-				notification.close();
-				accessibilitySignalService.playSignal(AccessibilitySignal.clear);
-			},
-			enabled: true,
-			class: ThemeIcon.asClassName(Codicon.clearAll)
-		});
+	const nodes =
+		notification.message.original instanceof NotificationText
+			? notification.message.original.nodes
+			: notification.message.linkedText.nodes;
+	for (const [index, node] of nodes.entries()) {
+		if (typeof node !== 'string') {
+			actions.push(
+				toAction({
+					id: `notification.link.${index}`,
+					label: node.label,
+					tooltip: node.title || node.href,
+					class: ThemeIcon.asClassName(Codicon.link),
+					run: () => {
+						logNotificationInteraction(telemetryService, notification, 'link', 'accessibleView');
+						return openerService.open(URI.parse(node.href), { allowCommands: true });
+					}
+				})
+			);
+		}
 	}
+	actions.push({
+		id: 'clearNotification',
+		label: localize('clearNotification', 'Clear Notification'),
+		tooltip: localize('clearNotification', 'Clear Notification'),
+		run: () => {
+			logNotificationInteraction(telemetryService, notification, 'dismiss', 'accessibleView');
+			notification.close();
+			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
+		},
+		enabled: true,
+		class: ThemeIcon.asClassName(Codicon.clearAll)
+	});
 	return actions;
 }

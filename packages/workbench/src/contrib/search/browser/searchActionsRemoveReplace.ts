@@ -6,7 +6,7 @@
 import { ITreeNavigator } from '@sidex/base/browser/ui/tree/tree.js';
 import * as nls from '@sidex/base/nls.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
-import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import {
 	getSelectionKeyboardEvent,
 	WorkbenchCompressibleAsyncDataTree
@@ -324,6 +324,7 @@ registerAction2(
 async function performReplace(accessor: ServicesAccessor, context: ISearchActionContext | undefined) {
 	const configurationService = accessor.get(IConfigurationService);
 	const viewsService = accessor.get(IViewsService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const viewlet: SearchView | undefined = getSearchView(viewsService);
 	const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined =
@@ -353,7 +354,7 @@ async function performReplace(accessor: ServicesAccessor, context: ISearchAction
 	if (elementsToReplace.length === 0) {
 		return;
 	}
-	let nextFocusElement;
+	let nextFocusElement: RenderableMatch | undefined;
 	if (focusElement) {
 		nextFocusElement = await getElementToFocusAfterRemoved(viewer, focusElement, elementsToReplace);
 	}
@@ -377,15 +378,17 @@ async function performReplace(accessor: ServicesAccessor, context: ISearchAction
 			viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 
 			if (isSearchTreeMatch(nextFocusElement)) {
-				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search?.useReplacePreview;
 				if (
 					!useReplacePreview ||
-					hasToOpenFile(accessor, nextFocusElement) ||
+					instantiationService.invokeFunction(accessor => hasToOpenFile(accessor, nextFocusElement!)) ||
 					nextFocusElement instanceof MatchInNotebook
 				) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
-					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);
+					instantiationService
+						.invokeFunction(accessor => accessor.get(IReplaceService))
+						.openReplacePreview(nextFocusElement, true);
 				}
 			} else if (isSearchTreeFileMatch(nextFocusElement)) {
 				viewlet?.open(nextFocusElement, true);

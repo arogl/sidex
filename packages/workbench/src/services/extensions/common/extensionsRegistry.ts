@@ -519,6 +519,14 @@ export const schema: IJSONSchema = {
 						)
 					},
 					{
+						label: 'onChatArtifactIntegration',
+						body: 'onChatArtifactIntegration',
+						description: nls.localize(
+							'vscode.extension.activationEvents.onChatArtifactIntegration',
+							'An activation event emitted when recorded chat artifacts are observed or an agent host that can use artifact integrations connects.'
+						)
+					},
+					{
 						label: 'onChatContextProvider',
 						body: 'onChatContextProvider:${1:contextProviderId}',
 						description: nls.localize(
@@ -806,6 +814,24 @@ export const schema: IJSONSchema = {
 								'vscode.extension.capabilities.untrustedWorkspaces.description',
 								'A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`.'
 							)
+						}
+					}
+				},
+				agentsWindow: {
+					description: nls.localize(
+						'vscode.extension.capabilities.agentsWindow',
+						'Declares whether the extension should be enabled in the Agents window.'
+					),
+					type: 'object',
+					required: ['supported'],
+					defaultSnippets: [{ body: { supported: true } }],
+					properties: {
+						supported: {
+							markdownDescription: nls.localize(
+								'vscode.extension.capabilities.agentsWindow.supported',
+								'Declares whether the extension supports running in the Agents window. For non-built-in extensions, this takes effect while the `extensions.experimental.enableAgentsWindowCapability` setting is enabled (the default).'
+							),
+							type: 'boolean'
 						}
 					}
 				}

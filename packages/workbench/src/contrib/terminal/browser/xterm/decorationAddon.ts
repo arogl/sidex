@@ -50,7 +50,6 @@ import {
 	TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR,
 	TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR
 } from '../../common/terminalColorRegistry.js';
-import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
 import { MarkdownString } from '@sidex/base/common/htmlContent.js';
 import { URI } from '@sidex/base/common/uri.js';
@@ -88,7 +87,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		@IThemeService private readonly _themeService: IThemeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -115,7 +113,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._updateDecorationVisibility();
 		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c.id)));
 		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c.id)));
-		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
 	}
 
 	private _createCapabilityDisposables(c: TerminalCapability): void {
@@ -356,7 +353,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				return;
 			}
 			if (!this._decorations.get(decoration.marker.id)) {
-				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
+				decoration.onDispose(() => {
+					const disposableDecoration = this._decorations.get(decoration.marker.id);
+					if (disposableDecoration) {
+						dispose(disposableDecoration.disposables);
+						this._decorations.delete(decoration.marker.id);
+					}
+				});
 				this._decorations.set(decoration.marker.id, {
 					decoration,
 					disposables: this._createDisposables(element, command, markProperties),
