@@ -38,7 +38,8 @@ pub fn install_from_vsix(vsix_path: &Path, target_dir: &Path) -> Result<Extensio
         let Some(name) = entry.enclosed_name() else {
             continue;
         };
-        let name_str = name.to_string_lossy();
+        // `enclosed_name` yields a native path; zip entry names always use `/`.
+        let name_str = name.to_string_lossy().replace('\\', "/");
         let Some(rel) = name_str.strip_prefix("extension/") else {
             continue;
         };

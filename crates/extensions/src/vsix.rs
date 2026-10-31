@@ -83,7 +83,8 @@ pub fn unpack_vsix(vsix_path: &Path) -> Result<VsixPackage> {
         let Some(name) = entry.enclosed_name() else {
             continue;
         };
-        let name_str = name.to_string_lossy().to_string();
+        // `enclosed_name` yields a native path; zip entry names always use `/`.
+        let name_str = name.to_string_lossy().replace('\\', "/");
 
         if name_str == "extension.vsixmanifest" {
             let mut buf = String::new();
