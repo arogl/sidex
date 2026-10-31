@@ -12,7 +12,8 @@ import {
 	SubmenuItemAction,
 	registerAction2,
 	Action2,
-	MenuItemAction
+	MenuItemAction,
+	MenuRegistry
 } from '@sidex/platform/actions/common/actions.js';
 import {
 	MenuBarVisibility,
@@ -66,7 +67,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { BrowserFeatures } from '@sidex/base/browser/canIUse.js';
 import { KeyCode, KeyMod } from '@sidex/base/common/keyCodes.js';
 import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
-import { IsWebContext } from '@sidex/platform/contextkey/common/contextkeys.js';
+import { IsMacNativeContext, IsWebContext } from '@sidex/platform/contextkey/common/contextkeys.js';
 import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
 import { OpenRecentAction } from '../../actions/windowActions.js';
@@ -75,9 +76,89 @@ import { getFlatContextMenuActions } from '@sidex/platform/actions/browser/menuE
 import { defaultMenuStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { ActivityBarPosition } from '../../../services/layout/browser/layoutService.js';
-import { truncateMiddle } from '@sidex/base/common/strings.js';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarFileMenu,
+	title: {
+		value: 'File',
+		original: 'File',
+		mnemonicTitle: localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, '&&File')
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarEditMenu,
+	title: {
+		value: 'Edit',
+		original: 'Edit',
+		mnemonicTitle: localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, '&&Edit')
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarSelectionMenu,
+	title: {
+		value: 'Selection',
+		original: 'Selection',
+		mnemonicTitle: localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, '&&Selection')
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarViewMenu,
+	title: {
+		value: 'View',
+		original: 'View',
+		mnemonicTitle: localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, '&&View')
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarGoMenu,
+	title: {
+		value: 'Go',
+		original: 'Go',
+		mnemonicTitle: localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, '&&Go')
+	},
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarTerminalMenu,
+	title: {
+		value: 'Terminal',
+		original: 'Terminal',
+		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, '&&Terminal')
+	},
+	order: 7
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarHelpMenu,
+	title: {
+		value: 'Help',
+		original: 'Help',
+		mnemonicTitle: localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, '&&Help')
+	},
+	order: 8
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarPreferencesMenu,
+	title: {
+		value: 'Preferences',
+		original: 'Preferences',
+		mnemonicTitle: localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, 'Preferences')
+	},
+	when: IsMacNativeContext,
+	order: 9
+});
 
 export abstract class MenubarControl extends Disposable {
 	protected keys = [
@@ -102,7 +183,6 @@ export abstract class MenubarControl extends Disposable {
 	protected menuUpdater: RunOnceScheduler;
 
 	protected static readonly MAX_MENU_RECENT_ENTRIES = 10;
-	protected static readonly MAX_MENU_RECENT_LABEL_LENGTH = 120;
 
 	constructor(
 		protected readonly menuService: IMenuService,
@@ -302,7 +382,7 @@ export abstract class MenubarControl extends Disposable {
 
 		const ret = toAction({
 			id: commandId,
-			label: unmnemonicLabel(truncateMiddle(label, MenubarControl.MAX_MENU_RECENT_LABEL_LENGTH)),
+			label: unmnemonicLabel(label),
 			run: (browserEvent: KeyboardEvent) => {
 				const openInNewWindow =
 					browserEvent &&
@@ -513,14 +593,6 @@ export class CustomMenubarControl extends MenubarControl {
 				return toAction({
 					id: 'update.updating',
 					label: localize('installingUpdate', 'Installing Update...'),
-					enabled: false,
-					run: () => {}
-				});
-
-			case StateType.Cancelling:
-				return toAction({
-					id: 'update.cancelling',
-					label: localize('cancellingUpdate', 'Cancelling Update...'),
 					enabled: false,
 					run: () => {}
 				});

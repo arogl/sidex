@@ -327,7 +327,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiBrightRed': {
 		index: 9,
 		defaults: {
-			light: '#f14c4c',
+			light: '#cd3131',
 			dark: '#f14c4c',
 			hcDark: '#ff0000',
 			hcLight: '#cd3131'
@@ -354,7 +354,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiBrightBlue': {
 		index: 12,
 		defaults: {
-			light: '#3b8eea',
+			light: '#0451a5',
 			dark: '#3b8eea',
 			hcDark: '#5c5cff',
 			hcLight: '#0451a5'
@@ -363,7 +363,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiBrightMagenta': {
 		index: 13,
 		defaults: {
-			light: '#d670d6',
+			light: '#bc05bc',
 			dark: '#d670d6',
 			hcDark: '#ff00ff',
 			hcLight: '#bc05bc'
@@ -372,7 +372,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiBrightCyan': {
 		index: 14,
 		defaults: {
-			light: '#29b8db',
+			light: '#0598bc',
 			dark: '#29b8db',
 			hcDark: '#00ffff',
 			hcLight: '#0598bc'

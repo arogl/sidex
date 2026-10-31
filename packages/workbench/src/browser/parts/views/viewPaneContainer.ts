@@ -76,11 +76,9 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { FocusedViewContext } from '../../../common/contextkeys.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import {
-	getFloatingPanelMargin,
 	isHorizontal,
 	IWorkbenchLayoutService,
-	LayoutSettings,
-	Position
+	LayoutSettings
 } from '../../../services/layout/browser/layoutService.js';
 import { IBaseActionViewItemOptions } from '@sidex/base/browser/ui/actionbar/actionViewItems.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
@@ -466,12 +464,7 @@ export class ViewPaneContainer<MementoType extends object = object>
 		);
 
 		this._menuActions = this._register(
-			this.instantiationService.createInstance(
-				ViewContainerMenuActions,
-				this.paneview.element,
-				this.viewContainer,
-				undefined
-			)
+			this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer)
 		);
 		this._register(this._menuActions.onDidChange(() => this.updateTitleArea()));
 
@@ -732,19 +725,7 @@ export class ViewPaneContainer<MementoType extends object = object>
 				this.paneview.flipOrientation(dimension.height, dimension.width);
 			}
 
-			// In Modern UI (floating panels) reserve a small bottom gap so the last
-			// pane does not sit flush against the part edge, matching the 4px
-			// horizontal margins on the pane headers. Add 1px for the part's bottom
-			// border so the visible gap lines up with the horizontal margins.
-			// Exception: when the panel is at the TOP, its bottom faces the editor
-			// card, so the tighter inner card gap is sufficient.
-			const bottomGap = !this.layoutService.isFloatingPanelsEnabled()
-				? 0
-				: this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel &&
-						this.layoutService.getPanelPosition() === Position.TOP
-					? 1
-					: getFloatingPanelMargin(this.layoutService) + 1;
-			this.paneview.layout(Math.max(0, dimension.height - bottomGap), dimension.width);
+			this.paneview.layout(dimension.height, dimension.width);
 		}
 
 		this.dimension = dimension;
@@ -823,15 +804,11 @@ export class ViewPaneContainer<MementoType extends object = object>
 		// Restore sizes only when the layout has happened
 		if (this.didLayout) {
 			let initialSizes;
-			for (const viewDescriptor of this.viewContainerModel.visibleViewDescriptors) {
-				// Look up the pane by id rather than by index since a view descriptor
-				// may be visible without a corresponding pane (e.g. when its pane failed to render)
-				const pane = this.getView(viewDescriptor.id);
-				if (!pane) {
-					continue;
-				}
-
+			for (let i = 0; i < this.viewContainerModel.visibleViewDescriptors.length; i++) {
+				const pane = this.panes[i];
+				const viewDescriptor = this.viewContainerModel.visibleViewDescriptors[i];
 				const size = this.viewContainerModel.getSize(viewDescriptor.id);
+
 				if (typeof size === 'number') {
 					this.resizePane(pane, size);
 				} else {

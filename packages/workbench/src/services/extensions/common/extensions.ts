@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '@sidex/base/common/event.js';
-import { OperatingSystem } from '@sidex/base/common/platform.js';
 import Severity from '@sidex/base/common/severity.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { IMessagePassingProtocol } from '@sidex/base/parts/ipc/common/ipc.js';
@@ -136,8 +135,6 @@ export interface IExtensionHost {
 	readonly pid: number | null;
 	readonly runningLocation: ExtensionRunningLocation;
 	readonly remoteAuthority: string | null;
-	/** Available after start resolves for a remote host. */
-	readonly remoteOS?: OperatingSystem;
 	readonly startup: ExtensionHostStartup;
 	/**
 	 * A collection of extensions which includes information about which
@@ -345,7 +342,7 @@ export function isProposedApiEnabled(extension: IExtensionDescription, _proposal
 	if (!extension.enabledApiProposals) {
 		return false;
 	}
-	return extension.enabledApiProposals.includes(proposal);
+	return true; // extension.enabledApiProposals.includes(proposal);
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {

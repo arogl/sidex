@@ -180,7 +180,6 @@ export function restoreWebviewOptions(options: SerializedWebviewOptions): Webvie
 export function restoreWebviewContentOptions(options: SerializedWebviewOptions): WebviewContentOptions {
 	return {
 		...options,
-		forwardUntrustedKeypressEvents: options.forwardUntrustedKeypressEvents ?? true, // default to true for backwards compatibility
 		localResourceRoots: options.localResourceRoots?.map(uri => reviveUri(uri))
 	};
 }

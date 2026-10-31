@@ -11,8 +11,7 @@ import {
 	SideBySideEditor,
 	preventEditorClose,
 	EditorCloseMethod,
-	IToolbarActions,
-	EditorInputCapabilities
+	IToolbarActions
 } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorTabsControl } from './editorTabsControl.js';
@@ -65,14 +64,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Gesture Support
 		this._register(Gesture.addTarget(titleContainer));
 
-		let singleTabAndActionsContainer = titleContainer;
-		if (this.breadcrumbsInHeader) {
-			singleTabAndActionsContainer = $('.single-tab-and-actions-container');
-			titleContainer.appendChild(singleTabAndActionsContainer);
-		}
-
 		const labelContainer = $('.label-container');
-		singleTabAndActionsContainer.appendChild(labelContainer);
+		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
 		this.editorLabel = this._register(
@@ -80,30 +73,25 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		).element;
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
-		if (!this.breadcrumbsInHeader) {
-			this.breadcrumbsControlFactory = this._register(
-				this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupView, {
-					showFileIcons: false,
-					showSymbolIcons: true,
-					showDecorationColors: false,
-					widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
-					showPlaceholder: false,
-					dragEditor: true
-				})
-			);
-			this._register(
-				this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange())
-			);
-		}
+		// Breadcrumbs
+		this.breadcrumbsControlFactory = this._register(
+			this.instantiationService.createInstance(BreadcrumbsControlFactory, labelContainer, this.groupView, {
+				showFileIcons: false,
+				showSymbolIcons: true,
+				showDecorationColors: false,
+				widgetStyles: { ...defaultBreadcrumbsWidgetStyles, breadcrumbsBackground: Color.transparent.toString() },
+				showPlaceholder: false,
+				dragEditor: true
+			})
+		);
+		this._register(
+			this.breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange())
+		);
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
-		if (this.menuIds?.tabsBarAddTab) {
-			this.createAddTabControl(labelContainer, this.menuIds.tabsBarAddTab);
-		}
-
 		// Create editor actions toolbar
-		this.createEditorActionsToolBar(singleTabAndActionsContainer, ['title-actions']);
+		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
 
 		return titleContainer;
 	}
@@ -165,7 +153,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 			if (
-				!this.tabsModel.activeEditor.hasCapability(EditorInputCapabilities.CannotClose) &&
 				!preventEditorClose(
 					this.tabsModel,
 					this.tabsModel.activeEditor,
@@ -247,10 +234,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	updateEditorSelections(): void {}
 
 	updateEditorLabel(editor: EditorInput): void {
-		this.ifEditorIsActive(editor, () => this.redraw());
-	}
-
-	updateEditorCapabilities(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
@@ -363,7 +346,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 			// Editor Label
 			const { labelFormat } = this.groupsView.partOptions;
 			let description: string;
-			if (this.breadcrumbsInHeader || (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden())) {
+			if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 				description = ''; // hide description when showing breadcrumbs
 			} else if (labelFormat === 'default' && !isGroupActive) {
 				description = ''; // hide description when group is not active and style is 'default'
@@ -431,14 +414,6 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 				secondary: editorActions.secondary
 			};
 		}
-	}
-
-	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
-		// Surface the editor layout actions (`MenuId.EditorTitleLayout`) even when tabs are
-		// shown as a single tab. This menu is only populated by the Agents window (e.g. the
-		// Maximize/Restore Editor Area actions), so showing it here has no effect on the
-		// regular workbench where the menu is empty.
-		return editorActions;
 	}
 
 	getHeight(): number {

@@ -25,8 +25,7 @@ import {
 	IUntypedEditorInput,
 	IFindEditorOptions,
 	IEditorWillOpenEvent,
-	ITextResourceDiffEditorInput,
-	EditorInputWithOptions
+	ITextResourceDiffEditorInput
 } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { Event } from '@sidex/base/common/event.js';
@@ -61,19 +60,6 @@ export type AUX_WINDOW_GROUP_TYPE = typeof AUX_WINDOW_GROUP;
  */
 export const MODAL_GROUP = -4;
 export type MODAL_GROUP_TYPE = typeof MODAL_GROUP;
-
-/**
- * Setting that controls whether editors open in a modal editor part.
- */
-export const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
-
-/**
- * Possible values for the `workbench.editor.useModal` setting:
- * - `'off'`: never open editors modal (user opt-out, honored over `RequiresModal`)
- * - `'some'`: open modal only for editors that request it (e.g. `RequiresModal`)
- * - `'all'`: open all editors modal
- */
-export type UseModalEditorMode = 'off' | 'some' | 'all';
 
 export type PreferredGroup =
 	| IEditorGroup
@@ -169,15 +155,6 @@ export interface IEditorsChangeEvent {
 	event: IGroupModelChangeEvent;
 }
 
-export interface IVisibleEditorsChangeEvent {
-	/**
-	 * Indicates whether the visibility change is the result of an explicit
-	 * user action (`true`) or happened automatically as a side effect
-	 * (e.g. the chat agent opening files it has edited).
-	 */
-	readonly isExplicit: boolean;
-}
-
 export interface IEditorService {
 	readonly _serviceBrand: undefined;
 
@@ -193,7 +170,7 @@ export interface IEditorService {
 	 *
 	 * @see {@link IEditorService.visibleEditorPanes}
 	 */
-	readonly onDidVisibleEditorsChange: Event<IVisibleEditorsChangeEvent>;
+	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
 	 * An aggregated event for any change to any editor across
@@ -344,11 +321,6 @@ export interface IEditorService {
 	 * @returns the editors that opened. The array can be empty or have less elements for editors
 	 * that failed to open or were instructed to open as inactive.
 	 */
-	openEditors(
-		editors: EditorInputWithOptions[],
-		group?: PreferredGroup,
-		options?: IOpenEditorsOptions
-	): Promise<readonly IEditorPane[]>;
 	openEditors(
 		editors: IUntypedEditorInput[],
 		group?: PreferredGroup,

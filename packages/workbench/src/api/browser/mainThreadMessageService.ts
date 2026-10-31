@@ -18,12 +18,6 @@ import { Event } from '@sidex/base/common/event.js';
 import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IDisposable } from '@sidex/base/common/lifecycle.js';
-import { legacyExtensionLinkParsing } from '@sidex/platform/notification/common/notificationLegacy.js';
-import {
-	extensionNotificationTelemetry,
-	NotificationActionTelemetryId,
-	withNotificationActionTelemetry
-} from '@sidex/platform/notification/common/notificationTelemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -73,18 +67,15 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 	): Promise<number | undefined> {
 		return new Promise<number | undefined>(resolve => {
 			const primaryActions: IAction[] = commands.map(command =>
-				withNotificationActionTelemetry(
-					toAction({
-						id: `_extension_message_handle_${command.handle}`,
-						label: command.title,
-						enabled: true,
-						run: () => {
-							resolve(command.handle);
-							return Promise.resolve();
-						}
-					}),
-					{ extensionButtonIndex: command.handle }
-				)
+				toAction({
+					id: `_extension_message_handle_${command.handle}`,
+					label: command.title,
+					enabled: true,
+					run: () => {
+						resolve(command.handle);
+						return Promise.resolve();
+					}
+				})
 			);
 
 			let source: string | INotificationSource | undefined;
@@ -104,24 +95,19 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			const secondaryActions: IAction[] = [];
 			if (options.source) {
 				secondaryActions.push(
-					withNotificationActionTelemetry(
-						toAction({
-							id: options.source.identifier.value,
-							label: nls.localize('manageExtension', 'Manage Extension'),
-							run: () => {
-								return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
-							}
-						}),
-						NotificationActionTelemetryId.ManageExtension
-					)
+					toAction({
+						id: options.source.identifier.value,
+						label: nls.localize('manageExtension', 'Manage Extension'),
+						run: () => {
+							return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
+						}
+					})
 				);
 			}
 
 			const messageHandle = this._notificationService.notify({
-				telemetry: extensionNotificationTelemetry(options.source?.identifier.value, 'message'),
 				severity,
 				message,
-				legacyExtensionLinkParsing,
 				actions: { primary: primaryActions, secondary: secondaryActions },
 				source,
 				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,

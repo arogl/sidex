@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '@sidex/base/common/lifecycle.js';
-import { SequencerByKey } from '@sidex/base/common/async.js';
-import { CancellationError, isCancellationError, onUnexpectedError } from '@sidex/base/common/errors.js';
 import { scopesMatch } from '@sidex/base/common/oauth.js';
-import { generateUuid } from '@sidex/base/common/uuid.js';
 import * as nls from '@sidex/base/nls.js';
 import { MenuId, MenuRegistry } from '@sidex/platform/actions/common/actions.js';
 import { CommandsRegistry } from '@sidex/platform/commands/common/commands.js';
@@ -26,14 +23,11 @@ import {
 	IAuthenticationExtensionsService,
 	AuthenticationSessionAccount,
 	IAuthenticationWwwAuthenticateRequest,
-	isAuthenticationWwwAuthenticateRequest,
-	IAuthenticationProviderSessionOptions,
-	getAuthenticationSessionRequestKey
+	isAuthenticationWwwAuthenticateRequest
 } from '../common/authentication.js';
 import { Emitter } from '@sidex/base/common/event.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
 import { ExtensionIdentifier } from '@sidex/platform/extensions/common/extensions.js';
-import { ILogService } from '@sidex/platform/log/common/log.js';
 
 // OAuth2 spec prohibits space in a scope, so use that to join them.
 const SCOPESLIST_SEPARATOR = ' ';
@@ -41,28 +35,20 @@ const SCOPESLIST_SEPARATOR = ' ';
 interface SessionRequest {
 	disposables: IDisposable[];
 	requestingExtensionIds: string[];
-	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest;
-	options: IAuthenticationProviderSessionOptions;
 }
 
 interface SessionRequestInfo {
-	[requestKey: string]: SessionRequest;
-}
-
-interface SessionAccessRequest {
-	disposables: IDisposable[];
-	possibleSessions: AuthenticationSession[];
-	extensionId: string;
-	scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest;
-	options: IAuthenticationProviderSessionOptions;
+	[scopesList: string]: SessionRequest;
 }
 
 // TODO@TylerLeonhardt: This should all go in MainThreadAuthentication
 export class AuthenticationExtensionsService extends Disposable implements IAuthenticationExtensionsService {
 	declare readonly _serviceBrand: undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
-	private readonly _signInRequestUpdates = new SequencerByKey<SessionRequestInfo>();
-	private _sessionAccessRequestItems = new Map<string, Record<string, SessionAccessRequest>>();
+	private _sessionAccessRequestItems = new Map<
+		string,
+		{ [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }
+	>();
 	private readonly _accountBadgeDisposable = this._register(new MutableDisposable());
 
 	private _onDidAccountPreferenceChange: Emitter<{ providerId: string; extensionIds: string[] }> = this._register(
@@ -81,8 +67,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		@IProductService private readonly _productService: IProductService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationUsageService private readonly _authenticationUsageService: IAuthenticationUsageService,
-		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
-		@ILogService private readonly _logService: ILogService
+		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService
 	) {
 		super();
 		this._inheritAuthAccountPreferenceParentToChildren = this._productService.inheritAuthAccountPreference || {};
@@ -101,7 +86,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		this._register(
 			this._authenticationService.onDidChangeSessions(e => {
 				if (e.event.added?.length) {
-					void this.updateNewSessionRequests(e.providerId, e.event.added).catch(onUnexpectedError);
+					this.updateNewSessionRequests(e.providerId, e.event.added);
 				}
 				if (e.event.removed?.length) {
 					this.updateAccessRequests(e.providerId, e.event.removed);
@@ -111,123 +96,55 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 		this._register(
 			this._authenticationService.onDidUnregisterAuthenticationProvider(e => {
-				this.clearProviderRequests(e.id);
-				this.updateBadgeCount();
+				const accessRequests = this._sessionAccessRequestItems.get(e.id) || {};
+				Object.keys(accessRequests).forEach(extensionId => {
+					this.removeAccessRequest(e.id, extensionId);
+				});
 			})
 		);
 	}
 
-	override dispose(): void {
-		for (const providerId of new Set([...this._signInRequestItems.keys(), ...this._sessionAccessRequestItems.keys()])) {
-			this.clearProviderRequests(providerId);
-		}
-		super.dispose();
-	}
-
-	private clearProviderRequests(providerId: string): void {
-		for (const request of [
-			...Object.values(this._signInRequestItems.get(providerId) ?? {}),
-			...Object.values(this._sessionAccessRequestItems.get(providerId) ?? {})
-		]) {
-			dispose(request.disposables);
-		}
-		this._signInRequestItems.delete(providerId);
-		this._sessionAccessRequestItems.delete(providerId);
-	}
-
-	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): Promise<void> {
-		const providerRequests = this._signInRequestItems.get(providerId);
-		if (!providerRequests || this._store.isDisposed) {
-			return Promise.resolve();
-		}
-		const requests = Object.entries(providerRequests);
-		return this._signInRequestUpdates.queue(providerRequests, async () => {
-			for (const [requestKey, request] of requests) {
-				await this.revalidateSignInRequest(providerId, providerRequests, requestKey, request, addedSessions);
-			}
-		});
-	}
-
-	private isCurrentSignInRequest(
-		providerId: string,
-		providerRequests: SessionRequestInfo,
-		requestKey: string,
-		request: SessionRequest
-	): boolean {
-		return (
-			!this._store.isDisposed &&
-			this._signInRequestItems.get(providerId) === providerRequests &&
-			providerRequests[requestKey] === request
-		);
-	}
-
-	private async revalidateSignInRequest(
-		providerId: string,
-		providerRequests: SessionRequestInfo,
-		requestKey: string,
-		request: SessionRequest,
-		addedSessions: readonly AuthenticationSession[]
-	): Promise<void> {
-		if (!this.isCurrentSignInRequest(providerId, providerRequests, requestKey, request)) {
+	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void {
+		const existingRequestsForProvider = this._signInRequestItems.get(providerId);
+		if (!existingRequestsForProvider) {
 			return;
 		}
 
-		try {
-			if (await this.hasSessionForRequest(providerId, request, addedSessions)) {
-				this.completeSignInRequest(providerId, providerRequests, requestKey, request);
-			}
-		} catch (error) {
-			if (this.isCurrentSignInRequest(providerId, providerRequests, requestKey, request)) {
-				this._logService.warn(`Failed to check a pending authentication request for '${providerId}'.`, error);
-			}
-		}
-	}
+		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
+			// Parse the requested scopes from the stored key
+			const requestedScopesArray = requestedScopes.split(SCOPESLIST_SEPARATOR);
 
-	private async hasSessionForRequest(
-		providerId: string,
-		request: SessionRequest,
-		addedSessions: readonly AuthenticationSession[]
-	): Promise<boolean> {
-		const { scopeListOrRequest, options } = request;
-		if (
-			!isAuthenticationWwwAuthenticateRequest(scopeListOrRequest) &&
-			!addedSessions.some(session => scopesMatch(session.scopes, scopeListOrRequest))
-		) {
-			return false;
-		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopeListOrRequest, {
-			...options,
-			silent: true
+			// Check if any added session has matching scopes (order-independent)
+			if (addedSessions.some(session => scopesMatch(session.scopes, requestedScopesArray))) {
+				const sessionRequest = existingRequestsForProvider[requestedScopes];
+				sessionRequest?.disposables.forEach(item => item.dispose());
+
+				delete existingRequestsForProvider[requestedScopes];
+				if (Object.keys(existingRequestsForProvider).length === 0) {
+					this._signInRequestItems.delete(providerId);
+				} else {
+					this._signInRequestItems.set(providerId, existingRequestsForProvider);
+				}
+				this.updateBadgeCount();
+			}
 		});
-		return sessions.length > 0;
-	}
-
-	private completeSignInRequest(
-		providerId: string,
-		providerRequests: SessionRequestInfo,
-		requestKey: string,
-		request: SessionRequest
-	): void {
-		if (!this.isCurrentSignInRequest(providerId, providerRequests, requestKey, request)) {
-			return;
-		}
-		delete providerRequests[requestKey];
-		if (Object.keys(providerRequests).length === 0) {
-			this._signInRequestItems.delete(providerId);
-		}
-		dispose(request.disposables);
-		this.updateBadgeCount();
 	}
 
 	private updateAccessRequests(providerId: string, removedSessions: readonly AuthenticationSession[]): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId);
 		if (providerRequests) {
-			Object.entries(providerRequests).forEach(([requestKey, request]) => {
-				request.possibleSessions = request.possibleSessions.filter(
-					session => !removedSessions.some(removed => removed.id === session.id)
-				);
-				if (!request.possibleSessions.length) {
-					this.removeAccessRequest(providerId, requestKey);
+			Object.keys(providerRequests).forEach(extensionId => {
+				removedSessions.forEach(removed => {
+					const indexOfSession = providerRequests[extensionId].possibleSessions.findIndex(
+						session => session.id === removed.id
+					);
+					if (indexOfSession) {
+						providerRequests[extensionId].possibleSessions.splice(indexOfSession, 1);
+					}
+				});
+
+				if (!providerRequests[extensionId].possibleSessions.length) {
+					this.removeAccessRequest(providerId, extensionId);
 				}
 			});
 		}
@@ -253,37 +170,12 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	private accessRequestKey(
-		extensionId: string,
-		scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest,
-		options: IAuthenticationProviderSessionOptions
-	): string {
-		return JSON.stringify([extensionId, getAuthenticationSessionRequestKey(scopeListOrRequest, options)]);
-	}
-
-	private removeAccessRequest(providerId: string, requestKey: string): void {
+	private removeAccessRequest(providerId: string, extensionId: string): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
-		if (providerRequests[requestKey]) {
-			dispose(providerRequests[requestKey].disposables);
-			delete providerRequests[requestKey];
-			if (Object.keys(providerRequests).length === 0) {
-				this._sessionAccessRequestItems.delete(providerId);
-			}
+		if (providerRequests[extensionId]) {
+			dispose(providerRequests[extensionId].disposables);
+			delete providerRequests[extensionId];
 			this.updateBadgeCount();
-		}
-	}
-
-	private removeAllowedAccessRequests(providerId: string, extensionId: string, accountName: string): void {
-		if (!this._authenticationAccessService.isAccessAllowed(providerId, accountName, extensionId)) {
-			return;
-		}
-		for (const [requestKey, request] of Object.entries(this._sessionAccessRequestItems.get(providerId) ?? {})) {
-			if (
-				request.extensionId === extensionId &&
-				request.possibleSessions.some(session => session.account.label === accountName)
-			) {
-				this.removeAccessRequest(providerId, requestKey);
-			}
 		}
 	}
 
@@ -302,9 +194,6 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 		const childrenExtensions = this._inheritAuthAccountPreferenceParentToChildren[parentExtensionId];
 		const extensionIds = childrenExtensions ? [parentExtensionId, ...childrenExtensions] : [parentExtensionId];
-		for (const id of extensionIds) {
-			this.removeAllowedAccessRequests(providerId, id, account.label);
-		}
 		this._onDidAccountPreferenceChange.fire({ extensionIds, providerId });
 	}
 
@@ -402,8 +291,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		provider: IAuthenticationProvider,
 		accountName: string,
 		extensionId: string,
-		extensionName: string,
-		requestKey: string
+		extensionName: string
 	): Promise<boolean> {
 		enum SessionPromptChoice {
 			Allow = 0,
@@ -438,10 +326,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			this._authenticationAccessService.updateAllowedExtensions(provider.id, accountName, [
 				{ id: extensionId, name: extensionName, allowed: result === SessionPromptChoice.Allow }
 			]);
-			this.removeAccessRequest(provider.id, requestKey);
-			if (result === SessionPromptChoice.Allow) {
-				this.removeAllowedAccessRequests(provider.id, extensionId, accountName);
-			}
+			this.removeAccessRequest(provider.id, extensionId);
 		}
 
 		return result === SessionPromptChoice.Allow;
@@ -455,8 +340,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		extensionId: string,
 		extensionName: string,
 		scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest,
-		availableSessions: readonly AuthenticationSession[],
-		options: IAuthenticationProviderSessionOptions = {}
+		availableSessions: AuthenticationSession[]
 	): Promise<AuthenticationSession> {
 		const allAccounts = await this._authenticationService.getAccounts(providerId);
 		if (!allAccounts.length) {
@@ -519,10 +403,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 					if (!session) {
 						const account = quickPick.selectedItems[0].account;
 						try {
-							session = await this._authenticationService.createSession(providerId, scopeListOrRequest, {
-								...options,
-								account
-							});
+							session = await this._authenticationService.createSession(providerId, scopeListOrRequest, { account });
 						} catch (e) {
 							reject(e);
 							return;
@@ -534,7 +415,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 						{ id: extensionId, name: extensionName, allowed: true }
 					]);
 					this._updateAccountAndSessionPreferences(providerId, extensionId, session);
-					this.removeAccessRequest(providerId, this.accessRequestKey(extensionId, scopeListOrRequest, options));
+					this.removeAccessRequest(providerId, extensionId);
 
 					resolve(session);
 				})
@@ -543,7 +424,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			disposables.add(
 				quickPick.onDidHide(_ => {
 					if (!quickPick.selectedItems[0]) {
-						reject(new CancellationError());
+						reject('User did not consent to account access');
 					}
 					disposables.dispose();
 				})
@@ -555,11 +436,12 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 	private async completeSessionAccessRequest(
 		provider: IAuthenticationProvider,
-		requestKey: string,
-		extensionName: string
+		extensionId: string,
+		extensionName: string,
+		scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest
 	): Promise<void> {
 		const providerRequests = this._sessionAccessRequestItems.get(provider.id) || {};
-		const existingRequest = providerRequests[requestKey];
+		const existingRequest = providerRequests[extensionId];
 		if (!existingRequest) {
 			return;
 		}
@@ -567,7 +449,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		if (!provider) {
 			return;
 		}
-		const { possibleSessions, extensionId, scopeListOrRequest, options } = existingRequest;
+		const possibleSessions = existingRequest.possibleSessions;
 
 		let session: AuthenticationSession | undefined;
 		if (provider.supportsMultipleAccounts) {
@@ -577,21 +459,17 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 					extensionId,
 					extensionName,
 					scopeListOrRequest,
-					possibleSessions,
-					options
+					possibleSessions
 				);
-			} catch (error) {
-				if (!isCancellationError(error)) {
-					throw error;
-				}
+			} catch (_) {
+				// ignore cancel
 			}
 		} else {
 			const approved = await this.showGetSessionPrompt(
 				provider,
 				possibleSessions[0].account.label,
 				extensionId,
-				extensionName,
-				requestKey
+				extensionName
 			);
 			if (approved) {
 				session = possibleSessions[0];
@@ -606,7 +484,6 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 				extensionId,
 				extensionName
 			);
-			this.removeAccessRequest(provider.id, requestKey);
 		}
 	}
 
@@ -615,22 +492,19 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		extensionId: string,
 		extensionName: string,
 		scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest,
-		possibleSessions: readonly AuthenticationSession[],
-		options: IAuthenticationProviderSessionOptions = {}
+		possibleSessions: AuthenticationSession[]
 	): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
-		const requestKey = this.accessRequestKey(extensionId, scopeListOrRequest, options);
-		const hasExistingRequest = providerRequests[requestKey];
+		const hasExistingRequest = providerRequests[extensionId];
 		if (hasExistingRequest) {
 			return;
 		}
 
 		const provider = this._authenticationService.getProvider(providerId);
-		const commandId = `${providerId}:${extensionId}:access:${generateUuid()}`;
 		const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			group: '3_accessRequests',
 			command: {
-				id: commandId,
+				id: `${providerId}${extensionId}Access`,
 				title: nls.localize(
 					{
 						key: 'accessRequest',
@@ -646,17 +520,13 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		});
 
 		const accessCommand = CommandsRegistry.registerCommand({
-			id: commandId,
-			handler: () => this.completeSessionAccessRequest(provider, requestKey, extensionName)
+			id: `${providerId}${extensionId}Access`,
+			handler: async _accessor => {
+				this.completeSessionAccessRequest(provider, extensionId, extensionName, scopeListOrRequest);
+			}
 		});
 
-		providerRequests[requestKey] = {
-			extensionId,
-			scopeListOrRequest,
-			options,
-			possibleSessions: [...possibleSessions],
-			disposables: [menuItem, accessCommand]
-		};
+		providerRequests[extensionId] = { possibleSessions, disposables: [menuItem, accessCommand] };
 		this._sessionAccessRequestItems.set(providerId, providerRequests);
 		this.updateBadgeCount();
 	}
@@ -665,8 +535,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		providerId: string,
 		scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest,
 		extensionId: string,
-		extensionName: string,
-		options: IAuthenticationProviderSessionOptions = {}
+		extensionName: string
 	): Promise<void> {
 		if (!this._authenticationService.isAuthenticationProviderRegistered(providerId)) {
 			// Activate has already been called for the authentication provider, but it cannot block on registering itself
@@ -689,20 +558,21 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			return;
 		}
 
-		const providerRequests = this._signInRequestItems.get(providerId) ?? {};
-		const signInRequestKey = getAuthenticationSessionRequestKey(scopeListOrRequest, options);
-		if (providerRequests[signInRequestKey]?.requestingExtensionIds.includes(extensionId)) {
+		const providerRequests = this._signInRequestItems.get(providerId);
+		const signInRequestKey = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)
+			? `${scopeListOrRequest.wwwAuthenticate}:${scopeListOrRequest.fallbackScopes?.join(SCOPESLIST_SEPARATOR) ?? ''}`
+			: `${scopeListOrRequest.join(SCOPESLIST_SEPARATOR)}`;
+		const extensionHasExistingRequest =
+			providerRequests &&
+			providerRequests[signInRequestKey] &&
+			providerRequests[signInRequestKey].requestingExtensionIds.includes(extensionId);
+
+		if (extensionHasExistingRequest) {
 			return;
 		}
-		const request: SessionRequest = providerRequests[signInRequestKey] ?? {
-			scopeListOrRequest,
-			options,
-			disposables: [],
-			requestingExtensionIds: []
-		};
 
 		// Construct a commandId that won't clash with others generated here, nor likely with an extension's command
-		const commandId = `${providerId}:${extensionId}:signIn:${generateUuid()}`;
+		const commandId = `${providerId}:${extensionId}:signIn${Object.keys(providerRequests || []).length}`;
 		const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			group: '2_signInRequests',
 			command: {
@@ -723,22 +593,34 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 
 		const signInCommand = CommandsRegistry.registerCommand({
 			id: commandId,
-			handler: async () => {
-				const session = await this._authenticationService.createSession(providerId, scopeListOrRequest, options);
+			handler: async accessor => {
+				const authenticationService = accessor.get(IAuthenticationService);
+				const session = await authenticationService.createSession(providerId, scopeListOrRequest);
 
 				this._authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [
 					{ id: extensionId, name: extensionName, allowed: true }
 				]);
 				this._updateAccountAndSessionPreferences(providerId, extensionId, session);
-				this.completeSignInRequest(providerId, providerRequests, signInRequestKey, request);
-				void this.updateNewSessionRequests(providerId, [session]).catch(onUnexpectedError);
 			}
 		});
 
-		request.disposables.push(menuItem, signInCommand);
-		request.requestingExtensionIds.push(extensionId);
-		providerRequests[signInRequestKey] = request;
-		this._signInRequestItems.set(providerId, providerRequests);
+		if (providerRequests) {
+			const existingRequest = providerRequests[signInRequestKey] || { disposables: [], requestingExtensionIds: [] };
+
+			providerRequests[signInRequestKey] = {
+				disposables: [...existingRequest.disposables, menuItem, signInCommand],
+				requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
+			};
+			this._signInRequestItems.set(providerId, providerRequests);
+		} else {
+			this._signInRequestItems.set(providerId, {
+				[signInRequestKey]: {
+					disposables: [menuItem, signInCommand],
+					requestingExtensionIds: [extensionId]
+				}
+			});
+		}
+
 		this.updateBadgeCount();
 	}
 }

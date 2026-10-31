@@ -106,8 +106,7 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 	 * renamed without breaking extensions. In the form "original -> new name".
 	 */
 	private static readonly aliased: ReadonlyMap<string, string> = new Map([
-		['vscode-ripgrep', '@vscode/ripgrep-universal'],
-		['@vscode/ripgrep', '@vscode/ripgrep-universal'],
+		['vscode-ripgrep', '@vscode/ripgrep'],
 		['vscode-windows-registry', '@vscode/windows-registry']
 	]);
 

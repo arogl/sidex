@@ -701,6 +701,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				}
 			})
 		);
+		disposables.push(toDisposable(() => this.markersModel.reset()));
 
 		// Markers View Model
 		this.markersModel.resourceMarkers.forEach(resourceMarker =>
@@ -708,13 +709,11 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		);
 		disposables.push(this.markersViewModel.onDidChange(marker => this.onDidChangeViewState(marker)));
 		disposables.push(
-			toDisposable(() => {
-				// Remove view state before resetting the resources used to find it.
+			toDisposable(() =>
 				this.markersModel.resourceMarkers.forEach(resourceMarker =>
 					this.markersViewModel.remove(resourceMarker.resource)
-				);
-				this.markersModel.reset();
-			})
+				)
+			)
 		);
 
 		// Markers Filters

@@ -4,24 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMouseWheelEvent } from '@sidex/base/browser/mouseEvent.js';
-import type { WebviewMouseActivity } from '../common/webview.js';
 import type { WebviewStyles } from './webview.js';
 
 type KeyEvent = {
-	readonly key: string;
-	readonly keyCode: number;
-	readonly code: string;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly ctrlKey: boolean;
-	readonly metaKey: boolean;
-	readonly repeat: boolean;
-	readonly isTrusted: boolean;
-	readonly keyEventToken: string;
+	key: string;
+	keyCode: number;
+	code: string;
+	shiftKey: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	repeat: boolean;
 };
 
 type WebViewDragEvent = {
-	readonly shiftKey: boolean;
+	shiftKey: boolean;
 };
 
 export type FromWebviewMessage = {
@@ -34,18 +31,9 @@ export type FromWebviewMessage = {
 	'did-find': { didFind: boolean };
 	'do-update-state': string;
 	'do-reload': void;
-	'load-resource': {
-		id: number;
-		path: string;
-		query: string;
-		scheme: string;
-		authority: string;
-		ifNoneMatch?: string;
-		range?: { readonly start: number; readonly end?: number };
-	};
+	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string };
 	'load-localhost': { id: string; origin: string };
 	'did-scroll-wheel': IMouseWheelEvent;
-	'did-mouse-move': WebviewMouseActivity;
 	'fatal-error': { message: string };
 	'no-csp-found': void;
 	'did-keydown': KeyEvent;
@@ -78,17 +66,13 @@ export type ToWebviewMessage = {
 		| { id: number; status: 304; path: string; mime: string; mtime: number | undefined }
 		| {
 				id: number;
-				status: 200 | 206;
+				status: 200;
 				path: string;
 				mime: string;
+				data: any;
 				etag: string | undefined;
 				mtime: number | undefined;
-				range?: string;
-				stream?: ReadableStream<Uint8Array>;
 		  };
-	// Safari fallback: transferable streams not supported
-	'did-load-resource-chunk': { id: number; data: Uint8Array };
-	'did-load-resource-end': { id: number; error?: boolean };
 	'did-load-localhost': {
 		id: string;
 		origin: string;

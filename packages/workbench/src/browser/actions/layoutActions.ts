@@ -13,16 +13,16 @@ import {
 	EditorTabsMode,
 	IWorkbenchLayoutService,
 	LayoutSettings,
-	ModernUIDensity,
 	Parts,
 	Position,
 	ZenModeSettings,
 	positionToString
 } from '../../services/layout/browser/layoutService.js';
 import { ServicesAccessor, IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
-import { KeyMod, KeyCode } from '@sidex/base/common/keyCodes.js';
+import { KeyMod, KeyCode, KeyChord } from '@sidex/base/common/keyCodes.js';
 import { isWindows, isLinux, isWeb, isMacintosh, isNative } from '@sidex/base/common/platform.js';
-import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
+import { IsMacNativeContext } from '@sidex/platform/contextkey/common/contextkeys.js';
+import { KeybindingsRegistry, KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
 import {
 	ContextKeyExpr,
 	ContextKeyExpression,
@@ -59,10 +59,8 @@ import {
 	IsMainWindowFullscreenContext,
 	PanelPositionContext,
 	IsAuxiliaryWindowFocusedContext,
-	IsSessionsWindowContext,
 	TitleBarStyleContext,
-	IsAuxiliaryWindowContext,
-	CustomMenuBarVisibleContext
+	IsAuxiliaryWindowContext
 } from '../../common/contextkeys.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
@@ -71,7 +69,7 @@ import { registerIcon } from '@sidex/platform/theme/common/iconRegistry.js';
 import { ICommandActionTitle } from '@sidex/platform/action/common/action.js';
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
-import { TitlebarStyle } from '@sidex/platform/window/common/window.js';
+import { MenuSettings, TitlebarStyle } from '@sidex/platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
 import { QuickInputAlignmentContextKey } from '@sidex/platform/quickinput/browser/quickInput.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -151,17 +149,6 @@ const quickInputAlignmentCenterIcon = registerIcon(
 	localize('quickInputAlignmentCenter', 'Represents quick input alignment set to the center')
 );
 
-const layoutDensityDefaultIcon = registerIcon(
-	'layout-density-default-icon',
-	Codicon.layoutDensityDefault,
-	localize('layoutDensityDefaultIcon', 'Represents the default layout density')
-);
-const layoutDensityCompactIcon = registerIcon(
-	'layout-density-compact-icon',
-	Codicon.layoutDensityCompact,
-	localize('layoutDensityCompactIcon', 'Represents the compact layout density')
-);
-
 const fullscreenIcon = registerIcon(
 	'fullscreen',
 	Codicon.screenFull,
@@ -190,7 +177,7 @@ registerAction2(
 						'&&Centered Layout'
 					)
 				},
-				precondition: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), IsSessionsWindowContext.negate()),
+				precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 				category: Categories.View,
 				f1: true,
 				toggled: IsMainEditorCenteredLayoutContext,
@@ -198,8 +185,7 @@ registerAction2(
 					{
 						id: MenuId.MenubarAppearanceMenu,
 						group: '1_toggle_view',
-						order: 3,
-						when: IsSessionsWindowContext.negate()
+						order: 3
 					}
 				]
 			});
@@ -278,8 +264,7 @@ export class ToggleSidebarPositionAction extends Action2 {
 			id: ToggleSidebarPositionAction.ID,
 			title: localize2('toggleSidebarPosition', 'Toggle Primary Side Bar Position'),
 			category: Categories.View,
-			f1: true,
-			precondition: IsSessionsWindowContext.negate()
+			f1: true
 		});
 	}
 
@@ -387,10 +372,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		id: ToggleSidebarPositionAction.ID,
 		title: localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, '&&Move Primary Side Bar Right')
 	},
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
-		IsSessionsWindowContext.negate()
-	),
+	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
 	order: 2
 });
 
@@ -400,10 +382,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 		id: ToggleSidebarPositionAction.ID,
 		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, '&&Move Primary Side Bar Left')
 	},
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
-		IsSessionsWindowContext.negate()
-	),
+	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
 });
 
@@ -439,7 +418,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
 	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, '&&Appearance'),
 	submenu: MenuId.MenubarAppearanceMenu,
-	when: IsSessionsWindowContext.negate(),
 	order: 1
 });
 
@@ -479,8 +457,7 @@ export class ToggleSidebarVisibilityAction extends Action2 {
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
-					order: 1,
-					when: IsSessionsWindowContext.negate()
+					order: 1
 				}
 			]
 		});
@@ -521,7 +498,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: 'navigation',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', 'Toggle Primary Side Bar'),
@@ -542,7 +519,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: 'navigation',
+			group: '2_pane_toggles',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
 				title: localize('toggleSideBar', 'Toggle Primary Side Bar'),
@@ -578,14 +555,12 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 			},
 			category: Categories.View,
 			f1: true,
-			precondition: IsSessionsWindowContext.negate(),
 			toggled: ContextKeyExpr.equals('config.workbench.statusBar.visible', true),
 			menu: [
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
-					order: 3,
-					when: IsSessionsWindowContext.negate()
+					order: 3
 				}
 			]
 		});
@@ -606,7 +581,7 @@ registerAction2(ToggleStatusbarVisibilityAction);
 
 // ------------------- Editor Tabs Layout --------------------------------
 
-export abstract class AbstractSetShowTabsAction extends Action2 {
+abstract class AbstractSetShowTabsAction extends Action2 {
 	constructor(
 		private readonly settingName: string,
 		private readonly value: string,
@@ -619,7 +594,7 @@ export abstract class AbstractSetShowTabsAction extends Action2 {
 			id,
 			title,
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(precondition, IsSessionsWindowContext.negate()),
+			precondition,
 			metadata: description ? { description } : undefined,
 			f1: true
 		});
@@ -652,8 +627,6 @@ export class HideEditorTabsAction extends AbstractSetShowTabsAction {
 		);
 	}
 }
-
-// --- Hide Editor Tabs (Zen Mode)
 
 export class ZenHideEditorTabsAction extends AbstractSetShowTabsAction {
 	static readonly ID = 'workbench.action.zenHideEditorTabs';
@@ -697,8 +670,6 @@ export class ShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
 		);
 	}
 }
-
-// --- Show Multiple Editor Tabs (Zen Mode)
 
 export class ZenShowMultipleEditorTabsAction extends AbstractSetShowTabsAction {
 	static readonly ID = 'workbench.action.zenShowMultipleEditorTabs';
@@ -744,12 +715,6 @@ export class ShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 	}
 }
 
-registerAction2(HideEditorTabsAction);
-registerAction2(ShowMultipleEditorTabsAction);
-registerAction2(ShowSingleEditorTabAction);
-
-// --- Show Single Editor Tab (Zen Mode)
-
 export class ZenShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 	static readonly ID = 'workbench.action.zenShowEditorTab';
 
@@ -771,6 +736,13 @@ export class ZenShowSingleEditorTabAction extends AbstractSetShowTabsAction {
 	}
 }
 
+registerAction2(HideEditorTabsAction);
+registerAction2(ZenHideEditorTabsAction);
+registerAction2(ShowMultipleEditorTabsAction);
+registerAction2(ZenShowMultipleEditorTabsAction);
+registerAction2(ShowSingleEditorTabAction);
+registerAction2(ZenShowSingleEditorTabAction);
+
 // --- Tab Bar Submenu in View Appearance Menu
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
@@ -778,7 +750,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	title: localize('tabBar', 'Tab Bar'),
 	group: '3_workbench_layout_move',
 	order: 10,
-	when: ContextKeyExpr.and(InEditorZenModeContext.negate(), IsSessionsWindowContext.negate())
+	when: InEditorZenModeContext.negate()
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	submenu: MenuId.EditorTabsBarShowTabsZenModeSubmenu,
+	title: localize('tabBar', 'Tab Bar'),
+	group: '3_workbench_layout_move',
+	order: 10,
+	when: InEditorZenModeContext
 });
 
 // --- Show Editor Actions in Title Bar
@@ -791,13 +771,10 @@ export class EditorActionsTitleBarAction extends Action2 {
 			id: EditorActionsTitleBarAction.ID,
 			title: localize2('moveEditorActionsToTitleBar', 'Move Editor Actions to Title Bar'),
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals(
-					`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`,
-					EditorActionsLocation.TITLEBAR
-				).negate(),
-				IsSessionsWindowContext.negate()
-			),
+			precondition: ContextKeyExpr.equals(
+				`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`,
+				EditorActionsLocation.TITLEBAR
+			).negate(),
 			metadata: {
 				description: localize2(
 					'moveEditorActionsToTitleBarDescription',
@@ -830,8 +807,7 @@ export class EditorActionsDefaultAction extends Action2 {
 					`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`,
 					EditorActionsLocation.DEFAULT
 				).negate(),
-				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate(),
-				IsSessionsWindowContext.negate()
+				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE).negate()
 			),
 			metadata: {
 				description: localize2(
@@ -860,13 +836,10 @@ export class HideEditorActionsAction extends Action2 {
 			id: HideEditorActionsAction.ID,
 			title: localize2('hideEditorActons', 'Hide Editor Actions'),
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals(
-					`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`,
-					EditorActionsLocation.HIDDEN
-				).negate(),
-				IsSessionsWindowContext.negate()
-			),
+			precondition: ContextKeyExpr.equals(
+				`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`,
+				EditorActionsLocation.HIDDEN
+			).negate(),
 			metadata: {
 				description: localize2('hideEditorActonsDescription', 'Hide Editor Actions in the tab and title bar')
 			},
@@ -891,9 +864,9 @@ export class ShowEditorActionsAction extends Action2 {
 			id: ShowEditorActionsAction.ID,
 			title: localize2('showEditorActons', 'Show Editor Actions'),
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.HIDDEN),
-				IsSessionsWindowContext.negate()
+			precondition: ContextKeyExpr.equals(
+				`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`,
+				EditorActionsLocation.HIDDEN
 			),
 			metadata: { description: localize2('showEditorActonsDescription', 'Make Editor Actions visible.') },
 			f1: true
@@ -913,8 +886,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.EditorActionsPositionSubmenu,
 	title: localize('editorActionsPosition', 'Editor Actions Position'),
 	group: '3_workbench_layout_move',
-	order: 11,
-	when: IsSessionsWindowContext.negate()
+	order: 11
 });
 
 // --- Configure Tabs Layout
@@ -988,6 +960,55 @@ registerAction2(
 	}
 );
 
+// --- Toggle Zen Mode
+
+registerAction2(
+	class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.toggleZenMode',
+				title: {
+					...localize2('toggleZenMode', 'Toggle Zen Mode'),
+					mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, 'Zen Mode')
+				},
+				precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
+				category: Categories.View,
+				f1: true,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyZ)
+				},
+				toggled: InEditorZenModeContext,
+				menu: [
+					{
+						id: MenuId.MenubarAppearanceMenu,
+						group: '1_toggle_view',
+						order: 2
+					}
+				]
+			});
+		}
+
+		run(accessor: ServicesAccessor): void {
+			return accessor.get(IWorkbenchLayoutService).toggleZenMode();
+		}
+	}
+);
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.exitZenMode',
+	weight: KeybindingWeight.EditorContrib - 1000,
+	handler(accessor: ServicesAccessor) {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (InEditorZenModeContext.getValue(contextKeyService)) {
+			layoutService.toggleZenMode();
+		}
+	},
+	when: InEditorZenModeContext,
+	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
+});
+
 // --- Toggle Menu Bar
 
 const _sidexMacNative = (globalThis as any).__SIDEX_TAURI__ && isMacintosh;
@@ -1003,14 +1024,17 @@ if ((isWindows || isLinux || isWeb) && !_sidexMacNative) {
 					},
 					category: Categories.View,
 					f1: true,
-					precondition: IsSessionsWindowContext.negate(),
-					toggled: CustomMenuBarVisibleContext,
+					toggled: ContextKeyExpr.and(
+						IsMacNativeContext.toNegated(),
+						ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'),
+						ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'),
+						ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')
+					),
 					menu: [
 						{
 							id: MenuId.MenubarAppearanceMenu,
 							group: '2_workbench_layout',
-							order: 0,
-							when: IsSessionsWindowContext.negate()
+							order: 0
 						}
 					]
 				});
@@ -1028,7 +1052,12 @@ if ((isWindows || isLinux || isWeb) && !_sidexMacNative) {
 			command: {
 				id: 'workbench.action.toggleMenuBar',
 				title: localize('miMenuBarNoMnemonic', 'Menu Bar'),
-				toggled: CustomMenuBarVisibleContext
+				toggled: ContextKeyExpr.and(
+					IsMacNativeContext.toNegated(),
+					ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'),
+					ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'),
+					ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')
+				)
 			},
 			when: ContextKeyExpr.and(
 				IsAuxiliaryWindowFocusedContext.toNegated(),
@@ -1694,12 +1723,18 @@ const CreateOptionLayoutItem = (
 	};
 };
 
+const MenuBarToggledContext = ContextKeyExpr.and(
+	IsMacNativeContext.toNegated(),
+	ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'),
+	ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'),
+	ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')
+) as ContextKeyExpression;
 const ToggleVisibilityActions: CustomizeLayoutItem[] = [];
 if ((!isMacintosh || !isNative) && !_sidexMacNative) {
 	ToggleVisibilityActions.push(
 		CreateToggleLayoutItem(
 			'workbench.action.toggleMenuBar',
-			CustomMenuBarVisibleContext,
+			MenuBarToggledContext,
 			localize('menuBar', 'Menu Bar'),
 			menubarIcon
 		)
@@ -1805,23 +1840,6 @@ const QuickInputActions: CustomizeLayoutItem[] = [
 	)
 ];
 
-const ModernUIEnabledContext = ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true);
-
-const LayoutDensityActions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem(
-		`workbench.action.setLayoutDensity.${ModernUIDensity.Default}`,
-		ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Default),
-		localize('layoutDensityDefault', 'Default'),
-		layoutDensityDefaultIcon
-	),
-	CreateOptionLayoutItem(
-		`workbench.action.setLayoutDensity.${ModernUIDensity.Compact}`,
-		ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Compact),
-		localize('layoutDensityCompact', 'Compact'),
-		layoutDensityCompactIcon
-	)
-];
-
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem(
 		'workbench.action.toggleFullScreen',
@@ -1849,29 +1867,12 @@ for (const { active } of [
 	...MoveSideBarActions,
 	...AlignPanelActions,
 	...QuickInputActions,
-	...LayoutDensityActions,
 	...MiscLayoutOptions
 ]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
 	}
 }
-for (const key of ModernUIEnabledContext.keys()) {
-	LayoutContextKeySet.add(key);
-}
-
-/**
- * Matches the title bar's `editorActionsEnabled` getter: true when editor
- * actions render in the title bar (either explicitly, or because tabs are
- * hidden and the location defaults there).
- */
-const EditorActionsInTitleBar = ContextKeyExpr.or(
-	ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.TITLEBAR),
-	ContextKeyExpr.and(
-		ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_ACTIONS_LOCATION}`, EditorActionsLocation.DEFAULT),
-		ContextKeyExpr.equals(`config.${LayoutSettings.EDITOR_TABS_MODE}`, EditorTabsMode.NONE)
-	)
-)!;
 
 registerAction2(
 	class CustomizeLayoutAction extends Action2 {
@@ -1892,17 +1893,7 @@ registerAction2(
 						id: MenuId.LayoutControlMenu,
 						when: ContextKeyExpr.and(
 							IsAuxiliaryWindowContext.toNegated(),
-							ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
-							EditorActionsInTitleBar.negate()
-						),
-						group: 'navigation'
-					},
-					{
-						id: MenuId.LayoutControlMenu,
-						when: ContextKeyExpr.and(
-							IsAuxiliaryWindowContext.toNegated(),
-							ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
-							EditorActionsInTitleBar
+							ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
 						),
 						group: '1_layout'
 					}
@@ -1958,17 +1949,6 @@ registerAction2(
 							]
 				};
 			};
-			const layoutDensityItems: QuickPickItem[] = [];
-			if (ModernUIEnabledContext.evaluate(contextKeyService.getContext(null))) {
-				layoutDensityItems.push(
-					{
-						type: 'separator',
-						label: localize('layoutDensity', 'Layout Density')
-					},
-					...LayoutDensityActions.map(toQuickPickItem)
-				);
-			}
-
 			return [
 				{
 					type: 'separator',
@@ -1990,7 +1970,6 @@ registerAction2(
 					label: localize('quickOpen', 'Quick Input Position')
 				},
 				...QuickInputActions.map(toQuickPickItem),
-				...layoutDensityItems,
 				{
 					type: 'separator',
 					label: localize('layoutModes', 'Modes')
@@ -2084,7 +2063,6 @@ registerAction2(
 						resetSetting('workbench.sideBar.location');
 						resetSetting('workbench.statusBar.visible');
 						resetSetting('workbench.panel.defaultLocation');
-						resetSetting(LayoutSettings.MODERN_UI_DENSITY);
 
 						if ((!isMacintosh || !isNative) && !_sidexMacNative) {
 							resetSetting('window.menuBarVisibility');

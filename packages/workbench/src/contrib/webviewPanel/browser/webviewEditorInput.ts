@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CodeWindow } from '@sidex/base/browser/window.js';
-import { CancellationToken } from '@sidex/base/common/cancellation.js';
-import { IEditorOptions } from '@sidex/platform/editor/common/editor.js';
 import { Schemas } from '@sidex/base/common/network.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { URI } from '@sidex/base/common/uri.js';
@@ -13,13 +11,7 @@ import { generateUuid } from '@sidex/base/common/uuid.js';
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import { isDark } from '@sidex/platform/theme/common/theme.js';
 import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
-import {
-	EditorInputCapabilities,
-	GroupIdentifier,
-	IEditorPaneSelection,
-	IUntypedEditorInput,
-	Verbosity
-} from '../../../common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
 
@@ -31,12 +23,6 @@ export interface WebviewInputInitInfo {
 }
 
 export class WebviewInput extends EditorInput {
-	public async applyOptions(_options: IEditorOptions, _token: CancellationToken): Promise<void> {}
-
-	public getSelection(): IEditorPaneSelection | undefined {
-		return undefined;
-	}
-
 	public static typeId = 'workbench.editors.webviewInput';
 
 	public override get typeId(): string {
@@ -61,7 +47,7 @@ export class WebviewInput extends EditorInput {
 
 	private _webview: IOverlayWebview;
 
-	private _hasTransferred = false;
+	private _hasTransfered = false;
 
 	get resource() {
 		return URI.from({
@@ -97,7 +83,7 @@ export class WebviewInput extends EditorInput {
 
 	override dispose() {
 		if (!this.isDisposed()) {
-			if (!this._hasTransferred) {
+			if (!this._hasTransfered) {
 				this._webview?.dispose();
 			}
 		}
@@ -170,10 +156,10 @@ export class WebviewInput extends EditorInput {
 	}
 
 	protected transfer(other: WebviewInput): WebviewInput | undefined {
-		if (this._hasTransferred) {
+		if (this._hasTransfered) {
 			return undefined;
 		}
-		this._hasTransferred = true;
+		this._hasTransfered = true;
 		other._webview = this._webview;
 		return other;
 	}

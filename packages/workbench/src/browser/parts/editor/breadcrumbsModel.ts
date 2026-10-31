@@ -12,7 +12,6 @@ import { dirname, isEqual } from '@sidex/base/common/resources.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { FileKind } from '@sidex/platform/files/common/files.js';
-import { ILabelService } from '@sidex/platform/label/common/label.js';
 import {
 	IWorkspaceContextService,
 	IWorkspaceFolder,
@@ -21,22 +20,15 @@ import {
 import { BreadcrumbsConfig } from './breadcrumbs.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
-import { IWorkspaceFolderLabelService } from '../../../services/workspaces/common/workspaceFolderLabelService.js';
-import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
 
 export class FileElement {
 	constructor(
 		readonly uri: URI,
-		readonly kind: FileKind,
-		readonly label?: string
+		readonly kind: FileKind
 	) {}
-
-	equals(other: FileElement): boolean {
-		return isEqual(this.uri, other.uri) && this.label === other.label;
-	}
 }
 
-type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder; home?: URI };
+type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
 
 export class OutlineElement2 {
 	constructor(
@@ -63,10 +55,7 @@ export class BreadcrumbsModel {
 		readonly editor: IEditorPane | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
-		@IWorkspaceFolderLabelService private readonly _workspaceFolderLabelService: IWorkspaceFolderLabelService,
-		@IOutlineService private readonly _outlineService: IOutlineService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
+		@IOutlineService private readonly _outlineService: IOutlineService
 	) {
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
@@ -74,13 +63,6 @@ export class BreadcrumbsModel {
 		this._disposables.add(this._cfgFilePath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._disposables.add(this._cfgSymbolPath.onDidChange(_ => this._onDidUpdate.fire(this)));
 		this._workspaceService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspaceFolders, this, this._disposables);
-		this._disposables.add(
-			this._labelService.onDidChangeFormatters(e => {
-				if (e.scheme === this.resource.scheme) {
-					this._updateFileInfo();
-				}
-			})
-		);
 		this._fileInfo = this._initFilePathInfo(resource);
 
 		if (editor) {
@@ -101,7 +83,7 @@ export class BreadcrumbsModel {
 	}
 
 	isRelative(): boolean {
-		return Boolean(this._fileInfo.folder || this._fileInfo.home);
+		return Boolean(this._fileInfo.folder);
 	}
 
 	getElements(): ReadonlyArray<FileElement | OutlineElement2> {
@@ -151,17 +133,12 @@ export class BreadcrumbsModel {
 
 		const info: FileInfo = {
 			folder: this._workspaceService.getWorkspaceFolder(uri) ?? undefined,
-			path: [],
-			home: this._labelService.getUriHome(uri)
+			path: []
 		};
 
 		let uriPrefix: URI | null = uri;
 		while (uriPrefix && uriPrefix.path !== '/') {
-			if (
-				(info.folder && isEqual(info.folder.uri, uriPrefix)) ||
-				(info.home &&
-					this._uriIdentityService.extUri.isEqual(info.home, uriPrefix.with({ query: null, fragment: null })))
-			) {
+			if (info.folder && isEqual(info.folder.uri, uriPrefix)) {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));
@@ -172,36 +149,13 @@ export class BreadcrumbsModel {
 			}
 		}
 
-		if (info.home) {
-			const separator = this._labelService.getSeparator(info.home.scheme, info.home.authority);
-			const labels = this._labelService.getUriLabel(info.home).split(separator).filter(Boolean);
-			for (let index = labels.length - 1; index >= 0; index--) {
-				info.path.unshift(
-					new FileElement(info.home, index === 0 ? FileKind.ROOT_FOLDER : FileKind.FOLDER, labels[index])
-				);
-			}
-		}
-
 		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const folderCount = this._workspaceService.getWorkspace().folders.length;
-			if (folderCount > 1 || isEqual(info.folder.uri, this.resource)) {
-				info.path.unshift(
-					new FileElement(
-						info.folder.uri,
-						FileKind.ROOT_FOLDER,
-						this._workspaceFolderLabelService.getWorkspaceFolderLabel(info.folder)
-					)
-				);
-			}
+			info.path.unshift(new FileElement(info.folder.uri, FileKind.ROOT_FOLDER));
 		}
 		return info;
 	}
 
 	private _onDidChangeWorkspaceFolders() {
-		this._updateFileInfo();
-	}
-
-	private _updateFileInfo(): void {
 		this._fileInfo = this._initFilePathInfo(this.resource);
 		this._onDidUpdate.fire(this);
 	}

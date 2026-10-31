@@ -20,21 +20,7 @@ export class NoEditorTabsControl extends EditorTabsControl {
 		};
 	}
 
-	protected override prepareEditorLayoutActions(): IToolbarActions {
-		return {
-			primary: [],
-			secondary: []
-		};
-	}
-
-	protected override prepareEditorLayoutActions(): IToolbarActions {
-		return {
-			primary: [],
-			secondary: []
-		};
-	}
-
-	openEditor(editor: EditorInput): boolean {
+	openEditor(_editor: EditorInput): boolean {
 		return this.handleOpenedEditors();
 	}
 
@@ -88,11 +74,7 @@ export class NoEditorTabsControl extends EditorTabsControl {
 
 	updateEditorLabel(_editor: EditorInput): void {}
 
-	updateEditorCapabilities(editor: EditorInput): void {}
-
-	updateEditorCapabilities(editor: EditorInput): void {}
-
-	updateEditorDirty(editor: EditorInput): void {}
+	updateEditorDirty(_editor: EditorInput): void {}
 
 	getHeight(): number {
 		return 0;

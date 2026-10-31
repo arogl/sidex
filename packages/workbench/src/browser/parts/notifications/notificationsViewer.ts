@@ -10,9 +10,9 @@ import { URI } from '@sidex/base/common/uri.js';
 import { localize } from '@sidex/base/nls.js';
 import { ButtonBar, IButtonOptions } from '@sidex/base/browser/ui/button/button.js';
 import { ActionBar } from '@sidex/base/browser/ui/actionbar/actionbar.js';
-import { Action, ActionRunner, IAction, IActionRunner, Separator, toAction } from '@sidex/base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner, Separator, toAction } from '@sidex/base/common/actions.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
-import { dispose, DisposableStore, Disposable, markAsSingleton } from '@sidex/base/common/lifecycle.js';
+import { dispose, DisposableStore, Disposable } from '@sidex/base/common/lifecycle.js';
 import { IContextMenuService } from '@sidex/platform/contextview/browser/contextView.js';
 import {
 	INotificationViewItem,
@@ -45,7 +45,7 @@ import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { DropdownMenuActionViewItem } from '@sidex/base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { DomEmitter } from '@sidex/base/browser/event.js';
 import { Gesture, EventType as GestureEventType } from '@sidex/base/browser/touch.js';
-import { Emitter, Event } from '@sidex/base/common/event.js';
+import { Event } from '@sidex/base/common/event.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 import { KeyCode } from '@sidex/base/common/keyCodes.js';
 import { StandardKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
@@ -53,39 +53,9 @@ import { getDefaultHoverDelegate } from '@sidex/base/browser/ui/hover/hoverDeleg
 import type { IManagedHover } from '@sidex/base/browser/ui/hover/hover.js';
 import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
-import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
-import {
-	NotificationActionTelemetryId,
-	withNotificationActionTelemetry
-} from '@sidex/platform/notification/common/notificationTelemetry.js';
-import { logNotificationInteraction, NotificationTelemetrySurface } from '../../../common/notificationTelemetry.js';
-import { NotificationActionRunner } from './notificationsCommands.js';
-
-/** Default height (px) of a single notification row. */
-export const DEFAULT_NOTIFICATION_ROW_HEIGHT = 42;
-
-/** Compact height (px) of a single notification row. */
-export const COMPACT_NOTIFICATION_ROW_HEIGHT = 34;
-
-/** Current height (px) of a single notification row; overridable via {@link setNotificationRowHeight}. */
-let notificationRowHeight = DEFAULT_NOTIFICATION_ROW_HEIGHT;
-const onDidChangeNotificationRowHeightEmitter = new Emitter<number>();
-export const onDidChangeNotificationRowHeight = onDidChangeNotificationRowHeightEmitter.event;
-
-/**
- * Overrides the height (px) of a single notification row.
- */
-export function setNotificationRowHeight(height: number): void {
-	if (height !== notificationRowHeight) {
-		notificationRowHeight = height;
-		onDidChangeNotificationRowHeightEmitter.fire(height);
-	}
-}
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
-	private static get ROW_HEIGHT(): number {
-		return notificationRowHeight;
-	}
+	private static readonly ROW_HEIGHT = 42;
 	private static readonly LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
@@ -131,7 +101,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 	private computePreferredHeight(notification: INotificationViewItem): number {
 		// Prepare offset helper depending on toolbar actions count
 		let actions = 0;
-		if (!notification.hasActiveProgress) {
+		if (!notification.hasProgress) {
 			actions++; // close
 		}
 		if (notification.canCollapse) {
@@ -276,17 +246,17 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 			ariaLabel: localize('notificationActions', 'Notification Actions'),
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof ConfigureNotificationAction) {
-					return new DropdownMenuActionViewItem(
-						action,
-						{
-							getActions() {
-								const actions: IAction[] = [];
+					return data.toDispose.add(
+						new DropdownMenuActionViewItem(
+							action,
+							{
+								getActions() {
+									const actions: IAction[] = [];
 
-								const source = { id: action.notification.sourceId, label: action.notification.source };
-								if (isNotificationSource(source)) {
-									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
-									actions.push(
-										withNotificationActionTelemetry(
+									const source = { id: action.notification.sourceId, label: action.notification.source };
+									if (isNotificationSource(source)) {
+										const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
+										actions.push(
 											toAction({
 												id: source.id,
 												label: isSourceFiltered
@@ -301,29 +271,28 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 														...source,
 														filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR
 													})
-											}),
-											NotificationActionTelemetryId.Configure
-										)
-									);
+											})
+										);
 
-									if (action.notification.actions?.secondary?.length) {
-										actions.push(new Separator());
+										if (action.notification.actions?.secondary?.length) {
+											actions.push(new Separator());
+										}
 									}
-								}
 
-								if (Array.isArray(action.notification.actions?.secondary)) {
-									actions.push(...action.notification.actions.secondary);
-								}
+									if (Array.isArray(action.notification.actions?.secondary)) {
+										actions.push(...action.notification.actions.secondary);
+									}
 
-								return actions;
+									return actions;
+								}
+							},
+							this.contextMenuService,
+							{
+								...options,
+								actionRunner: this.actionRunner,
+								classNames: action.class
 							}
-						},
-						this.contextMenuService,
-						{
-							...options,
-							actionRunner: this.actionRunner,
-							classNames: action.class
-						}
+						)
 					);
 				}
 
@@ -360,12 +329,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.toDispose.add(data.progress);
 
 		// Renderer
-		data.renderer = this.instantiationService.createInstance(
-			NotificationTemplateRenderer,
-			data,
-			this.actionRunner,
-			this.actionRunner instanceof NotificationActionRunner ? this.actionRunner.telemetrySurface : undefined
-		);
+		data.renderer = this.instantiationService.createInstance(NotificationTemplateRenderer, data, this.actionRunner);
 		data.toDispose.add(data.renderer);
 
 		return data;
@@ -406,38 +370,30 @@ export class NotificationTemplateRenderer extends Disposable {
 	constructor(
 		private template: INotificationTemplateData,
 		private actionRunner: IActionRunner,
-		private readonly telemetrySurface: NotificationTelemetrySurface | undefined,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
-			NotificationTemplateRenderer.closeNotificationAction = markAsSingleton(
-				instantiationService.createInstance(
-					ClearNotificationAction,
-					ClearNotificationAction.ID,
-					ClearNotificationAction.LABEL
-				)
+			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(
+				ClearNotificationAction,
+				ClearNotificationAction.ID,
+				ClearNotificationAction.LABEL
 			);
-			NotificationTemplateRenderer.expandNotificationAction = markAsSingleton(
-				instantiationService.createInstance(
-					ExpandNotificationAction,
-					ExpandNotificationAction.ID,
-					ExpandNotificationAction.LABEL
-				)
+			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(
+				ExpandNotificationAction,
+				ExpandNotificationAction.ID,
+				ExpandNotificationAction.LABEL
 			);
-			NotificationTemplateRenderer.collapseNotificationAction = markAsSingleton(
-				instantiationService.createInstance(
-					CollapseNotificationAction,
-					CollapseNotificationAction.ID,
-					CollapseNotificationAction.LABEL
-				)
+			NotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(
+				CollapseNotificationAction,
+				CollapseNotificationAction.ID,
+				CollapseNotificationAction.LABEL
 			);
 			NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
 		}
@@ -470,10 +426,9 @@ export class NotificationTemplateRenderer extends Disposable {
 		);
 		this.inputDisposables.add(
 			addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
-				if (!notification.hasActiveProgress && e.button === 1 /* Middle Button */) {
+				if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
 					EventHelper.stop(e, true);
 
-					logNotificationInteraction(this.telemetryService, notification, 'dismiss', this.telemetrySurface);
 					notification.close();
 				}
 			})
@@ -538,10 +493,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		clearNode(this.template.message);
 		this.template.message.appendChild(
 			NotificationMessageRenderer.render(notification.message, {
-				callback: link => {
-					logNotificationInteraction(this.telemetryService, notification, 'link', this.telemetrySurface);
-					return this.openerService.open(URI.parse(link), { allowCommands: true });
-				},
+				callback: link => this.openerService.open(URI.parse(link), { allowCommands: true }),
 				toDispose: this.inputDisposables
 			})
 		);
@@ -592,7 +544,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		}
 
 		// Close (unless progress is showing)
-		if (!notification.hasActiveProgress) {
+		if (!notification.hasProgress) {
 			actions.push(NotificationTemplateRenderer.closeNotificationAction);
 		}
 
@@ -657,16 +609,6 @@ export class NotificationTemplateRenderer extends Disposable {
 				);
 
 				button.label = action.label;
-				button.enabled = action.enabled;
-				if (action instanceof Action) {
-					this.inputDisposables.add(
-						action.onDidChange(change => {
-							if (typeof change.enabled === 'boolean') {
-								button.enabled = change.enabled;
-							}
-						})
-					);
-				}
 
 				this.inputDisposables.add(
 					button.onDidClick(e => {
@@ -683,7 +625,7 @@ export class NotificationTemplateRenderer extends Disposable {
 
 	private renderProgress(notification: INotificationViewItem): void {
 		// Return early if the item has no progress
-		if (!notification.hasActiveProgress) {
+		if (!notification.hasProgress) {
 			this.template.progress.stop().hide();
 
 			return;

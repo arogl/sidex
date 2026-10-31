@@ -74,7 +74,6 @@ export abstract class BreadcrumbsConfig<T> {
 	);
 	static readonly SymbolPathSeparator = BreadcrumbsConfig._stub<string>('breadcrumbs.symbolPathSeparator');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
-	static readonly ShowEditorType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.showEditorType');
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>(
 		'workbench.editor.titleScrollbarSizing'
 	);
@@ -131,8 +130,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'breadcrumbs.enabled': {
 			description: localize('enabled', 'Enable/disable navigation breadcrumbs.'),
 			type: 'boolean',
-			default: true,
-			agentsWindow: { default: true }
+			default: true
 		},
 		'breadcrumbs.filePath': {
 			description: localize('filepath', 'Controls whether and how file paths are shown in the breadcrumbs view.'),
@@ -172,15 +170,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('icons', 'Render breadcrumb items with icons.'),
 			type: 'boolean',
 			default: true
-		},
-		'breadcrumbs.showEditorType': {
-			markdownDescription: localize(
-				'showEditorType',
-				'Controls whether the breadcrumbs bar shows a dropdown to switch between the editors that can open the current file (for example the text editor and a custom editor). The dropdown only appears when a more specialized editor is available.'
-			),
-			type: 'boolean',
-			default: true,
-			tags: ['experimental']
 		},
 		'breadcrumbs.symbolPathSeparator': {
 			description: localize('symbolPathSeparator', 'The separator used when copying the breadcrumb symbol path.'),

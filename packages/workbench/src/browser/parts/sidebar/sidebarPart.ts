@@ -36,8 +36,6 @@ import {
 import { INotificationService } from '@sidex/platform/notification/common/notification.js';
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '@sidex/base/browser/ui/contextview/contextview.js';
-import { IBoundarySashes } from '@sidex/base/browser/ui/sash/sash.js';
-import { MutableDisposable } from '@sidex/base/common/lifecycle.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { LayoutPriority } from '@sidex/base/browser/ui/grid/grid.js';
 import { assertReturnsDefined } from '@sidex/base/common/types.js';
@@ -55,8 +53,6 @@ import { localize2 } from '@sidex/base/nls.js';
 import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
-
-const PRIMARY_SIDE_BAR_SASH_CLASS = 'primary-sidebar-sash';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 	static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
@@ -92,7 +88,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		this.instantiationService.createInstance(ActivitybarPart, this.location, this)
 	);
 	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
-	private readonly primarySideBarSashClassDisposable = this._register(new MutableDisposable());
 
 	//#endregion
 
@@ -108,7 +103,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService
 	) {
 		super(
@@ -128,6 +123,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Sidebar,
 			Extensions.Viewlets,
 			MenuId.SidebarTitle,
+			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -139,8 +135,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
-			menuService,
-			configurationService
+			menuService
 		);
 
 		// Track visible view containers for auto-hide
@@ -226,15 +221,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		super.layout(width, height, top, left);
 	}
 
-	override setBoundarySashes(sashes: IBoundarySashes): void {
-		super.setBoundarySashes?.(sashes);
-
-		this.primarySideBarSashClassDisposable.clear();
-		const primarySideBarSash =
-			this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? sashes.right : sashes.left;
-		this.primarySideBarSashClassDisposable.value = primarySideBarSash?.addClass(PRIMARY_SIDE_BAR_SASH_CLASS);
-	}
-
 	protected override getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
 		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT
 			? AnchorAlignment.LEFT
@@ -248,7 +234,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			this.getCompositeBarOptions(),
 			this.partId,
 			this,
-			undefined
+			false
 		);
 	}
 

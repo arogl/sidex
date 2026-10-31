@@ -107,6 +107,12 @@ export interface ITerminalProfileResolverService {
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
 
+/*
+ * When there were shell integration args injected
+ * and createProcess returns an error, this exit code will be used.
+ */
+export const ShellIntegrationExitCode = 633;
+
 export interface IRegisterContributedProfileArgs {
 	extensionIdentifier: string;
 	id: string;
@@ -128,20 +134,12 @@ export interface ITerminalProfileService {
 	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
-	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(
 		extensionIdentifier: string,
 		id: string,
 		profileProvider: ITerminalProfileProvider
 	): IDisposable;
-	/**
-	 * Overrides the default contributed terminal profile. When set,
-	 * {@link getContributedDefaultProfile} returns the matching profile
-	 * regardless of the user's configuration. Dispose the returned
-	 * disposable to remove the override.
-	 */
-	overrideDefaultProfile(extensionIdentifier: string, id: string): IDisposable;
 }
 
 export interface ITerminalProfileProvider {
@@ -152,7 +150,6 @@ export interface IShellLaunchConfigResolveOptions {
 	remoteAuthority: string | undefined;
 	os: OperatingSystem;
 	allowAutomationShell?: boolean;
-	allowAgentHostShell?: boolean;
 }
 
 export type FontWeight = 'normal' | 'bold' | number;
@@ -211,7 +208,6 @@ export interface ITerminalConfiguration {
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;
 	fontFamily: string;
-	fontRendering?: 'inherit' | 'grayscale';
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
@@ -239,7 +235,6 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsUseConptyDll?: boolean;
-	windowsReparentConsoleWindow?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];
@@ -254,7 +249,6 @@ export interface ITerminalConfiguration {
 		title: string;
 		description: string;
 		separator: string;
-		allowAgentCliTitle: boolean;
 	};
 	bellDuration: number;
 	defaultLocation: TerminalLocationConfigValue;
@@ -352,7 +346,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessReplayComplete: Event<void>;
-	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo | undefined>;
+	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
@@ -376,10 +370,6 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	setDimensions(cols: number, rows: number, sync: false, pixelWidth?: number, pixelHeight?: number): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): Promise<void>;
-	/**
-	 * Sets the window hosting the terminal so the console window is owned by it (Windows only).
-	 */
-	setParentWindow(windowId: number): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
 	acknowledgeDataEvent(charCount: number): void;
@@ -528,7 +518,6 @@ export const enum TerminalCommandId {
 	FocusNext = 'workbench.action.terminal.focusNext',
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',
-	PastePwsh = 'workbench.action.terminal.pastePwsh',
 	PasteSelection = 'workbench.action.terminal.pasteSelection',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	RunSelectedText = 'workbench.action.terminal.runSelectedText',
@@ -599,7 +588,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.New,
 	TerminalCommandId.NewInNewWindow,
 	TerminalCommandId.Paste,
-	TerminalCommandId.PastePwsh,
 	TerminalCommandId.PasteSelection,
 	TerminalCommandId.ResizePaneDown,
 	TerminalCommandId.ResizePaneLeft,
@@ -677,20 +665,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.debug.stepInto',
 	'workbench.action.debug.stepOut',
 	'workbench.action.debug.stepOver',
-	'sessions.goBack',
-	'sessions.goForward',
-	'sessions.focusActiveSession',
-	'sessions.focusSessionInGrid1',
-	'sessions.focusSessionInGrid2',
-	'sessions.focusSessionInGrid3',
-	'sessions.focusSessionInGrid4',
-	'sessions.focusSessionInGrid5',
-	'sessions.focusSessionInGrid6',
-	'sessions.focusSessionInGrid7',
-	'sessions.focusSessionInGrid8',
-	'sessions.focusSessionInGrid9',
-	'sessionsViewPane.navigatePreviousSession',
-	'sessionsViewPane.navigateNextSession',
 	'workbench.action.nextEditor',
 	'workbench.action.previousEditor',
 	'workbench.action.nextEditorInGroup',

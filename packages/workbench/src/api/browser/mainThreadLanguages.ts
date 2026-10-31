@@ -10,21 +10,15 @@ import {
 	MainThreadLanguagesShape,
 	MainContext,
 	ExtHostContext,
-	ExtHostLanguagesShape,
-	ISyntaxHighlightingResultDto,
-	ISyntaxHighlightingTokenDto
+	ExtHostLanguagesShape
 } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IPosition } from '@sidex/editor/common/core/position.js';
 import { IRange, Range } from '@sidex/editor/common/core/range.js';
-import { StandardTokenType, TokenMetadata, FontStyle } from '@sidex/editor/common/encodedTokenAttributes.js';
-import { TokenizationRegistry } from '@sidex/editor/common/languages.js';
-import { Color } from '@sidex/base/common/color.js';
+import { StandardTokenType } from '@sidex/editor/common/encodedTokenAttributes.js';
 import { ITextModelService } from '@sidex/editor/common/services/resolverService.js';
 import { ILanguageStatus, ILanguageStatusService } from '../../services/languageStatus/common/languageStatusService.js';
 import { Disposable, DisposableMap } from '@sidex/base/common/lifecycle.js';
-import { ITextMateTokenizationService } from '../../services/textMate/browser/textMateTokenizationFeature.js';
-import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages extends Disposable implements MainThreadLanguagesShape {
@@ -37,9 +31,7 @@ export class MainThreadLanguages extends Disposable implements MainThreadLanguag
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private _resolverService: ITextModelService,
-		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
-		@ITextMateTokenizationService private readonly _textMateService: ITextMateTokenizationService,
-		@IThemeService themeService: IThemeService
+		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService
 	) {
 		super();
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
@@ -48,11 +40,6 @@ export class MainThreadLanguages extends Disposable implements MainThreadLanguag
 		this._register(
 			_languageService.onDidChange(_ => {
 				this._proxy.$acceptLanguageIds(_languageService.getRegisteredLanguageIds());
-			})
-		);
-		this._register(
-			themeService.onDidColorThemeChange(() => {
-				this._proxy.$acceptSyntaxHighlightingThemeChanged();
 			})
 		);
 	}
@@ -92,48 +79,6 @@ export class MainThreadLanguages extends Disposable implements MainThreadLanguag
 				1 + tokens.getEndOffset(idx)
 			)
 		};
-	}
-
-	async $computeFullSyntaxHighlighting(source: string, languageId: string): Promise<ISyntaxHighlightingResultDto> {
-		const colorMap = (TokenizationRegistry.getColorMap() ?? []).map((c: Color | null) =>
-			c ? Color.Format.CSS.formatHexA(c) : ''
-		);
-		const resolvedLanguageId = this._languageService.isRegisteredLanguageId(languageId)
-			? languageId
-			: this._languageService.getLanguageIdByLanguageName(languageId);
-		const grammar = resolvedLanguageId ? await this._textMateService.createTokenizer(resolvedLanguageId) : null;
-
-		if (!grammar) {
-			const tokens: ISyntaxHighlightingTokenDto[] =
-				source.length === 0 ? [] : [{ length: source.length, foreground: 0, fontStyle: FontStyle.None }];
-			return { tokens, colorMap };
-		}
-
-		const tokens: ISyntaxHighlightingTokenDto[] = [];
-		const lines = source.split('\n');
-		let state = null;
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-			const result = grammar.tokenizeLine2(line, state, 500);
-			state = result.ruleStack;
-			const binary = result.tokens;
-			for (let j = 0; j < binary.length; j += 2) {
-				const startOffset = binary[j];
-				const metadata = binary[j + 1];
-				const endOffset = j + 2 < binary.length ? binary[j + 2] : line.length;
-				if (endOffset > startOffset) {
-					tokens.push({
-						length: endOffset - startOffset,
-						foreground: TokenMetadata.getForeground(metadata),
-						fontStyle: TokenMetadata.getFontStyle(metadata)
-					});
-				}
-			}
-			if (i < lines.length - 1) {
-				tokens.push({ length: 1, foreground: 0, fontStyle: FontStyle.None }); // newline char
-			}
-		}
-		return { tokens, colorMap };
 	}
 
 	// --- language status

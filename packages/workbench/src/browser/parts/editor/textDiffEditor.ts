@@ -16,7 +16,6 @@ import {
 	ITextDiffEditorPane,
 	IEditorOpenContext,
 	isEditorInput,
-	isEditorInputWithOptionsAndGroup,
 	isTextEditorViewState,
 	createTooLargeFileError
 } from '../../../common/editor.js';
@@ -43,7 +42,6 @@ import { Registry } from '@sidex/platform/registry/common/platform.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { CancellationToken } from '@sidex/base/common/cancellation.js';
 import { EditorActivation, ITextEditorOptions } from '@sidex/platform/editor/common/editor.js';
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
@@ -95,8 +93,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService fileService: IFileService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(
 			TextDiffEditor.ID,
@@ -163,7 +160,7 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 
 			// Fallback to open as binary if not text
 			if (!(resolvedModel instanceof TextDiffEditorModel)) {
-				await this.openAsBinary(input, options);
+				this.openAsBinary(input, options);
 				return undefined;
 			}
 
@@ -270,47 +267,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return false;
 	}
 
-	private async openAsBinary(input: DiffEditorInput, options: ITextEditorOptions | undefined): Promise<void> {
+	private openAsBinary(input: DiffEditorInput, options: ITextEditorOptions | undefined): void {
 		const original = input.original;
 		const modified = input.modified;
-
-		// The text diff editor cannot render binary content. Before falling back to the generic binary
-		// "cannot display" panel, check whether a custom editor can render a diff for this resource and
-		// use it instead. This intentionally includes editors that opted out of diffs via a `never`
-		// priority: they opt out for text files, but a custom diff editor is strictly better than the
-		// binary fallback when the content is binary (e.g. an image or hex diff editor).
-		const modifiedResource = modified.resource;
-		if (modifiedResource) {
-			const fallbackEditorId = this.editorResolverService.getBinaryDiffFallbackEditor(modifiedResource);
-			const originalResource = original.resource;
-			if (fallbackEditorId && originalResource) {
-				const resolved = await this.editorResolverService.resolveEditor(
-					{
-						original: { resource: originalResource },
-						modified: { resource: modifiedResource },
-						// Passing an explicit `override` bypasses the automatic `never` filtering and the diff
-						// special-casing, so the resolver returns the custom diff editor directly.
-						options: { ...options, override: fallbackEditorId }
-					},
-					this.group
-				);
-				if (isEditorInputWithOptionsAndGroup(resolved)) {
-					this.group.replaceEditors([
-						{
-							editor: input,
-							replacement: resolved.editor,
-							options: {
-								...resolved.options,
-								activation: EditorActivation.PRESERVE,
-								pinned: this.group.isPinned(input),
-								sticky: this.group.isSticky(input)
-							}
-						}
-					]);
-					return;
-				}
-			}
-		}
 
 		const binaryDiffInput = this.instantiationService.createInstance(
 			DiffEditorInput,

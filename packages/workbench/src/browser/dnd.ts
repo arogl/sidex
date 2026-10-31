@@ -12,13 +12,7 @@ import { ITreeDragOverReaction } from '@sidex/base/browser/ui/tree/tree.js';
 import { coalesce } from '@sidex/base/common/arrays.js';
 import { UriList, VSDataTransfer } from '@sidex/base/common/dataTransfer.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
-import {
-	Disposable,
-	DisposableStore,
-	IDisposable,
-	markAsSingleton,
-	toDisposable
-} from '@sidex/base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton } from '@sidex/base/common/lifecycle.js';
 import { stringify } from '@sidex/base/common/marshalling.js';
 import { Mimes } from '@sidex/base/common/mime.js';
 import { FileAccess, Schemas } from '@sidex/base/common/network.js';
@@ -64,44 +58,6 @@ import { IWorkspaceEditingService } from '../services/workspaces/common/workspac
 import { IEditorOptions } from '@sidex/platform/editor/common/editor.js';
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { BroadcastDataChannel } from '@sidex/base/browser/broadcast.js';
-
-const inputDropTargets = new Set<HTMLElement>();
-
-/** Registers an input that handles drops before its enclosing pane's placement targets. */
-export function registerInputDropTarget(element: HTMLElement): IDisposable {
-	inputDropTargets.add(element);
-	return toDisposable(() => inputDropTargets.delete(element));
-}
-
-export function isInputDropTarget(
-	element: HTMLElement,
-	point?: { readonly clientX: number; readonly clientY: number }
-): boolean {
-	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
-		if (inputDropTargets.has(target)) {
-			return true;
-		}
-	}
-	if (point) {
-		return [...inputDropTargets].some(target => {
-			const bounds = target.getBoundingClientRect();
-			return (
-				target.ownerDocument === element.ownerDocument &&
-				bounds.width > 0 &&
-				bounds.height > 0 &&
-				point.clientX >= bounds.left &&
-				point.clientX <= bounds.right &&
-				point.clientY >= bounds.top &&
-				point.clientY <= bounds.bottom
-			);
-		});
-	}
-	return false;
-}
-
-export function getInputDropTargets(container: HTMLElement): readonly HTMLElement[] {
-	return [...inputDropTargets].filter(target => container.contains(target));
-}
 
 //#region Editor / Resources DND
 
@@ -698,7 +654,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 			);
 		}
 
-		return disposableStore;
+		return this._register(disposableStore);
 	}
 
 	registerDraggable(
@@ -795,7 +751,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 			);
 		}
 
-		return disposableStore;
+		return this._register(disposableStore);
 	}
 }
 

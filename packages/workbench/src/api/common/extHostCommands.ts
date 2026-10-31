@@ -106,8 +106,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 							return extHostTypeConverter.location.to(obj);
 						}
 						if (obj instanceof VSBuffer) {
-							// Create a copy of the buffer since the original buffer is owned by the extension host and might be reused for other commands
-							return obj.buffer.buffer.slice(obj.buffer.byteOffset, obj.buffer.byteOffset + obj.buffer.byteLength);
+							return obj.buffer.buffer;
 						}
 						if (!Array.isArray(obj)) {
 							return obj;

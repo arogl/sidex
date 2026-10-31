@@ -17,7 +17,6 @@ import { IDisposable, Disposable, toDisposable } from '@sidex/base/common/lifecy
 import { LinkedList } from '@sidex/base/common/linkedList.js';
 import { localize } from '@sidex/base/nls.js';
 import { NotificationPriority } from '@sidex/platform/notification/common/notification.js';
-import { NotificationTelemetryId } from '@sidex/platform/notification/common/notificationTelemetry.js';
 import { CancellationError, isCancellationError } from '@sidex/base/common/errors.js';
 
 export class TextFileSaveParticipant extends Disposable {
@@ -57,7 +56,6 @@ export class TextFileSaveParticipant extends Disposable {
 		// create an "inner" progress to allow to skip over long running save participants
 		await this.progressService.withProgress(
 			{
-				telemetry: NotificationTelemetryId.FileSaveParticipants,
 				priority: NotificationPriority.URGENT,
 				location: ProgressLocation.Notification,
 				cancellable: localize('skip', 'Skip'),

@@ -90,7 +90,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -105,6 +105,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Panel,
 			Extensions.Panels,
 			MenuId.PanelTitle,
+			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -116,8 +117,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
-			menuService,
-			configurationService
+			menuService
 		);
 
 		this._register(
@@ -222,16 +222,17 @@ export class PanelPart extends AbstractPaneCompositePart {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
-		let dimensions = new Dimension(width, height);
-		if (!this.layoutService.isFloatingPanelsEnabled()) {
-			switch (this.layoutService.getPanelPosition()) {
-				case Position.RIGHT:
-					dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-					break;
-				case Position.TOP:
-					dimensions = new Dimension(width, height - 1); // Take into account the 1px border when layouting
-					break;
-			}
+		let dimensions: Dimension;
+		switch (this.layoutService.getPanelPosition()) {
+			case Position.RIGHT:
+				dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
+				break;
+			case Position.TOP:
+				dimensions = new Dimension(width, height - 1); // Take into account the 1px border when layouting
+				break;
+			default:
+				dimensions = new Dimension(width, height);
+				break;
 		}
 
 		// Layout contents

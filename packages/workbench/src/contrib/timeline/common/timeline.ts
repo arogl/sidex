@@ -27,6 +27,9 @@ export interface TimelineOptions {
 	limit?: number | { timestamp: number; id?: string };
 }
 
+/**
+ * Signals that timelines of a provider changed.
+ */
 export interface TimelineChangeEvent {
 	id: string;
 	uri: URI | undefined;

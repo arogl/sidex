@@ -248,7 +248,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	const data = element.isConfigured
 		? { ...elementDefaultValue, ...elementScopeValue }
-		: element.hasPolicyValue || element.isAgentsWindowReadOnly
+		: element.hasPolicyValue
 			? element.scopeValue
 			: elementDefaultValue;
 
@@ -1054,7 +1054,7 @@ export abstract class AbstractSettingRenderer
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
-		const toolbar = toDispose.add(this.renderSettingToolbar(toolbarContainer));
+		const toolbar = this.renderSettingToolbar(toolbarContainer);
 
 		const template: ISettingItemTemplate = {
 			toDispose,
@@ -1195,18 +1195,8 @@ export abstract class AbstractSettingRenderer
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
-		const isInformationalDeprecation = element.setting.deprecationMessageSeverity === 'info';
-		const deprecationIcon = isInformationalDeprecation ? $('.codicon.codicon-info') : $('.codicon.codicon-error');
-		deprecationIcon.setAttribute('role', 'img');
-		deprecationIcon.setAttribute(
-			'aria-label',
-			isInformationalDeprecation
-				? localize('setting.deprecationMessageSeverity.info', 'Info')
-				: localize('setting.deprecationMessageSeverity.warning', 'Warning')
-		);
-		template.deprecationWarningElement.prepend(deprecationIcon);
+		template.deprecationWarningElement.prepend($('.codicon.codicon-error'));
 		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
-		template.containerElement.classList.toggle('is-deprecated-info', !!deprecationText && isInformationalDeprecation);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
@@ -1522,10 +1512,7 @@ class SettingComplexObjectRenderer
 			showAddButton: false,
 			isReadOnly: true
 		});
-		template.button.parentElement?.classList.toggle(
-			'hide',
-			dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly
-		);
+		template.button.parentElement?.classList.toggle('hide', dataElement.hasPolicyValue);
 		super.renderValue(dataElement, template, onChange);
 	}
 }
@@ -1599,8 +1586,6 @@ class SettingArrayRenderer
 			}
 
 			if (
-				template.context.settingsTarget !== ConfigurationTarget.WORKSPACE &&
-				!URI.isUri(template.context.settingsTarget) &&
 				template.context.defaultValue &&
 				Array.isArray(template.context.defaultValue) &&
 				template.context.defaultValue.length === newValue.length &&
@@ -1631,8 +1616,7 @@ class SettingArrayRenderer
 		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
 		template.listWidget.setValue(value, {
 			showAddButton: getShowAddButtonList(dataElement, value),
-			keySuggester,
-			isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly
+			keySuggester
 		});
 		template.context = dataElement;
 
@@ -2015,9 +1999,7 @@ abstract class SettingIncludeExcludeRenderer
 		_onChange: (value: string) => void
 	): void {
 		const value = getIncludeExcludeDisplayValue(dataElement);
-		template.includeExcludeWidget.setValue(value, {
-			isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly
-		});
+		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue });
 		template.context = dataElement;
 		template.elementDisposables.add(
 			toDisposable(() => {
@@ -2102,7 +2084,7 @@ abstract class AbstractSettingTextRenderer
 	): void {
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
@@ -2285,7 +2267,7 @@ class SettingEnumRenderer
 
 		template.selectBox.setOptions(displayOptions);
 		template.selectBox.setAriaLabel(dataElement.setting.key);
-		template.selectBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.selectBox.setEnabled(!dataElement.hasPolicyValue);
 
 		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
@@ -2399,7 +2381,7 @@ class SettingNumberRenderer
 		template.inputBox.value = typeof dataElement.value === 'number' ? dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
-		template.inputBox.setEnabled(!dataElement.hasPolicyValue && !dataElement.isAgentsWindowReadOnly);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -2509,7 +2491,7 @@ class SettingBoolRenderer
 	): void {
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
-		if (dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly) {
+		if (dataElement.hasPolicyValue) {
 			template.checkbox.disable();
 			template.descriptionElement.classList.add('disabled');
 		} else {
@@ -2517,13 +2499,13 @@ class SettingBoolRenderer
 			template.descriptionElement.classList.remove('disabled');
 
 			// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
-			// Also have to ignore embedded links - use closest('a') to handle clicks on child elements of links (e.g. SVG icons inside <a> tags)
+			// Also have to ignore embedded links - too buried to stop propagation
 			template.elementDisposables.add(
 				DOM.addDisposableListener(template.descriptionElement, DOM.EventType.MOUSE_DOWN, e => {
-					const targetElement: Element | null = e.target instanceof Element ? e.target : null;
+					const targetElement = <HTMLElement>e.target;
 
 					// Toggle target checkbox
-					if (!targetElement || !targetElement.closest('a')) {
+					if (targetElement.tagName.toLowerCase() !== 'a') {
 						template.checkbox.checked = !template.checkbox.checked;
 						template.onChange!(template.checkbox.checked);
 					}
@@ -3348,10 +3330,7 @@ class ApplySettingToAllProfilesAction extends Action {
 		const value = this.configService.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 
 		if (this.checked) {
-			const idx = value.indexOf(this.setting.key);
-			if (idx !== -1) {
-				value.splice(idx, 1);
-			}
+			value.splice(value.indexOf(this.setting.key), 1);
 		} else {
 			value.push(this.setting.key);
 		}

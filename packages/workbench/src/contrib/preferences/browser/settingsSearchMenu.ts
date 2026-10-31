@@ -13,7 +13,6 @@ import { IContextMenuService } from '@sidex/platform/contextview/browser/context
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import {
 	ADVANCED_SETTING_TAG,
-	EXP_ASSIGNMENT_SETTING_TAG,
 	EXTENSION_SETTING_TAG,
 	FEATURE_SETTING_TAG,
 	GENERAL_TAG_SETTING_TAG,
@@ -236,12 +235,6 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('advancedSettingsSearch', 'Advanced'),
 				localize('advancedSettingsSearchTooltip', 'Show advanced settings'),
 				`@tag:${ADVANCED_SETTING_TAG}`
-			),
-			this.createToggleAction(
-				'expAssignmentSettingsSearch',
-				localize('expAssignmentSettingsSearch', 'ExP Assigned'),
-				localize('expAssignmentSettingsSearchTooltip', 'Show settings with an ExP treatment assignment'),
-				`@tag:${EXP_ASSIGNMENT_SETTING_TAG}`
 			)
 		];
 	}

@@ -19,6 +19,7 @@ import {
 } from '@sidex/platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression } from '@sidex/platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '@sidex/platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
 import { KeybindingWeight, KeybindingsRegistry } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
 import {
 	IQuickAccessRegistry,
@@ -27,7 +28,7 @@ import {
 import { Registry } from '@sidex/platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
-import { FocusedViewContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
 import {
 	IWorkbenchContributionsRegistry,
 	Extensions as WorkbenchExtensions,
@@ -64,7 +65,6 @@ import {
 	CONTEXT_EXPRESSION_SELECTED,
 	CONTEXT_FOCUSED_SESSION_IS_ATTACH,
 	CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG,
-	CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES,
 	CONTEXT_HAS_DEBUGGED,
 	CONTEXT_IN_DEBUG_MODE,
 	CONTEXT_JUMP_TO_CURSOR_SUPPORTED,
@@ -84,6 +84,7 @@ import {
 	DEBUG_PANEL_ID,
 	DISASSEMBLY_VIEW_ID,
 	EDITOR_CONTRIBUTION_ID,
+	IDebugService,
 	INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 	LOADED_SCRIPTS_VIEW_ID,
 	REPL_VIEW_ID,
@@ -96,6 +97,7 @@ import {
 import { DebugWatchAccessibilityAnnouncer } from '../common/debugAccessibilityAnnouncer.js';
 import { DebugContentProvider } from '../common/debugContentProvider.js';
 import { DebugLifecycle } from '../common/debugLifecycle.js';
+import { DebugVisualizerService, IDebugVisualizerService } from '../common/debugVisualizers.js';
 import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
 import { ReplAccessibilityAnnouncer } from '../common/replAccessibilityAnnouncer.js';
 import { BreakpointEditorContribution } from './breakpointEditorContribution.js';
@@ -179,6 +181,7 @@ import { DebugEditorContribution } from './debugEditorContribution.js';
 import * as icons from './debugIcons.js';
 import { DebugProgressContribution } from './debugProgress.js';
 import { StartDebugQuickAccessProvider } from './debugQuickAccess.js';
+import { DebugService } from './debugService.js';
 import './debugSettingMigration.js';
 import { DebugStatusContribution } from './debugStatus.js';
 import { DebugTitleContribution } from './debugTitle.js';
@@ -203,11 +206,10 @@ import {
 } from './watchExpressionsView.js';
 import { WelcomeView } from './welcomeView.js';
 
-// Register services
-import './debug.service.contribution.js';
-
 const debugCategory = nls.localize('debugCategory', 'Debug');
 registerColors();
+registerSingleton(IDebugService, DebugService, InstantiationType.Delayed);
+registerSingleton(IDebugVisualizerService, DebugVisualizerService, InstantiationType.Delayed);
 
 // Register Debug Workbench Contributions
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
@@ -338,7 +340,7 @@ registerDebugCommandPaletteItem(
 	STEP_OUT_ID,
 	STEP_OUT_LABEL,
 	CONTEXT_IN_DEBUG_MODE,
-	ContextKeyExpr.and(CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES)
+	CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 );
 registerDebugCommandPaletteItem(
 	PAUSE_ID,
@@ -540,7 +542,7 @@ registerDebugViewMenuItem(
 	STEP_OUT_LABEL,
 	40,
 	CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'),
-	ContextKeyExpr.and(CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES)
+	CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 );
 registerDebugViewMenuItem(
 	MenuId.DebugCallStackContext,
@@ -942,8 +944,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 		...nls.localize2('runMenu', 'Run'),
 		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, '&&Run')
 	},
-	order: 6,
-	when: IsSessionsWindowContext.negate()
+	order: 6
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -1028,7 +1029,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	command: {
 		id: STEP_OUT_ID,
 		title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, 'Step O&&ut'),
-		precondition: ContextKeyExpr.and(CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES)
+		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 	},
 	order: 3,
 	when: CONTEXT_DEBUGGERS_AVAILABLE

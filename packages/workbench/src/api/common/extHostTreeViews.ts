@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { basename } from '@sidex/base/common/resources.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
-import { Disposable, DisposableStore, dispose, IDisposable, markAsDisposed } from '@sidex/base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable } from '@sidex/base/common/lifecycle.js';
 import {
 	CheckboxUpdate,
 	DataTransferDTO,
@@ -204,19 +204,14 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 					this._treeViews.delete(viewId);
 					this._proxy.$disposeTree(viewId);
 				}
-				this._store.deleteAndLeak(view);
-				markAsDisposed(view);
-				this._store.delete(treeView);
+				treeView.dispose();
 			}
 		};
 		this._register(view);
 		return view as vscode.TreeView<T>;
 	}
 
-	async $getChildren(
-		treeViewId: string,
-		treeItemHandles?: string[]
-	): Promise<(readonly (number | ITreeItem)[])[] | undefined> {
+	async $getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(number | ITreeItem)[][] | undefined> {
 		const treeView = this._treeViews.get(treeViewId);
 		if (!treeView) {
 			return Promise.reject(new NoTreeViewError(treeViewId));
@@ -294,27 +289,18 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 			return Promise.reject(new NoTreeViewError(sourceViewId));
 		}
 
-		try {
-			const treeDataTransfer = await this._addAdditionalTransferItems(
-				new extHostTypes.DataTransfer(),
-				treeView,
-				sourceTreeItemHandles,
-				token,
-				operationUuid
-			);
-			if (!treeDataTransfer || token.isCancellationRequested) {
-				this.$releaseDragOperation(operationUuid);
-				return;
-			}
-			return await DataTransfer.from(treeDataTransfer);
-		} catch (error) {
-			this.$releaseDragOperation(operationUuid);
-			throw error;
+		const treeDataTransfer = await this._addAdditionalTransferItems(
+			new extHostTypes.DataTransfer(),
+			treeView,
+			sourceTreeItemHandles,
+			token,
+			operationUuid
+		);
+		if (!treeDataTransfer || token.isCancellationRequested) {
+			return;
 		}
-	}
 
-	$releaseDragOperation(operationUuid: string): void {
-		this._treeDragAndDropService.removeDragOperationTransfer(operationUuid);
+		return DataTransfer.from(treeDataTransfer);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {
@@ -619,7 +605,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	async getChildren(parentHandle: TreeItemHandle | Root): Promise<readonly ITreeItem[] | undefined> {
+	async getChildren(parentHandle: TreeItemHandle | Root): Promise<ITreeItem[] | undefined> {
 		const parentElement = parentHandle ? this.getExtensionElement(parentHandle) : undefined;
 		if (parentHandle && !parentElement) {
 			this._logService.error(`No tree item with id \'${parentHandle}\' found.`);

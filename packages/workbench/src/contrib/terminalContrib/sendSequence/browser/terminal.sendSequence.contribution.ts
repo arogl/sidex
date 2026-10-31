@@ -9,8 +9,6 @@ import { isIOS, isMacintosh, isWindows } from '@sidex/base/common/platform.js';
 import { isObject, isString } from '@sidex/base/common/types.js';
 import { localize, localize2 } from '@sidex/base/nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '@sidex/platform/accessibility/common/accessibility.js';
-import { IClipboardService } from '@sidex/platform/clipboard/common/clipboardService.js';
-import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { ContextKeyExpr, type ContextKeyExpression } from '@sidex/platform/contextkey/common/contextkey.js';
 import type { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import {
@@ -25,7 +23,6 @@ import { IConfigurationResolverService } from '../../../../services/configuratio
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
-import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys, TerminalContextKeyStrings } from '../../../terminal/common/terminalContextKey.js';
 
 export const enum TerminalSendSequenceCommandId {
@@ -141,29 +138,15 @@ const enum Constants {
 // shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
 // disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
 // reader. This works even when clipboard.readText is not supported.
-//
-// When the clipboard contains a VS Code file resource but no text, PSReadLine
-// cannot see it (it only reads CF_UNICODETEXT from the Win32 clipboard), so we delegate to the
-// standard paste command instead.
 if (isWindows) {
-	const ctrlV = String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset);
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TerminalCommandId.PastePwsh,
-		weight: KeybindingWeight.WorkbenchContrib,
+	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset), {
+		// ctrl+v
 		when: ContextKeyExpr.and(
 			TerminalContextKeys.focus,
 			ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell),
 			CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()
 		),
-		primary: KeyMod.CtrlCmd | KeyCode.KeyV,
-		handler: async accessor => {
-			const clipboardService = accessor.get(IClipboardService);
-			const commandService = accessor.get(ICommandService);
-			if (!(await clipboardService.readText()) && (await clipboardService.hasResources())) {
-				return commandService.executeCommand(TerminalCommandId.Paste);
-			}
-			return commandService.executeCommand(TerminalCommandId.SendSequence, { text: ctrlV });
-		}
+		primary: KeyMod.CtrlCmd | KeyCode.KeyV
 	});
 }
 

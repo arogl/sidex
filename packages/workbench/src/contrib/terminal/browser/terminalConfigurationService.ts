@@ -12,7 +12,6 @@ import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
 import {
 	DEFAULT_BOLD_FONT_WEIGHT,
-	DEFAULT_COMMANDS_TO_SKIP_SHELL,
 	DEFAULT_FONT_WEIGHT,
 	DEFAULT_LETTER_SPACING,
 	DEFAULT_LINE_HEIGHT,
@@ -35,7 +34,6 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	declare _serviceBrand: undefined;
 
 	protected _fontMetrics: TerminalFontMetrics;
-	private _skipTerminalCommands: ReadonlySet<string> = new Set(DEFAULT_COMMANDS_TO_SKIP_SHELL);
 
 	protected _config!: Readonly<ITerminalConfiguration>;
 	get config() {
@@ -77,26 +75,12 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		return this._fontMetrics.getFont(w, xtermCore, excludeDimensions);
 	}
-	shouldCommandSkipShell(commandId: string): boolean {
-		return this._skipTerminalCommands.has(commandId);
-	}
 
 	private _updateConfig(): void {
 		const configValues = { ...this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION) };
 		configValues.fontWeight = this._normalizeFontWeight(configValues.fontWeight, DEFAULT_FONT_WEIGHT);
 		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
 		this._config = configValues;
-		const skipTerminalCommands = new Set(DEFAULT_COMMANDS_TO_SKIP_SHELL);
-		const commandsToSkipShell = configValues.commandsToSkipShell ?? [];
-		for (let i = 0; i < commandsToSkipShell.length; i++) {
-			const command = commandsToSkipShell[i];
-			if (command[0] === '-') {
-				skipTerminalCommands.delete(command.slice(1));
-				continue;
-			}
-			skipTerminalCommands.add(command);
-		}
-		this._skipTerminalCommands = skipTerminalCommands;
 		this._onConfigChanged.fire();
 	}
 

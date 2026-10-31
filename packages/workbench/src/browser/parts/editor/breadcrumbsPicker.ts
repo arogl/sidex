@@ -78,8 +78,8 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 	protected _fakeEvent = new UIEvent('fakeEvent');
 	protected _layoutInfo!: ILayoutInfo;
 
-	protected readonly _onWillPickElement = new Emitter<boolean>();
-	readonly onWillPickElement: Event<boolean> = this._onWillPickElement.event;
+	protected readonly _onWillPickElement = new Emitter<void>();
+	readonly onWillPickElement: Event<void> = this._onWillPickElement.event;
 
 	private readonly _previewDispoables = new MutableDisposable();
 
@@ -173,9 +173,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 		this._tree.layout(treeHeight, this._layoutInfo.width);
 	}
 
-	restoreViewState(): void {
-		this._previewDispoables.clear();
-	}
+	restoreViewState(): void {}
 
 	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
 	protected abstract _createTree(container: HTMLElement, input: unknown): Tree<TInput, TElement>;
@@ -408,7 +406,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, I
 			{
 				multipleSelectionSupport: false,
 				sorter: new FileSorter(),
-				filter: this._disposables.add(this._instantiationService.createInstance(FileFilter)),
+				filter: this._instantiationService.createInstance(FileFilter),
 				identityProvider: new FileIdentityProvider(),
 				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
 				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),
@@ -458,7 +456,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, I
 		sideBySide: boolean
 	): Promise<boolean> {
 		if (!isWorkspaceFolder(element) && element.isFile) {
-			this._onWillPickElement.fire(sideBySide);
+			this._onWillPickElement.fire();
 			await this._editorService.openEditor(
 				{ resource: element.resource, options },
 				sideBySide ? SIDE_GROUP : undefined
@@ -519,7 +517,6 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 	protected _setInput(input: OutlineElement2): Promise<void> {
 		const viewState = input.outline.captureViewState();
 		this.restoreViewState = () => {
-			super.restoreViewState();
 			viewState.dispose();
 		};
 
@@ -541,7 +538,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown
 	}
 
 	protected async _revealElement(element: unknown, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
-		this._onWillPickElement.fire(sideBySide);
+		this._onWillPickElement.fire();
 		const outline: IOutline<unknown> = this._tree.getInput()!;
 		await outline.reveal(element, options, sideBySide, false);
 		return true;

@@ -24,7 +24,6 @@ import {
 } from '../../../services/layout/browser/layoutService.js';
 import {
 	IsAuxiliaryWindowContext,
-	IsSessionsWindowContext,
 	PanelAlignmentContext,
 	PanelMaximizedContext,
 	PanelPositionContext,
@@ -286,8 +285,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelPositionMenu,
 	title: localize('positionPanel', 'Panel Position'),
 	group: '3_workbench_layout_move',
-	order: 4,
-	when: IsSessionsWindowContext.negate()
+	order: 4
 });
 
 PositionPanelActionConfigs.forEach((positionPanelAction, index) => {
@@ -353,9 +351,7 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 			title: shortLabel,
 			toggled: when.negate()
 		},
-		order: 5,
-		// The Agents window only supports center and justify alignment
-		when: value === 'left' || value === 'right' ? IsSessionsWindowContext.negate() : undefined
+		order: 5
 	});
 });
 
@@ -450,7 +446,7 @@ MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
 		item: {
-			group: 'navigation',
+			group: '2_pane_toggles',
 			command: {
 				id: TogglePanelAction.ID,
 				title: localize('togglePanel', 'Toggle Panel'),

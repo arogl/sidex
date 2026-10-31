@@ -18,20 +18,14 @@ import { CommandsRegistry, ICommandHandler, ICommandService } from '@sidex/platf
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '@sidex/platform/contextkey/common/contextkey.js';
 import {
-	canMoveModalEditorToEditorArea,
+	EditorResolution,
 	IEditorOptions,
 	IResourceEditorInput,
 	ITextEditorOptions
 } from '@sidex/platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { KeybindingWeight, KeybindingsRegistry } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
-import {
-	IListService,
-	IOpenEvent,
-	RawWorkbenchListFocusContextKey,
-	WorkbenchTreeFindOpen,
-	WorkbenchTreeStickyScrollFocused
-} from '@sidex/platform/list/browser/listService.js';
+import { IListService, IOpenEvent } from '@sidex/platform/list/browser/listService.js';
 import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
 import { IQuickInputService } from '@sidex/platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
@@ -43,7 +37,6 @@ import {
 	ActiveEditorGroupEmptyContext,
 	ActiveEditorGroupLockedContext,
 	ActiveEditorStickyContext,
-	EditorPartModalCanMoveToEditorAreaContext,
 	EditorPartModalContext,
 	EditorPartModalMaximizedContext,
 	EditorPartModalNavigationContext,
@@ -59,10 +52,8 @@ import {
 	EditorsOrder,
 	IResourceDiffEditorInput,
 	IUntitledTextResourceEditorInput,
-	isDiffEditorInput,
 	isEditorInputWithOptionsAndGroup
 } from '../../../common/editor.js';
-import { IMultiDiffEditorOptions } from '@sidex/editor/common/multiDiffEditor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
@@ -79,13 +70,9 @@ import {
 } from '../../../services/editor/common/editorGroupsService.js';
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
-import { OpenWithEditorPicker } from '../../../services/editor/browser/openWithEditorPicker.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
-import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
-import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
-import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import {
 	DIFF_FOCUS_OTHER_SIDE,
 	DIFF_FOCUS_PRIMARY_SIDE,
@@ -93,8 +80,9 @@ import {
 	registerDiffEditorCommands
 } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
-import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
+import { prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '@sidex/editor/common/core/range.js';
+import { IMultiDiffEditorOptions } from '@sidex/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -1167,7 +1155,7 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, ...args: unknown[]) => {
-			return reopenEditorWith(accessor, undefined, ...args);
+			return reopenEditorWith(accessor, EditorResolution.PICK, ...args);
 		}
 	});
 
@@ -1177,21 +1165,18 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, override?: string, ...args: unknown[]) => {
-			return reopenEditorWith(accessor, override, ...args);
+			return reopenEditorWith(accessor, override ?? EditorResolution.PICK, ...args);
 		}
 	});
 
-	/**
-	 * @param editorOverride The id of the editor to reopen with, or `undefined` to let the user pick it.
-	 */
-	async function reopenEditorWith(accessor: ServicesAccessor, editorOverride: string | undefined, ...args: unknown[]) {
+	async function reopenEditorWith(
+		accessor: ServicesAccessor,
+		editorOverride: string | EditorResolution,
+		...args: unknown[]
+	) {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const textFileService = accessor.get(ITextFileService);
-		const workingCopyService = accessor.get(IWorkingCopyService);
-		const workingCopyEditorService = accessor.get(IWorkingCopyEditorService);
-		const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
 
 		const resolvedContext = resolveCommandsContext(
 			args,
@@ -1203,25 +1188,12 @@ function registerCloseEditorCommands() {
 
 		for (const { group, editors } of resolvedContext.groupedEditors) {
 			for (const editor of editors) {
-				const isDiffEditor = isDiffEditorInput(editor);
-				const editorToResolve = isDiffEditor ? editor.modified : editor;
-				const untypedEditor = isDiffEditor ? editor.toUntyped() : editorToResolve.toUntyped();
+				const untypedEditor = editor.toUntyped();
 				if (!untypedEditor) {
 					return; // Resolver can only resolve untyped editors
 				}
 
-				const options = fillActiveEditorSelection(group, editor, {
-					...untypedEditor.options,
-					...(group.activeEditor === editor ? group.activeEditorPane?.options : undefined),
-					override: editorOverride
-				});
-				const resolvedOptions =
-					editorOverride === undefined ? await editorPicker.pick({ ...untypedEditor, options }) : options;
-				if (!resolvedOptions) {
-					return; // Picker was cancelled
-				}
-
-				untypedEditor.options = resolvedOptions;
+				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: editorOverride };
 				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 					return;
@@ -1233,40 +1205,10 @@ function registerCloseEditorCommands() {
 					editorReplacements.set(group, editorReplacementsInGroup);
 				}
 
-				// Force replace when closing the editor without saving cannot
-				// lose data. This is the case when the dirty state lives in a
-				// working copy whose lifetime is independent of the editor:
-				// `TextFileEditorModel`s and `UntitledTextEditorModel`s are
-				// kept alive while dirty by their owning service.
-				//
-				// This way switching between a text editor and a text-document
-				// based custom editor (such as the Markdown preview) for the
-				// same resource does not trigger a save dialog.
-				//
-				// Custom-document custom editors (e.g. hex editors) maintain
-				// their dirty state in a working copy whose lifetime is tied
-				// to the editor input, so we must not skip the save prompt
-				// for those — detect this by looking for any dirty working
-				// copy that backs this editor at a different resource.
-				const resource = editorToResolve.resource;
-				let forceReplaceDirty =
-					!!resource && (resource.scheme === Schemas.untitled || textFileService.isDirty(resource));
-				if (forceReplaceDirty && editorToResolve.isDirty()) {
-					for (const workingCopy of workingCopyService.dirtyWorkingCopies) {
-						if (isEqual(workingCopy.resource, resource)) {
-							continue; // working copy at the editor's own resource is text-based and survives close
-						}
-						if (workingCopyEditorService.findEditor(workingCopy)?.editor === editorToResolve) {
-							forceReplaceDirty = false;
-							break;
-						}
-					}
-				}
-
 				editorReplacementsInGroup.push({
 					editor: editor,
 					replacement: resolvedEditor.editor,
-					forceReplaceDirty,
+					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
 					options: resolvedEditor.options
 				});
 
@@ -1306,8 +1248,8 @@ function registerCloseEditorCommands() {
 				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>(
 					'workbenchEditorReopen',
 					{
-						scheme: editorToResolve.resource?.scheme ?? '',
-						ext: editorToResolve.resource ? extname(editorToResolve.resource) : '',
+						scheme: editor.resource?.scheme ?? '',
+						ext: editor.resource ? extname(editor.resource) : '',
 						from: editor.editorId ?? '',
 						to: resolvedEditor.editor.editorId ?? ''
 					}
@@ -1807,12 +1749,12 @@ function registerModalEditorCommands(): void {
 					category: Categories.View,
 					f1: true,
 					icon: Codicon.openInProduct,
-					precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
+					precondition: EditorPartModalContext,
 					menu: {
 						id: MenuId.ModalEditorTitle,
 						group: 'navigation',
 						order: 0,
-						when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), EditorPartModalCanMoveToEditorAreaContext)
+						when: IsSessionsWindowContext.negate()
 					}
 				});
 			}
@@ -1821,9 +1763,6 @@ function registerModalEditorCommands(): void {
 
 				for (const part of editorGroupsService.parts) {
 					if (isModalEditorPart(part)) {
-						if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
-							return;
-						}
 						await part.close({ mergeAllEditorsToMainPart: true });
 						break;
 					}
@@ -1841,15 +1780,13 @@ function registerModalEditorCommands(): void {
 					category: Categories.View,
 					f1: true,
 					icon: Codicon.emptyWindow,
-					precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
-					menu: [
-						{
-							id: MenuId.ModalEditorTitleContext,
-							group: '1_window',
-							order: 0,
-							when: ContextKeyExpr.and(IsSessionsWindowContext, EditorPartModalCanMoveToEditorAreaContext)
-						}
-					]
+					precondition: EditorPartModalContext,
+					menu: {
+						id: MenuId.ModalEditorTitle,
+						group: 'navigation',
+						order: 0,
+						when: IsSessionsWindowContext
+					}
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
@@ -1857,9 +1794,6 @@ function registerModalEditorCommands(): void {
 
 				for (const part of editorGroupsService.parts) {
 					if (isModalEditorPart(part)) {
-						if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
-							return;
-						}
 						const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
 
 						for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -1919,7 +1853,7 @@ function registerModalEditorCommands(): void {
 					menu: {
 						id: MenuId.ModalEditorTitle,
 						group: 'navigation',
-						order: 99
+						order: 1
 					}
 				});
 			}
@@ -1949,32 +1883,19 @@ function registerModalEditorCommands(): void {
 					keybinding: [
 						{
 							primary: KeyCode.Escape,
-							weight: KeybindingWeight.WorkbenchContrib + 10, // higher when no text editor or list/tree is focused...
-							when: ContextKeyExpr.and(EditorContextKeys.focus.toNegated(), RawWorkbenchListFocusContextKey.negate())
+							weight: KeybindingWeight.WorkbenchContrib + 10, // higher when no text editor is focused...
+							when: EditorContextKeys.focus.toNegated()
 						},
 						{
 							primary: KeyCode.Escape,
 							weight: KeybindingWeight.EditorContrib - 1, // ...lower to prevent accidental close when text editor is focused
 							when: EditorContextKeys.focus
-						},
-						{
-							primary: KeyCode.Escape,
-							// When a list/tree is focused, still close the modal, but yield to the
-							// list/tree's own `Escape` features that should close first (the find
-							// widget and sticky scroll). The selection is intentionally not cleared
-							// first so a single `Escape` closes the modal.
-							weight: KeybindingWeight.WorkbenchContrib + 1,
-							when: ContextKeyExpr.and(
-								RawWorkbenchListFocusContextKey,
-								WorkbenchTreeFindOpen.negate(),
-								WorkbenchTreeStickyScrollFocused.negate()
-							)
 						}
 					],
 					menu: {
 						id: MenuId.ModalEditorTitle,
 						group: 'navigation',
-						order: 100
+						order: 2
 					}
 				});
 			}

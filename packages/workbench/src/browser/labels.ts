@@ -17,9 +17,6 @@ import { IConfigurationService } from '@sidex/platform/configuration/common/conf
 import { IModelService } from '@sidex/editor/common/services/model.js';
 import { ITextFileService } from '../services/textfile/common/textfiles.js';
 import {
-	DECORATION_BADGE_CLASS,
-	DECORATION_LABEL_COLOR_CLASS,
-	DECORATION_TEXT_BADGE_CLASS,
 	IDecoration,
 	IDecorationsService,
 	IResourceDecorationChangeEvent
@@ -692,7 +689,6 @@ class ResourceLabelWidget extends IconLabel {
 			strikethrough: this.options?.strikethrough,
 			matches: this.options?.matches,
 			descriptionMatches: this.options?.descriptionMatches,
-			suffix: this.options?.suffix,
 			extraClasses: [],
 			separator: this.options?.separator,
 			domId: this.options?.domId,
@@ -771,14 +767,10 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses.push(DECORATION_LABEL_COLOR_CLASS, decoration.labelClassName);
+					iconLabelOptions.extraClasses.push(decoration.labelClassName);
 				}
 
 				if (this.options.fileDecorations.badges) {
-					iconLabelOptions.extraClasses.push(DECORATION_BADGE_CLASS);
-					if (decoration.isTextBadge) {
-						iconLabelOptions.extraClasses.push(DECORATION_TEXT_BADGE_CLASS);
-					}
 					iconLabelOptions.extraClasses.push(decoration.badgeClassName);
 					iconLabelOptions.extraClasses.push(decoration.iconClassName);
 				}

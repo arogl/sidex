@@ -12,6 +12,7 @@ import {
 	SaveReason,
 	EditorsOrder,
 	EditorInputCapabilities,
+	DEFAULT_EDITOR_ASSOCIATION,
 	GroupIdentifier,
 	EditorResourceAccessor
 } from '../../../common/editor.js';
@@ -43,8 +44,7 @@ import {
 	MOVE_EDITOR_INTO_RIGHT_GROUP,
 	MOVE_EDITOR_INTO_LEFT_GROUP,
 	MOVE_EDITOR_INTO_ABOVE_GROUP,
-	MOVE_EDITOR_INTO_BELOW_GROUP,
-	REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID
+	MOVE_EDITOR_INTO_BELOW_GROUP
 } from './editorCommands.js';
 import {
 	IEditorGroupsService,
@@ -86,7 +86,6 @@ import { ILogService } from '@sidex/platform/log/common/log.js';
 import { Categories } from '@sidex/platform/action/common/actionCommonCategories.js';
 import {
 	ActiveEditorAvailableEditorIdsContext,
-	ActiveEditorCannotCloseContext,
 	ActiveEditorContext,
 	ActiveEditorGroupEmptyContext,
 	AuxiliaryBarVisibleContext,
@@ -533,7 +532,7 @@ export class CloseEditorTabAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, ThemeIcon.asClassName(Codicon.closeSmall));
+		super(id, label, ThemeIcon.asClassName(Codicon.close));
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
@@ -564,48 +563,13 @@ export class CloseEditorTabAction extends Action {
 	}
 }
 
-// The alt-hold alternative to CloseEditorTabAction (see MultiEditorTabsControl), not the multi-select-aware closeOtherEditors command.
-export class CloseOtherEditorTabsInGroupAction extends Action {
-	static readonly ID = 'workbench.action.closeOtherEditorTabInGroup';
-	static readonly LABEL = localize('closeOthers', 'Close Others');
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, ThemeIcon.asClassName(Codicon.closeAll));
-	}
-
-	override async run(context?: IEditorCommandsContext): Promise<void> {
-		const group = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
-		if (!group) {
-			// group mentioned in context does not exist
-			return;
-		}
-
-		const targetEditor =
-			context?.editorIndex !== undefined ? group.getEditorByIndex(context.editorIndex) : group.activeEditor;
-		if (!targetEditor) {
-			// No editor open or editor at index does not exist
-			return;
-		}
-
-		const editorsToClose = group
-			.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true })
-			.filter(editor => editor !== targetEditor);
-		await group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
-	}
-}
-
 export class RevertAndCloseEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.revertAndCloseActiveEditor',
 			title: localize2('revertAndCloseActiveEditor', 'Revert and Close Editor'),
 			f1: true,
-			category: Categories.View,
-			precondition: ActiveEditorCannotCloseContext.toNegated()
+			category: Categories.View
 		});
 	}
 
@@ -616,10 +580,6 @@ export class RevertAndCloseEditorAction extends Action2 {
 		const activeEditorPane = editorService.activeEditorPane;
 		if (activeEditorPane) {
 			const editor = activeEditorPane.input;
-			if (editor.hasCapability(EditorInputCapabilities.CannotClose)) {
-				return;
-			}
-
 			const group = activeEditorPane.group;
 
 			// first try a normal revert where the contents of the editor are restored
@@ -707,10 +667,6 @@ abstract class AbstractCloseAllAction extends Action2 {
 		for (const { editor, groupId } of editorService.getEditors(EditorsOrder.SEQUENTIAL, {
 			excludeSticky: this.excludeSticky
 		})) {
-			if (editor.hasCapability(EditorInputCapabilities.CannotClose)) {
-				continue;
-			}
-
 			let confirmClose = false;
 			let handlerDidError = false;
 			if (editor.closeHandler) {
@@ -952,9 +908,7 @@ export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
 		await super.doCloseAll(editorGroupService);
 
 		for (const groupToClose of this.groupsToClose(editorGroupService)) {
-			if (groupToClose.count === 0) {
-				editorGroupService.removeGroup(groupToClose);
-			}
+			editorGroupService.removeGroup(groupToClose);
 		}
 	}
 }
@@ -2788,21 +2742,44 @@ export class ToggleEditorTypeAction extends Action2 {
 	}
 }
 
-export class ReOpenInTextEditorAction extends ExecuteCommandAction {
-	static readonly ID = 'workbench.action.reopenTextEditor';
-	static readonly TITLE = localize2('reopenTextEditor', 'Reopen Editor with Text Editor');
-
+export class ReOpenInTextEditorAction extends Action2 {
 	constructor() {
-		super(
-			{
-				id: ReOpenInTextEditorAction.ID,
-				title: ReOpenInTextEditorAction.TITLE,
-				f1: true,
-				category: Categories.View,
-				precondition: ActiveEditorAvailableEditorIdsContext
-			},
-			REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID,
-			'default'
+		super({
+			id: 'workbench.action.reopenTextEditor',
+			title: localize2('reopenTextEditor', 'Reopen Editor with Text Editor'),
+			f1: true,
+			category: Categories.View,
+			precondition: ActiveEditorAvailableEditorIdsContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const activeEditorResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input);
+		if (!activeEditorResource) {
+			return;
+		}
+
+		// Replace the current editor with the text editor
+		await editorService.replaceEditors(
+			[
+				{
+					editor: activeEditorPane.input,
+					replacement: {
+						resource: activeEditorResource,
+						options: {
+							override: DEFAULT_EDITOR_ASSOCIATION.id
+						}
+					}
+				}
+			],
+			activeEditorPane.group
 		);
 	}
 }

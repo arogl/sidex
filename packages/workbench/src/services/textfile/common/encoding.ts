@@ -441,7 +441,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	}
 
 	if (!guessed?.encoding) {
-		return candidateGuessEncodings ? guessEncodingByCandidates(limitedBuffer, candidateGuessEncodings) : null;
+		return null;
 	}
 
 	const enc = guessed.encoding.toLowerCase();
@@ -450,44 +450,6 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	}
 
 	return toIconvLiteEncoding(guessed.encoding);
-}
-
-async function guessEncodingByCandidates(buffer: VSBuffer, candidates: string[]): Promise<string | null> {
-	try {
-		// The sample may end in the middle of a UTF-8 character.
-		new TextDecoder('utf-8', { fatal: true }).decode(buffer.buffer, { stream: true });
-		return null;
-	} catch (error) {
-		if (!(error instanceof TypeError)) {
-			throw error;
-		}
-	}
-
-	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>(
-		'@vscode/iconv-lite-umd',
-		'lib/iconv-lite-umd.js'
-	);
-	let guessedEncoding: string | null = null;
-
-	for (const candidate of candidates) {
-		const encoding = toIconvLiteEncoding(candidate);
-		if (isUTFEncoding(encoding)) {
-			continue;
-		}
-
-		const decoded = iconv.decode(buffer.buffer, encoding);
-		if (!VSBuffer.wrap(iconv.encode(decoded, encoding)).equals(buffer)) {
-			continue;
-		}
-
-		if (guessedEncoding && guessedEncoding !== encoding) {
-			return null;
-		}
-
-		guessedEncoding = encoding;
-	}
-
-	return guessedEncoding;
 }
 
 const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
@@ -846,90 +808,85 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 		labelShort: 'ISO 8859-9',
 		order: 33
 	},
-	cp857: {
-		labelLong: 'Turkish (CP 857)',
-		labelShort: 'CP 857',
-		order: 34
-	},
 	windows1258: {
 		labelLong: 'Vietnamese (Windows 1258)',
 		labelShort: 'Windows 1258',
-		order: 35
+		order: 34
 	},
 	gbk: {
 		labelLong: 'Simplified Chinese (GBK)',
 		labelShort: 'GBK',
-		order: 36
+		order: 35
 	},
 	gb18030: {
 		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
-		order: 37
+		order: 36
 	},
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
-		order: 38,
+		order: 37,
 		guessableName: 'Big5'
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
 		labelShort: 'Big5-HKSCS',
-		order: 39
+		order: 38
 	},
 	shiftjis: {
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
-		order: 40,
+		order: 39,
 		guessableName: 'SHIFT_JIS'
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
-		order: 41,
+		order: 40,
 		guessableName: 'EUC-JP'
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
-		order: 42,
+		order: 41,
 		guessableName: 'EUC-KR'
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
 		labelShort: 'Windows 874',
-		order: 43
+		order: 42
 	},
 	iso885911: {
 		labelLong: 'Latin/Thai (ISO 8859-11)',
 		labelShort: 'ISO 8859-11',
-		order: 44
+		order: 43
 	},
 	koi8ru: {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
-		order: 45
+		order: 44
 	},
 	koi8t: {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
-		order: 46
+		order: 45
 	},
 	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
-		order: 47,
+		order: 46,
 		guessableName: 'GB2312'
 	},
 	cp865: {
 		labelLong: 'Nordic DOS (CP 865)',
 		labelShort: 'CP 865',
-		order: 48
+		order: 47
 	},
 	cp850: {
 		labelLong: 'Western European DOS (CP 850)',
 		labelShort: 'CP 850',
-		order: 49
+		order: 48
 	}
 };
 

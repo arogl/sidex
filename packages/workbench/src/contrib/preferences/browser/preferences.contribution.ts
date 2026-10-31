@@ -68,7 +68,6 @@ import {
 	CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE,
 	CONTEXT_KEYBINDING_FOCUS,
 	CONTEXT_SETTINGS_EDITOR,
-	CONTEXT_SETTINGS_FIRST_ROW_FOCUS,
 	CONTEXT_SETTINGS_JSON_EDITOR,
 	CONTEXT_SETTINGS_ROW_FOCUS,
 	CONTEXT_SETTINGS_SEARCH_FOCUS,
@@ -111,9 +110,6 @@ const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
 const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
-const SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH = 'settings.action.showPreviousSearch';
-const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER = 'settings.action.focusSettingsFromSearchOnEnter';
-const SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS = 'settings.action.focusSearchFromSettings';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
 const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
@@ -828,13 +824,18 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						super({
 							id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
 							precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
+							keybinding: {
+								primary: KeyCode.DownArrow,
+								weight: KeybindingWeight.EditorContrib,
+								when: null
+							},
 							title: nls.localize('settings.focusFile', 'Focus settings file')
 						});
 					}
 
 					run(accessor: ServicesAccessor): void {
 						const preferencesEditor = getPreferencesEditor(accessor);
-						preferencesEditor?.navigateSearchHistoryNextOrFocusSettings();
+						preferencesEditor?.focusSettings();
 					}
 				}
 			)
@@ -849,8 +850,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 							keybinding: {
 								primary: KeyCode.DownArrow,
-								weight: KeybindingWeight.WorkbenchContrib + 1,
-								when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
+								weight: KeybindingWeight.WorkbenchContrib,
+								when: null
 							},
 							title: nls.localize('settings.focusFile', 'Focus settings file')
 						});
@@ -858,84 +859,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 					run(accessor: ServicesAccessor): void {
 						const preferencesEditor = getPreferencesEditor(accessor);
-						preferencesEditor?.navigateSearchHistoryNextOrFocusSettings();
-					}
-				}
-			)
-		);
-
-		this._register(
-			registerAction2(
-				class extends Action2 {
-					constructor() {
-						super({
-							id: SETTINGS_EDITOR_COMMAND_SHOW_PREVIOUS_SEARCH,
-							precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
-							keybinding: {
-								primary: KeyCode.UpArrow,
-								weight: KeybindingWeight.WorkbenchContrib + 1,
-								when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
-							},
-							title: nls.localize('settings.showPreviousSearch', 'Show Previous Search in Settings')
-						});
-					}
-
-					run(accessor: ServicesAccessor): void {
-						const preferencesEditor = getPreferencesEditor(accessor);
-						preferencesEditor?.navigateSearchHistoryPrevious();
-					}
-				}
-			)
-		);
-
-		this._register(
-			registerAction2(
-				class extends Action2 {
-					constructor() {
-						super({
-							id: SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH_ON_ENTER,
-							precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
-							keybinding: {
-								primary: KeyCode.Enter,
-								weight: KeybindingWeight.WorkbenchContrib,
-								when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
-							},
-							title: nls.localize('settings.focusSettingsFromSearchOnEnter', 'Focus First Setting from Search')
-						});
-					}
-
-					run(accessor: ServicesAccessor): void {
-						const preferencesEditor = getPreferencesEditor(accessor);
-						preferencesEditor?.focusFirstSettingFromSearch();
-					}
-				}
-			)
-		);
-
-		this._register(
-			registerAction2(
-				class extends Action2 {
-					constructor() {
-						super({
-							id: SETTINGS_EDITOR_COMMAND_FOCUS_SEARCH_FROM_SETTINGS,
-							precondition: ContextKeyExpr.and(
-								CONTEXT_SETTINGS_EDITOR,
-								CONTEXT_SETTINGS_ROW_FOCUS,
-								CONTEXT_SETTINGS_FIRST_ROW_FOCUS
-							),
-							keybinding: {
-								primary: KeyCode.UpArrow,
-								// Win over the list's own `list.focusUp` command so the first row moves focus back to search.
-								weight: KeybindingWeight.WorkbenchContrib + 1,
-								when: null
-							},
-							title: nls.localize('settings.focusSearchFromSettings', 'Focus Settings Search from Settings')
-						});
-					}
-
-					run(accessor: ServicesAccessor): void {
-						const preferencesEditor = getPreferencesEditor(accessor);
-						preferencesEditor?.focusSearch();
+						preferencesEditor?.focusSettings();
 					}
 				}
 			)

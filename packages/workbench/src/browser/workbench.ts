@@ -44,7 +44,8 @@ import { NotificationsToasts } from './parts/notifications/notificationsToasts.j
 import { setARIAContainer } from '@sidex/base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '@sidex/editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '@sidex/editor/common/config/fontInfoFromSettings.js';
-import { createUnexpectedErrorHandler, ILogService } from '@sidex/platform/log/common/log.js';
+import { ILogService } from '@sidex/platform/log/common/log.js';
+import { toErrorMessage } from '@sidex/base/common/errorMessage.js';
 import { WorkbenchContextKeysHandler } from './contextkeys.js';
 import { coalesce } from '@sidex/base/common/arrays.js';
 import { InstantiationService } from '@sidex/platform/instantiation/common/instantiationService.js';
@@ -114,7 +115,26 @@ export class Workbench extends Layout {
 		});
 
 		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(createUnexpectedErrorHandler(logService));
+		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
+	}
+
+	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };
+	private handleUnexpectedError(error: unknown, logService: ILogService): void {
+		const message = toErrorMessage(error, true);
+		if (!message) {
+			return;
+		}
+
+		const now = Date.now();
+		if (message === this.previousUnexpectedError.message && now - this.previousUnexpectedError.time <= 1000) {
+			return; // Return if error message identical to previous and shorter than 1 second
+		}
+
+		this.previousUnexpectedError.time = now;
+		this.previousUnexpectedError.message = message;
+
+		// Log it
+		logService.error(message);
 	}
 
 	startup(): IInstantiationService {
@@ -466,7 +486,7 @@ export class Workbench extends Layout {
 		);
 
 		// Register Commands
-		this._register(registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model));
+		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
 
 		// Register notification accessible view
 		AccessibleViewRegistry.register(new NotificationAccessibleView());

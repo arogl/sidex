@@ -16,7 +16,6 @@ import { Event } from '@sidex/base/common/event.js';
 
 export class Memento<T extends object> {
 	private static readonly applicationMementos = new Map<string, ScopedMemento<unknown>>();
-	private static readonly applicationSharedMementos = new Map<string, ScopedMemento<unknown>>();
 	private static readonly profileMementos = new Map<string, ScopedMemento<unknown>>();
 	private static readonly workspaceMementos = new Map<string, ScopedMemento<unknown>>();
 
@@ -62,16 +61,6 @@ export class Memento<T extends object> {
 
 				return applicationMemento.getMemento();
 			}
-
-			case StorageScope.APPLICATION_SHARED: {
-				let applicationSharedMemento = Memento.applicationSharedMementos.get(this.id);
-				if (!applicationSharedMemento) {
-					applicationSharedMemento = new ScopedMemento(this.id, scope, target, this.storageService);
-					Memento.applicationSharedMementos.set(this.id, applicationSharedMemento);
-				}
-
-				return applicationSharedMemento.getMemento();
-			}
 		}
 	}
 
@@ -83,15 +72,11 @@ export class Memento<T extends object> {
 		Memento.workspaceMementos.get(this.id)?.save();
 		Memento.profileMementos.get(this.id)?.save();
 		Memento.applicationMementos.get(this.id)?.save();
-		Memento.applicationSharedMementos.get(this.id)?.save();
 	}
 
 	reloadMemento(scope: StorageScope): void {
 		let memento: ScopedMemento<unknown> | undefined;
 		switch (scope) {
-			case StorageScope.APPLICATION_SHARED:
-				memento = Memento.applicationSharedMementos.get(this.id);
-				break;
 			case StorageScope.APPLICATION:
 				memento = Memento.applicationMementos.get(this.id);
 				break;
@@ -116,9 +101,6 @@ export class Memento<T extends object> {
 				break;
 			case StorageScope.APPLICATION:
 				Memento.applicationMementos.clear();
-				break;
-			case StorageScope.APPLICATION_SHARED:
-				Memento.applicationSharedMementos.clear();
 				break;
 		}
 	}

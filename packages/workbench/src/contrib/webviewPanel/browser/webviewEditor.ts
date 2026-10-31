@@ -20,7 +20,7 @@ import { IStorageService } from '@sidex/platform/storage/common/storage.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
 import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOpenContext, IEditorPaneSelection } from '../../../common/editor.js';
+import { IEditorOpenContext } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
 import { WebviewWindowDragMonitor } from '../../webview/browser/webviewWindowDragMonitor.js';
@@ -43,9 +43,9 @@ export class WebviewEditor extends EditorPane {
 	public static readonly ID = 'WebviewEditor';
 
 	private _element?: HTMLElement;
+	private _dimension?: DOM.Dimension;
 	private _visible = false;
 	private _isDisposed = false;
-	private _clippingContainer?: HTMLElement;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -69,6 +69,20 @@ export class WebviewEditor extends EditorPane {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super(WebviewEditor.ID, group, telemetryService, themeService, storageService);
+
+		const part = _editorGroupsService.getPart(group);
+		this._register(
+			Event.any(
+				part.onDidScroll,
+				part.onDidAddGroup,
+				part.onDidRemoveGroup,
+				part.onDidMoveGroup
+			)(() => {
+				if (this.webview && this._visible) {
+					this.synchronizeWebviewContainerDimensions(this.webview);
+				}
+			})
+		);
 	}
 
 	private get webview(): IOverlayWebview | undefined {
@@ -77,10 +91,6 @@ export class WebviewEditor extends EditorPane {
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._scopedContextKeyService.value;
-	}
-
-	getSelection(): IEditorPaneSelection | undefined {
-		return this.input instanceof WebviewInput ? this.input.getSelection() : undefined;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -102,9 +112,9 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	public override layout(dimension: DOM.Dimension): void {
-		this.setEditorVisible(dimension.width > 0 && dimension.height > 0);
+		this._dimension = dimension;
 		if (this.webview && this._visible) {
-			this.setWebviewAnchorElement(this.webview);
+			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
 		}
 	}
 
@@ -126,10 +136,6 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
-		if (visible === this._visible) {
-			return;
-		}
-
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
@@ -152,12 +158,11 @@ export class WebviewEditor extends EditorPane {
 
 	public override async setInput(
 		input: EditorInput,
-		options: IEditorOptions | undefined,
+		options: IEditorOptions,
 		context: IEditorOpenContext,
 		token: CancellationToken
 	): Promise<void> {
 		if (this.input && input.matches(this.input)) {
-			await this.applyNavigationOptions(options, token);
 			return;
 		}
 
@@ -179,18 +184,9 @@ export class WebviewEditor extends EditorPane {
 			if (!alreadyOwnsWebview) {
 				this.claimWebview(input);
 			}
-		}
-		await this.applyNavigationOptions(options, token);
-	}
-
-	public override setOptions(options: IEditorOptions | undefined): void {
-		super.setOptions(options);
-		void this.applyNavigationOptions(options, CancellationToken.None);
-	}
-
-	private async applyNavigationOptions(options: IEditorOptions | undefined, token: CancellationToken): Promise<void> {
-		if (options && this.input instanceof WebviewInput) {
-			await this.input.applyOptions(options, token);
+			if (this._dimension) {
+				this.layout(this._dimension);
+			}
 		}
 	}
 
@@ -201,14 +197,6 @@ export class WebviewEditor extends EditorPane {
 			this._element.setAttribute('aria-flowto', input.webview.container.id);
 			DOM.setParentFlowTo(input.webview.container, this._element);
 		}
-
-		// Check if this editor is inside a modal editor
-		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
-		const isModal =
-			isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
-		this._clippingContainer = isModal
-			? undefined
-			: this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 
 		this._webviewVisibleDisposables.clear();
 
@@ -221,16 +209,23 @@ export class WebviewEditor extends EditorPane {
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(this.window, () => this.webview));
 
-		this.setWebviewAnchorElement(input.webview);
+		this.synchronizeWebviewContainerDimensions(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
 	}
 
-	private setWebviewAnchorElement(webview: IOverlayWebview) {
+	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
 		if (!this._element?.isConnected) {
 			return;
 		}
 
-		webview.setAnchorElement(this._element.parentElement!, this._clippingContainer);
+		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
+		let clippingContainer: HTMLElement | undefined;
+		if (isHTMLElement(modalEditorContainer)) {
+			clippingContainer = modalEditorContainer;
+		} else {
+			clippingContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
+		}
+		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, clippingContainer);
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

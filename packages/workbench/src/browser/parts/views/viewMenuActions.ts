@@ -14,10 +14,6 @@ import { MenuId, IMenuActionOptions, IMenuService, IMenu } from '@sidex/platform
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import { IViewDescriptorService, ViewContainer, ViewContainerLocationToString } from '../../../common/views.js';
 
-export interface IViewMenuActionsOptions {
-	readonly primaryActionGroups?: string[];
-}
-
 export class ViewMenuActions extends Disposable {
 	private readonly menu: IMenu;
 
@@ -28,7 +24,6 @@ export class ViewMenuActions extends Disposable {
 		readonly menuId: MenuId,
 		private readonly contextMenuId: MenuId | undefined,
 		private readonly options: IMenuActionOptions | undefined,
-		private readonly menuActionsOptions: IViewMenuActionsOptions | undefined,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
@@ -47,26 +42,9 @@ export class ViewMenuActions extends Disposable {
 	private actions: PrimaryAndSecondaryActions | undefined;
 	private getActions(): PrimaryAndSecondaryActions {
 		if (!this.actions) {
-			this.actions = getActionBarActions(
-				this.menu.getActions(this.options),
-				group => this.isPrimaryActionGroup(group),
-				undefined,
-				true
-			);
+			this.actions = getActionBarActions(this.menu.getActions(this.options));
 		}
 		return this.actions;
-	}
-
-	private isPrimaryActionGroup(group: string): boolean {
-		if (group === 'navigation') {
-			return true;
-		}
-
-		if (this.menuActionsOptions?.primaryActionGroups) {
-			return this.menuActionsOptions.primaryActionGroups.includes(group);
-		}
-
-		return false;
 	}
 
 	getPrimaryActions(): IAction[] {
@@ -90,7 +68,6 @@ export class ViewContainerMenuActions extends ViewMenuActions {
 	constructor(
 		element: HTMLElement,
 		viewContainer: ViewContainer,
-		menuActionsOptions: IViewMenuActionsOptions | undefined,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
@@ -105,7 +82,6 @@ export class ViewContainerMenuActions extends ViewMenuActions {
 			MenuId.ViewContainerTitle,
 			MenuId.ViewContainerTitleContext,
 			{ shouldForwardArgs: true, renderShortTitle: true },
-			menuActionsOptions,
 			scopedContextKeyService,
 			menuService
 		);

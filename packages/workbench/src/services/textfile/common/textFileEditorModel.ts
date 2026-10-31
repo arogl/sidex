@@ -18,8 +18,7 @@ import {
 	IResolvedTextFileEditorModel,
 	TextFileResolveReason,
 	ITextFileEditorModelSaveEvent,
-	ITextFileSaveAsOptions,
-	TextFileReconcileResult
+	ITextFileSaveAsOptions
 } from './textfiles.js';
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from '../../../common/editor.js';
 import { BaseTextEditorModel } from '../../../common/editor/textEditorModel.js';
@@ -68,11 +67,6 @@ import {
 } from '@sidex/platform/progress/common/progress.js';
 import { isCancellationError } from '@sidex/base/common/errors.js';
 import { TextModelEditSource, EditSources } from '@sidex/editor/common/textModelEditSource.js';
-import { IEditorWorkerService } from '@sidex/editor/common/services/editorWorker.js';
-import { offsetEditToEditOperations } from '@sidex/editor/common/model/textModelStringEdit.js';
-import { StringEdit } from '@sidex/editor/common/core/edits/stringEdit.js';
-import { stripUTF8BOM } from '@sidex/base/common/strings.js';
-import { IDisposable, toDisposable } from '@sidex/base/common/lifecycle.js';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -133,9 +127,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private versionId = 0;
 	private bufferSavedVersionId: number | undefined;
-	/** Immutable text of the last resolved or successfully saved disk version. */
-	private lastResolvedContent: string | undefined;
-	private resolvedContentRetainers = 0;
 
 	private ignoreDirtyOnModelContentChange = false;
 	private ignoreSaveFromSaveParticipants = false;
@@ -169,8 +160,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IPathService private readonly pathService: IPathService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProgressService private readonly progressService: IProgressService,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super(modelService, languageService, languageDetectionService, accessibilityService);
 
@@ -375,136 +365,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Finally, resolve from file resource
 		return this.resolveFromFile(options);
-	}
-
-	retainResolvedContent(): IDisposable {
-		if (
-			++this.resolvedContentRetainers === 1 &&
-			this.isResolved() &&
-			!this.dirty &&
-			!this.saveSequentializer.isRunning() &&
-			!this.textEditorModel.isTooLargeForSyncing()
-		) {
-			this.lastResolvedContent = this.textEditorModel.getValue();
-		}
-		return toDisposable(() => {
-			if (--this.resolvedContentRetainers === 0) {
-				this.lastResolvedContent = undefined;
-			}
-		});
-	}
-
-	async reconcileExternalChanges(expectedContent: string, token: CancellationToken): Promise<TextFileReconcileResult> {
-		if (
-			!this.isResolved() ||
-			this.isDisposed() ||
-			this.isReadonly() ||
-			this.lastResolvedContent === undefined ||
-			this.textEditorModel.isTooLargeForSyncing()
-		) {
-			return TextFileReconcileResult.Unavailable;
-		}
-		const model = this.textEditorModel;
-		const version = this.versionId;
-		const resolvedStat = this.lastResolvedFileStat;
-		const encoding = this.getEncoding();
-		const baseline = this.lastResolvedContent;
-		const isCurrent = () =>
-			!token.isCancellationRequested &&
-			!this.isDisposed() &&
-			this.versionId === version &&
-			this.resolvedContentRetainers > 0 &&
-			this.lastResolvedContent === baseline &&
-			this.lastResolvedFileStat === resolvedStat &&
-			this.getEncoding() === encoding &&
-			!this.isReadonly() &&
-			!this.saveSequentializer.isRunning();
-		if (!resolvedStat || !isCurrent()) {
-			return TextFileReconcileResult.Stale;
-		}
-		const current = model.getValue();
-		const disk = await this.textFileService.read(this.resource, { encoding });
-		if (!isCurrent() || disk.value !== stripUTF8BOM(expectedContent) || disk.mtime < resolvedStat.mtime) {
-			return TextFileReconcileResult.Stale;
-		}
-		if (disk.readonly || disk.encoding !== encoding) {
-			return TextFileReconcileResult.Unavailable;
-		}
-		const normalize = (text: string) => text.replace(/\r\n|\r|\n/g, model.getEOL());
-		let incoming = StringEdit.empty;
-		if (normalize(disk.value) !== current) {
-			const [user, external] = await Promise.all([
-				this.editorWorkerService.computeStringEditFromDiffWithMetadata(
-					normalize(baseline),
-					current,
-					{ maxComputationTimeMs: 1000 },
-					'advanced'
-				),
-				this.editorWorkerService.computeStringEditFromDiffWithMetadata(
-					normalize(baseline),
-					normalize(disk.value),
-					{ maxComputationTimeMs: 1000 },
-					'advanced'
-				)
-			]);
-			if (!isCurrent()) {
-				return TextFileReconcileResult.Stale;
-			}
-			if (user.isCoarse || external.isCoarse) {
-				return TextFileReconcileResult.Unavailable;
-			}
-			const rebased = external.edit.tryRebase(user.edit);
-			if (!rebased) {
-				return TextFileReconcileResult.Conflict;
-			}
-			incoming = rebased;
-		}
-		// The content read remains the save baseline; stat only verifies that it has not changed.
-		const latest = await this.fileService.stat(this.resource);
-		if (
-			!isCurrent() ||
-			latest.etag !== disk.etag ||
-			latest.readonly !== disk.readonly ||
-			latest.locked !== disk.locked
-		) {
-			return TextFileReconcileResult.Stale;
-		}
-		this.updateLastResolvedFileStat({
-			...resolvedStat,
-			mtime: disk.mtime,
-			ctime: disk.ctime,
-			size: disk.size,
-			etag: disk.etag,
-			readonly: disk.readonly,
-			locked: disk.locked
-		});
-		this.lastResolvedContent = disk.value;
-		// Undoing back to the old disk version must not mark that now-outdated content as saved.
-		if (disk.value !== baseline) {
-			this.bufferSavedVersionId = undefined;
-		}
-		this.ignoreDirtyOnModelContentChange = true;
-		try {
-			if (!incoming.isEmpty()) {
-				model.pushStackElement();
-				model.pushEditOperations(
-					null,
-					offsetEditToEditOperations(incoming, model),
-					() => null,
-					undefined,
-					EditSources.reloadFromDisk()
-				);
-				model.pushStackElement();
-			}
-		} finally {
-			this.ignoreDirtyOnModelContentChange = false;
-		}
-		this.inConflictMode = false;
-		this.inErrorMode = false;
-		this.setOrphaned(false);
-		this.setDirty(model.getValue() !== disk.value);
-		this._onDidResolve.fire(TextFileResolveReason.OTHER);
-		return TextFileReconcileResult.Reconciled;
 	}
 
 	private async resolveFromBuffer(buffer: ITextBufferFactory, options?: ITextFileResolveOptions): Promise<void> {
@@ -746,13 +606,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// updates the `bufferSavedVersionId` to determine the
 		// version when to consider the model as saved again (e.g.
 		// when undoing back to the saved state)
-		this.lastResolvedContent =
-			this.resolvedContentRetainers > 0 &&
-			!dirty &&
-			this.textEditorModel &&
-			!this.textEditorModel.isTooLargeForSyncing()
-				? this.textEditorModel.getValue()
-				: undefined;
 		this.setDirty(!!dirty);
 
 		// Emit as event
@@ -1130,7 +983,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 
 				// We have to protect against being disposed at this point. It could be that the save() operation
-				// was triggered followed by a dispose() operation right after without waiting. Typically we cannot
+				// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
 				// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 				// one after the other without waiting for the save() to complete. If we are disposed(), we risk
 				// saving contents to disk that are stale (see https://github.com/microsoft/vscode/issues/50942).
@@ -1157,10 +1010,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.trace(`doSave(${versionId}) - before write()`);
 				const lastResolvedFileStat = assertReturnsDefined(this.lastResolvedFileStat);
 				const resolvedTextFileEditorModel = this;
-				const savedContent =
-					this.resolvedContentRetainers > 0 && !this.textEditorModel.isTooLargeForSyncing()
-						? this.textEditorModel.getValue()
-						: undefined;
 				return this.saveSequentializer.run(
 					versionId,
 					(async () => {
@@ -1184,7 +1033,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 								}
 							);
 
-							this.handleSaveSuccess(stat, versionId, options, savedContent);
+							this.handleSaveSuccess(stat, versionId, options);
 						} catch (error) {
 							this.handleSaveError(error, versionId, options);
 						}
@@ -1195,18 +1044,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		);
 	}
 
-	private handleSaveSuccess(
-		stat: IFileStatWithMetadata,
-		versionId: number,
-		options: ITextFileSaveAsOptions,
-		savedContent: string | undefined
-	): void {
+	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: ITextFileSaveAsOptions): void {
 		// Updated resolved stat with updated stat
 		this.updateLastResolvedFileStat(stat);
-		this.lastResolvedContent =
-			this.resolvedContentRetainers > 0 && !this.isDisposed() && this.lastResolvedFileStat?.etag === stat.etag
-				? savedContent
-				: undefined;
 
 		// Update dirty state unless model has changed meanwhile
 		if (versionId === this.versionId) {
@@ -1474,7 +1314,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;
-		this.lastResolvedContent = undefined;
 
 		super.dispose();
 	}

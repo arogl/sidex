@@ -515,34 +515,31 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
 				data.disposables = dispose(data.disposables);
-				data.elementDisposables = dispose(data.elementDisposables);
 			}
 		};
 
-		this._list = this._register(
-			this._instantiationService.createInstance(
-				WorkbenchList<IRuntimeExtension>,
-				'RuntimeExtensions',
-				parent,
-				delegate,
-				[renderer],
-				{
-					multipleSelectionSupport: false,
-					setRowLineHeight: false,
-					horizontalScrolling: false,
-					overrideStyles: {
-						listBackground: editorBackground
-					},
-					accessibilityProvider: new (class implements IListAccessibilityProvider<IRuntimeExtension> {
-						getWidgetAriaLabel(): string {
-							return nls.localize('runtimeExtensions', 'Runtime Extensions');
-						}
-						getAriaLabel(element: IRuntimeExtension): string | null {
-							return element.description.name;
-						}
-					})()
-				}
-			)
+		this._list = this._instantiationService.createInstance(
+			WorkbenchList<IRuntimeExtension>,
+			'RuntimeExtensions',
+			parent,
+			delegate,
+			[renderer],
+			{
+				multipleSelectionSupport: false,
+				setRowLineHeight: false,
+				horizontalScrolling: false,
+				overrideStyles: {
+					listBackground: editorBackground
+				},
+				accessibilityProvider: new (class implements IListAccessibilityProvider<IRuntimeExtension> {
+					getWidgetAriaLabel(): string {
+						return nls.localize('runtimeExtensions', 'Runtime Extensions');
+					}
+					getAriaLabel(element: IRuntimeExtension): string | null {
+						return element.description.name;
+					}
+				})()
+			}
 		);
 
 		this._list.splice(0, this._list.length, this._elements || undefined);
@@ -612,11 +609,6 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				});
 			})
 		);
-	}
-
-	override focus(): void {
-		super.focus();
-		this._list?.domFocus();
 	}
 
 	public layout(dimension: Dimension): void {

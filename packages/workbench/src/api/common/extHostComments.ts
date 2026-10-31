@@ -12,7 +12,7 @@ import { MarshalledId } from '@sidex/base/common/marshallingIds.js';
 import { URI, UriComponents } from '@sidex/base/common/uri.js';
 import { IRange } from '@sidex/editor/common/core/range.js';
 import * as languages from '@sidex/editor/common/languages.js';
-import { IExtensionDescription } from '@sidex/platform/extensions/common/extensions.js';
+import { ExtensionIdentifierMap, IExtensionDescription } from '@sidex/platform/extensions/common/extensions.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import * as extHostTypeConverter from './extHostTypeConverters.js';
 import * as types from './extHostTypes.js';
@@ -48,6 +48,9 @@ export function createExtHostComments(
 			ProviderHandle,
 			ExtHostCommentController
 		>();
+
+		private _commentControllersByExtension: ExtensionIdentifierMap<ExtHostCommentController[]> =
+			new ExtensionIdentifierMap<ExtHostCommentController[]>();
 
 		constructor() {
 			commands.registerArgumentProcessor({
@@ -159,10 +162,12 @@ export function createExtHostComments(
 
 		createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController {
 			const handle = ExtHostCommentsImpl.handlePool++;
-			const commentController = new ExtHostCommentController(extension, handle, id, label, () => {
-				this._commentControllers.delete(handle);
-			});
+			const commentController = new ExtHostCommentController(extension, handle, id, label);
 			this._commentControllers.set(commentController.handle, commentController);
+
+			const commentControllers = this._commentControllersByExtension.get(extension.identifier) || [];
+			commentControllers.push(commentController);
+			this._commentControllersByExtension.set(extension.identifier, commentControllers);
 
 			return commentController.value;
 		}
@@ -463,7 +468,6 @@ export function createExtHostComments(
 			private _comments: vscode.Comment[],
 			public readonly extensionDescription: IExtensionDescription,
 			private _isTemplate: boolean,
-			onDidDispose: () => void,
 			editorId?: string
 		) {
 			this._acceptInputDisposables.value = new DisposableStore();
@@ -484,7 +488,7 @@ export function createExtHostComments(
 				editorId
 			);
 
-			this._localDisposables = [new types.Disposable(onDidDispose)];
+			this._localDisposables = [];
 			this._isDiposed = false;
 
 			this._localDisposables.push(
@@ -672,9 +676,6 @@ export function createExtHostComments(
 		}
 
 		dispose() {
-			if (this._isDiposed) {
-				return;
-			}
 			this._isDiposed = true;
 			this._acceptInputDisposables.dispose();
 			this._onDidUpdateCommentThread.dispose();
@@ -757,8 +758,7 @@ export function createExtHostComments(
 			private _extension: IExtensionDescription,
 			private _handle: number,
 			private _id: string,
-			private _label: string,
-			onDidDispose: () => void
+			private _label: string
 		) {
 			proxy.$registerCommentController(this.handle, _id, _label, this._extension.identifier.value);
 
@@ -806,7 +806,6 @@ export function createExtHostComments(
 					proxy.$unregisterCommentController(this.handle);
 				}
 			});
-			this._localDisposables.push({ dispose: onDidDispose });
 		}
 
 		createCommentThread(
@@ -822,10 +821,7 @@ export function createExtHostComments(
 				range,
 				comments,
 				this._extension,
-				false,
-				() => {
-					this._threads.delete(commentThread.handle);
-				}
+				false
 			);
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;
@@ -860,9 +856,6 @@ export function createExtHostComments(
 				[],
 				this._extension,
 				true,
-				() => {
-					this._threads.delete(commentThread.handle);
-				},
 				editorId
 			);
 			commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;

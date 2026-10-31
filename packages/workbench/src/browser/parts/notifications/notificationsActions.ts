@@ -21,10 +21,6 @@ import { IClipboardService } from '@sidex/platform/clipboard/common/clipboardSer
 import { Codicon } from '@sidex/base/common/codicons.js';
 import { registerIcon } from '@sidex/platform/theme/common/iconRegistry.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
-import {
-	NotificationActionTelemetryId,
-	withNotificationActionTelemetry
-} from '@sidex/platform/notification/common/notificationTelemetry.js';
 
 const clearIcon = registerIcon(
 	'notifications-clear',
@@ -253,7 +249,6 @@ export class CopyNotificationMessageAction extends Action {
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(id, label);
-		withNotificationActionTelemetry(this, NotificationActionTelemetryId.Copy);
 	}
 
 	override run(notification: INotificationViewItem): Promise<void> {

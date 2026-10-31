@@ -9,7 +9,7 @@ import {
 	IDisposable,
 	MutableDisposable,
 	combinedDisposable,
-	DisposableMap
+	toDisposable
 } from '@sidex/base/common/lifecycle.js';
 import {
 	ExtHostContext,
@@ -34,7 +34,6 @@ import {
 	ITerminalOutputMatch,
 	ITerminalOutputMatcher,
 	ProcessPropertyType,
-	remoteResolverTerminal,
 	TerminalExitReason,
 	TerminalLocation,
 	type IProcessPropertyMap
@@ -79,10 +78,6 @@ import { ITerminalCompletionService } from '../../contrib/terminalContrib/sugges
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { hasKey } from '@sidex/base/common/types.js';
 
-interface TerminalProcessProxyEntry extends IDisposable {
-	readonly proxy: ITerminalProcessExtHostProxy;
-}
-
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService extends Disposable implements MainThreadTerminalServiceShape {
 	private readonly _proxy: ExtHostTerminalServiceShape;
@@ -93,10 +88,13 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	 * This comes in play only when dealing with terminals created on the extension host side
 	 */
 	private readonly _extHostTerminals = new Map<string, Promise<ITerminalInstance>>();
-	private readonly _terminalProcessProxies = this._register(new DisposableMap<number, TerminalProcessProxyEntry>());
-	private readonly _profileProviders = this._register(new DisposableMap<string, IDisposable>());
-	private readonly _completionProviders = this._register(new DisposableMap<string, IDisposable>());
-	private readonly _quickFixProviders = this._register(new DisposableMap<string, IDisposable>());
+	private readonly _terminalProcessProxies = new Map<
+		number,
+		{ proxy: ITerminalProcessExtHostProxy; store: DisposableStore }
+	>();
+	private readonly _profileProviders = new Map<string, IDisposable>();
+	private readonly _completionProviders = new Map<string, IDisposable>();
+	private readonly _quickFixProviders = new Map<string, IDisposable>();
 	private readonly _dataEventTracker = this._register(new MutableDisposable<TerminalDataEventTracker>());
 	private readonly _sendCommandEventListener = this._register(new MutableDisposable());
 
@@ -111,7 +109,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	private _os: OperatingSystem = OS;
 
 	constructor(
-		private readonly _extHostContext: IExtHostContext,
+		_extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService,
 		@ITerminalQuickFixService private readonly _terminalQuickFixService: ITerminalQuickFixService,
@@ -183,27 +181,39 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			this._proxy.$acceptActiveTerminalChanged(activeInstance.instanceId);
 		}
 		if (this._environmentVariableService.collections.size > 0) {
-			const hostOS = _extHostContext.remoteAuthority === null ? OS : _extHostContext.remoteOS;
-			if (hostOS === undefined) {
-				throw new Error(
-					'Remote extension host operating system is required to restore terminal environment collections.'
-				);
-			}
-			const collectionAsArray = [
-				...this._environmentVariableService
-					.getMergedCollection(_extHostContext.remoteAuthority, hostOS)
-					.collections.entries()
-			];
+			const collectionAsArray = [...this._environmentVariableService.collections.entries()];
 			const serializedCollections: [string, ISerializableEnvironmentVariableCollection][] = collectionAsArray.map(e => {
 				return [e[0], serializeEnvironmentVariableCollection(e[1].map)];
 			});
 			this._proxy.$initEnvironmentVariableCollections(serializedCollections);
 		}
+
+		this._store.add(
+			toDisposable(() => {
+				for (const e of this._terminalProcessProxies.values()) {
+					e.proxy.dispose();
+					e.store.dispose();
+				}
+				this._terminalProcessProxies.clear();
+			})
+		);
+
 		remoteAgentService.getEnvironment().then(async env => {
 			this._os = env?.os || OS;
 			this._updateDefaultProfile();
 		});
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile()));
+
+		this._register(
+			toDisposable(() => {
+				for (const provider of this._profileProviders.values()) {
+					provider.dispose();
+				}
+				for (const provider of this._quickFixProviders.values()) {
+					provider.dispose();
+				}
+			})
+		);
 	}
 
 	private async _updateDefaultProfile() {
@@ -242,7 +252,6 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			extHostTerminalId,
 			forceShellIntegration: launchConfig.forceShellIntegration,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
-			[remoteResolverTerminal]: launchConfig.isRemoteResolverTerminal || undefined,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
 			isTransient: launchConfig.isTransient,
@@ -252,21 +261,15 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
-				cwd: launchConfig.isRemoteResolverTerminal ? shellLaunchConfig.cwd : undefined,
 				location: await this._deserializeParentTerminal(launchConfig.location)
 			});
 			r(terminal);
 		});
 		this._extHostTerminals.set(extHostTerminalId, terminal);
 		const terminalInstance = await terminal;
-		if (terminalInstance.isDisposed) {
-			this._extHostTerminals.delete(extHostTerminalId);
-			return;
-		}
-		const disposeListener = this._register(
+		this._register(
 			terminalInstance.onDisposed(() => {
 				this._extHostTerminals.delete(extHostTerminalId);
-				this._store.delete(disposeListener);
 			})
 		);
 	}
@@ -424,7 +427,8 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	}
 
 	public $unregisterCompletionProvider(id: string): void {
-		this._completionProviders.deleteAndDispose(id);
+		this._completionProviders.get(id)?.dispose();
+		this._completionProviders.delete(id);
 	}
 
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
@@ -440,7 +444,8 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	}
 
 	public $unregisterProfileProvider(id: string): void {
-		this._profileProviders.deleteAndDispose(id);
+		this._profileProviders.get(id)?.dispose();
+		this._profileProviders.delete(id);
 	}
 
 	public async $registerQuickFixProvider(id: string, extensionId: string): Promise<void> {
@@ -484,7 +489,8 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	}
 
 	public $unregisterQuickFixProvider(id: string): void {
-		this._quickFixProviders.deleteAndDispose(id);
+		this._quickFixProviders.get(id)?.dispose();
+		this._quickFixProviders.delete(id);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {
@@ -516,7 +522,12 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			terminalInstance.exitCode,
 			terminalInstance.exitReason ?? TerminalExitReason.Unknown
 		);
-		this._terminalProcessProxies.deleteAndDispose(terminalInstance.instanceId);
+		const proxy = this._terminalProcessProxies.get(terminalInstance.instanceId);
+		if (proxy) {
+			proxy.proxy.dispose();
+			proxy.store.dispose();
+			this._terminalProcessProxies.delete(terminalInstance.instanceId);
+		}
 	}
 
 	private _onTerminalOpened(terminalInstance: ITerminalInstance): void {
@@ -557,8 +568,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	private _onRequestStartExtensionTerminal(request: IStartExtensionTerminalRequest): void {
 		const proxy = request.proxy;
 		const store = new DisposableStore();
-		store.add(proxy);
-		this._terminalProcessProxies.set(proxy.instanceId, { proxy, dispose: () => store.dispose() });
+		this._terminalProcessProxies.set(proxy.instanceId, { proxy, store });
 
 		// Note that onResize is not being listened to here as it needs to fire when max dimensions
 		// change, excluding the dimension override
@@ -609,8 +619,7 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			const translatedCollection = {
 				persistent,
 				map: deserializeEnvironmentVariableCollection(collection),
-				descriptionMap: deserializeEnvironmentDescriptionMap(descriptionMap),
-				remoteAuthority: this._extHostContext.remoteAuthority?.toLowerCase() ?? null
+				descriptionMap: deserializeEnvironmentDescriptionMap(descriptionMap)
 			};
 			this._environmentVariableService.set(extensionIdentifier, translatedCollection);
 		} else {
@@ -625,7 +634,6 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
  */
 class TerminalDataEventTracker extends Disposable {
 	private readonly _bufferer: TerminalDataBufferer;
-	private readonly _instanceListeners = this._register(new DisposableMap<number>());
 
 	constructor(
 		private readonly _callback: (id: number, data: string) => void,
@@ -640,19 +648,13 @@ class TerminalDataEventTracker extends Disposable {
 		}
 		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
 		this._register(
-			this._terminalService.onDidDisposeInstance(instance => {
-				this._bufferer.stopBuffering(instance.instanceId);
-				this._instanceListeners.deleteAndDispose(instance.instanceId);
-			})
+			this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId))
 		);
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {
 		// Buffer data events to reduce the amount of messages going to the extension host
-		this._instanceListeners.set(
-			instance.instanceId,
-			this._bufferer.startBuffering(instance.instanceId, instance.onData)
-		);
+		this._register(this._bufferer.startBuffering(instance.instanceId, instance.onData));
 	}
 }
 

@@ -5,14 +5,7 @@
 
 import './media/notificationsList.css';
 import { localize } from '@sidex/base/nls.js';
-import {
-	$,
-	addDisposableListener,
-	getWindow,
-	isAncestorOfActiveElement,
-	scheduleAtNextAnimationFrame,
-	trackFocus
-} from '@sidex/base/browser/dom.js';
+import { $, getWindow, isAncestorOfActiveElement, trackFocus } from '@sidex/base/browser/dom.js';
 import { WorkbenchList } from '@sidex/platform/list/browser/listService.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IListAccessibilityProvider, IListOptions } from '@sidex/base/browser/ui/list/listWidget.js';
@@ -23,22 +16,15 @@ import { CopyNotificationMessageAction } from './notificationsActions.js';
 import { IContextMenuService } from '@sidex/platform/contextview/browser/contextView.js';
 import { assertReturnsAllDefined } from '@sidex/base/common/types.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
-import { Disposable, IDisposable, MutableDisposable } from '@sidex/base/common/lifecycle.js';
+import { Disposable } from '@sidex/base/common/lifecycle.js';
 import { AriaRole } from '@sidex/base/browser/ui/aria/aria.js';
 import { NotificationActionRunner } from './notificationsCommands.js';
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { withSeverityPrefix } from '@sidex/platform/notification/common/notification.js';
-import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
-import {
-	logNotificationExpansion,
-	logNotificationShown,
-	NotificationTelemetrySurface
-} from '../../../common/notificationTelemetry.js';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	readonly widgetAriaLabel?: string;
-	readonly telemetrySurface?: NotificationTelemetrySurface;
 }
 
 export class NotificationsList extends Disposable {
@@ -47,33 +33,14 @@ export class NotificationsList extends Disposable {
 	private listDelegate: NotificationsListDelegate | undefined;
 	private viewModel: INotificationViewItem[] = [];
 	private isVisible: boolean | undefined;
-	private telemetryVisible = false;
-	private readonly visibilityUpdate = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly options: INotificationsListOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
-	}
-
-	updateNotificationHeights(): void {
-		if (!this.list) {
-			return;
-		}
-
-		const focus = this.list.getFocus();
-		const focusedIndex = focus[0];
-		const focusRelativeTop = typeof focusedIndex === 'number' ? this.list.getRelativeTop(focusedIndex) : null;
-		this.list.splice(0, this.viewModel.length, this.viewModel);
-		if (typeof focusRelativeTop === 'number') {
-			this.list.reveal(focusedIndex, focusRelativeTop);
-		}
-		this.list.setFocus(focus);
-		this.scheduleVisibilityUpdate();
 	}
 
 	show(): void {
@@ -94,9 +61,7 @@ export class NotificationsList extends Disposable {
 		// List Container
 		this.listContainer = $('.notifications-list-container');
 
-		const actionRunner = this._register(
-			this.instantiationService.createInstance(NotificationActionRunner, this.options.telemetrySurface)
-		);
+		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 
 		// Notification Renderer
 		const renderer = this.instantiationService.createInstance(NotificationRenderer, actionRunner);
@@ -147,25 +112,7 @@ export class NotificationsList extends Disposable {
 		);
 
 		// Toggle on double click
-		this._register(
-			list.onMouseDblClick(event => {
-				if (event.element) {
-					logNotificationExpansion(
-						this.telemetryService,
-						event.element,
-						!event.element.expanded,
-						this.options.telemetrySurface
-					);
-					event.element.toggle();
-				}
-			})
-		);
-		this._register(list.onDidScroll(() => this.scheduleVisibilityUpdate()));
-		this._register(
-			addDisposableListener(getWindow(this.container).document, 'visibilitychange', () =>
-				this.scheduleVisibilityUpdate()
-			)
-		);
+		this._register(list.onMouseDblClick(event => (event.element as INotificationViewItem).toggle()));
 
 		// Clear focus when DOM focus moves out
 		// Use document.hasFocus() to not clear the focus when the entire window lost focus
@@ -246,7 +193,6 @@ export class NotificationsList extends Disposable {
 		if (this.isVisible && listHasDOMFocus) {
 			list.domFocus();
 		}
-		this.scheduleVisibilityUpdate();
 	}
 
 	updateNotificationHeight(item: INotificationViewItem): void {
@@ -258,63 +204,9 @@ export class NotificationsList extends Disposable {
 		const [list, listDelegate] = assertReturnsAllDefined(this.list, this.listDelegate);
 		list.updateElementHeight(index, listDelegate.getHeight(item));
 		list.layout();
-		this.scheduleVisibilityUpdate();
-	}
-
-	/** Called after the owning surface finishes layout, not while toasts are being measured. */
-	setTelemetryVisibility(visible: boolean): void {
-		this.telemetryVisible = visible;
-		if (visible) {
-			this.scheduleVisibilityUpdate();
-		} else {
-			this.visibilityUpdate.clear();
-		}
-	}
-
-	private scheduleVisibilityUpdate(): void {
-		if (!this.telemetryVisible || !this.options.telemetrySurface || this.visibilityUpdate.value) {
-			return;
-		}
-		this.visibilityUpdate.value = scheduleAtNextAnimationFrame(getWindow(this.container), () => {
-			this.visibilityUpdate.clear();
-			this.reportVisibleNotifications();
-		});
-	}
-
-	private reportVisibleNotifications(): void {
-		const list = this.list;
-		const surface = this.options.telemetrySurface;
-		const targetWindow = getWindow(this.container);
-		if (
-			!list ||
-			!surface ||
-			!this.telemetryVisible ||
-			!this.container.isConnected ||
-			targetWindow.document.hidden ||
-			list.renderHeight <= 0
-		) {
-			return;
-		}
-
-		const bounds = list.getHTMLElement().getBoundingClientRect();
-		const top = list.scrollTop + Math.max(0, -bounds.top);
-		const bottom = list.scrollTop + Math.min(list.renderHeight, targetWindow.innerHeight - bounds.top);
-		if (bounds.width <= 0 || bounds.right <= 0 || bounds.left >= targetWindow.innerWidth || bottom <= top) {
-			return;
-		}
-		for (let index = list.firstVisibleIndex; index < list.length; index++) {
-			const itemTop = list.getElementTop(index);
-			if (itemTop >= bottom) {
-				break;
-			}
-			if (itemTop + list.getElementHeight(index) > top) {
-				logNotificationShown(this.telemetryService, list.element(index), surface);
-			}
-		}
 	}
 
 	hide(): void {
-		this.setTelemetryVisibility(false);
 		if (!this.isVisible || !this.list) {
 			return; // already hidden
 		}
@@ -355,7 +247,6 @@ export class NotificationsList extends Disposable {
 			}
 
 			this.list.layout();
-			this.scheduleVisibilityUpdate();
 		}
 	}
 

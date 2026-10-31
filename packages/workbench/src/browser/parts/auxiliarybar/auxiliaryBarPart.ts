@@ -49,13 +49,12 @@ import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ActionsOrientation } from '@sidex/base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
-import { IMenuService, MenuId, SubmenuItemAction } from '@sidex/platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '@sidex/platform/actions/common/actions.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { getContextMenuActions } from '@sidex/platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
 import { Extensions } from '../../panecomposite.js';
-import { IToolBarResponsiveBehaviorOptions } from '@sidex/base/browser/ui/toolbar/toolbar.js';
 
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
@@ -116,7 +115,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(
 			Parts.AUXILIARYBAR_PART,
@@ -135,6 +134,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.AuxiliaryBar,
 			Extensions.Auxiliary,
 			MenuId.AuxiliaryBarTitle,
+			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -146,8 +146,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
-			menuService,
-			configurationService
+			menuService
 		);
 
 		// Track visible view containers for auto-hide
@@ -187,17 +186,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				this.onDidChangeActivityBarLocation();
 			}
 		}
-	}
-
-	protected override getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions {
-		return {
-			enabled: true,
-			kind: 'all',
-			minItems: 0,
-			overflowFrom: 'start',
-			actionMinWidth: 22,
-			getActionMinWidth: action => (action instanceof SubmenuItemAction && action.item.isSplitButton ? 36 : undefined)
-		};
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {

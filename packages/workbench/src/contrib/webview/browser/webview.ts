@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from '@sidex/base/browser/dom.js';
 import { IMouseWheelEvent } from '@sidex/base/browser/mouseEvent.js';
 import { CodeWindow } from '@sidex/base/browser/window.js';
 import { equals } from '@sidex/base/common/arrays.js';
@@ -133,18 +134,6 @@ export interface WebviewContentOptions {
 	readonly allowForms?: boolean;
 
 	/**
-	 * Should untrusted key events from the webview be forwarded to the workbench? Defaults to false.
-	 *
-	 * This blocks keypress events that are triggered by scripts. Webviews should not allow untrusted scripts
-	 * to be run, so this is more of a defense-in-depth measure.
-	 *
-	 * There are valid reasons to enable this, such as when a webview embeds an iframe. In those cases, keyboard events can
-	 * be eaten by the iframe, so the inner iframe needs to forward keyboard events to the parent webview,
-	 * which then needs to forward them to the workbench.
-	 */
-	readonly forwardUntrustedKeypressEvents?: boolean;
-
-	/**
 	 * Set of root paths from which the webview can load local resources.
 	 */
 	readonly localResourceRoots?: readonly URI[];
@@ -170,7 +159,6 @@ export function areWebviewContentOptionsEqual(a: WebviewContentOptions, b: Webvi
 		a.allowMultipleAPIAcquire === b.allowMultipleAPIAcquire &&
 		a.allowScripts === b.allowScripts &&
 		a.allowForms === b.allowForms &&
-		a.forwardUntrustedKeypressEvents === b.forwardUntrustedKeypressEvents &&
 		equals(a.localResourceRoots, b.localResourceRoots, isEqual) &&
 		equals(
 			a.portMapping,
@@ -355,13 +343,14 @@ export interface IOverlayWebview extends IWebview {
 	release(claimant: any): void;
 
 	/**
-	 * Sets the webview to be absolutely positioned on top of another element in the DOM.
+	 * Absolutely position the webview on top of another element in the DOM.
 	 *
 	 * @param element Element to position the webview on top of. This element should
 	 *   be an placeholder for the webview since the webview will entirely cover it.
+	 * @param dimension Optional explicit dimensions to use for sizing the webview.
 	 * @param clippingContainer Optional container to clip the webview to. This should generally be a parent of `element`.
 	 */
-	setAnchorElement(element: HTMLElement, clippingContainer?: HTMLElement): void;
+	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement): void;
 }
 
 /**

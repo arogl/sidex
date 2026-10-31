@@ -26,12 +26,7 @@ import {
 	IsAuxiliaryWindowContext,
 	ActiveCompareEditorCanSwapContext,
 	MultipleEditorsSelectedInGroupContext,
-	SplitEditorsVertically,
-	ActiveEditorCannotCloseContext,
-	IsSessionsWindowContext,
-	ActiveCustomEditorDiffCanToggleLayoutContext,
-	ActiveCustomEditorTextDiffContext,
-	EditorPartModalContext
+	SplitEditorsVertically
 } from '../../../common/contextkeys.js';
 import {
 	SideBySideEditorInput,
@@ -208,15 +203,11 @@ import {
 	MOVE_EDITOR_INTO_BELOW_GROUP
 } from './editorCommands.js';
 import {
-	DIFF_SWAP_SIDES,
-	DIFF_VIEW_MODE_INLINE_TEMPORARY,
 	GOTO_NEXT_CHANGE,
 	GOTO_PREVIOUS_CHANGE,
-	SET_DIFF_VIEW_MODE_AUTOMATIC,
-	SET_DIFF_VIEW_MODE_INLINE,
-	SET_DIFF_VIEW_MODE_SIDE_BY_SIDE,
 	TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-	TOGGLE_DIFF_SIDE_BY_SIDE
+	TOGGLE_DIFF_SIDE_BY_SIDE,
+	DIFF_SWAP_SIDES
 } from './diffEditorCommands.js';
 import { inQuickPickContext, getQuickNavigateHandler } from '../../quickaccess.js';
 import { KeybindingsRegistry, KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
@@ -792,8 +783,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, {
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 	command: { id: CLOSE_EDITOR_COMMAND_ID, title: localize('close', 'Close') },
 	group: '1_close',
-	order: 10,
-	when: ActiveEditorCannotCloseContext.toNegated()
+	order: 10
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 	command: {
@@ -955,13 +945,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorSplitMoveSubmenu, {
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	submenu: MenuId.DiffEditorViewSubmenu,
-	title: localize('diffView', 'Diff View'),
-	group: '1_diff',
-	order: 10,
-	when: ContextKeyExpr.and(ContextKeyExpr.has('isInDiffEditor'), IsSessionsWindowContext.toNegated())
-});
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		title: localize('inlineView', 'Inline View'),
@@ -969,82 +952,22 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: '1_diff',
 	order: 10,
-	when: ContextKeyExpr.and(ActiveCustomEditorDiffCanToggleLayoutContext, ContextKeyExpr.not('isInDiffEditor'))
-});
-MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
-	command: {
-		id: SET_DIFF_VIEW_MODE_INLINE,
-		title: localize('diffView.inline', 'Inline'),
-		toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false)
-	},
-	group: '1_view',
-	order: 1
-});
-MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
-	command: {
-		id: SET_DIFF_VIEW_MODE_SIDE_BY_SIDE,
-		title: localize('diffView.sideBySide', 'Side by Side'),
-		toggled: ContextKeyExpr.and(
-			ContextKeyExpr.equals('config.diffEditor.renderSideBySide', true),
-			ContextKeyExpr.equals('config.diffEditor.useInlineViewWhenSpaceIsLimited', false)
-		)
-	},
-	group: '1_view',
-	order: 2
-});
-for (const [title, when] of [
-	[
-		localize('diffView.automaticSideBySide', 'Automatic (Currently Side by Side)'),
-		EditorContextKeys.diffEditorAutomaticRenderSideBySide
-	],
-	[
-		localize('diffView.automaticInline', 'Automatic (Currently Inline)'),
-		EditorContextKeys.diffEditorAutomaticRenderSideBySide.toNegated()
-	]
-] as const) {
-	MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
-		command: {
-			id: SET_DIFF_VIEW_MODE_AUTOMATIC,
-			title,
-			toggled: ContextKeyExpr.and(
-				ContextKeyExpr.equals('config.diffEditor.renderSideBySide', true),
-				ContextKeyExpr.equals('config.diffEditor.useInlineViewWhenSpaceIsLimited', true),
-				EditorContextKeys.diffEditorTemporaryInlineMode.toNegated()
-			)
-		},
-		group: '1_view',
-		order: 3,
-		when
-	});
-}
-MenuRegistry.appendMenuItem(MenuId.DiffEditorViewSubmenu, {
-	command: {
-		id: DIFF_VIEW_MODE_INLINE_TEMPORARY,
-		title: localize('diffView.inlineTemporary', 'Inline (Temporary)'),
-		toggled: EditorContextKeys.diffEditorTemporaryInlineMode,
-		precondition: ContextKeyExpr.false()
-	},
-	group: '1_view',
-	order: 4,
-	when: EditorContextKeys.diffEditorTemporaryInlineMode
+	when: ContextKeyExpr.has('isInDiffEditor')
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: { id: SHOW_EDITORS_IN_GROUP, title: localize('showOpenedEditors', 'Show Opened Editors') },
 	group: '3_open',
-	order: 10,
-	when: EditorPartModalContext.toNegated() /* not applicable to modal editor */
+	order: 10
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: { id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: localize('closeAll', 'Close All') },
 	group: '5_close',
-	order: 10,
-	when: EditorPartModalContext.toNegated() /* not applicable to modal editor */
+	order: 10
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: localize('closeAllSaved', 'Close Saved') },
 	group: '5_close',
-	order: 20,
-	when: EditorPartModalContext.toNegated() /* not applicable to modal editor */
+	order: 20
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
@@ -1053,8 +976,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		toggled: ContextKeyExpr.has('config.workbench.editor.enablePreview')
 	},
 	group: '7_settings',
-	order: 10,
-	when: EditorPartModalContext.toNegated() /* not applicable to modal editor */
+	order: 10
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: { id: TOGGLE_MAXIMIZE_EDITOR_GROUP, title: localize('maximizeGroup', 'Maximize Group') },
@@ -1076,16 +998,12 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: '8_group_operations',
 	order: 10,
-	when: ContextKeyExpr.and(
-		IsAuxiliaryWindowContext.toNegated(),
-		EditorPartModalContext.toNegated()
-	) /* already a primary action for aux windows, not applicable to modal editor */
+	when: IsAuxiliaryWindowContext.toNegated() /* already a primary action for aux windows */
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: { id: ConfigureEditorAction.ID, title: localize('configureEditors', 'Configure Editors') },
 	group: '9_configure',
-	order: 10,
-	when: EditorPartModalContext.toNegated() /* not applicable to modal editor */
+	order: 10
 });
 
 function appendEditorToolItem(
@@ -1131,15 +1049,13 @@ const SPLIT_ORDER = 100000; // towards the end
 const CLOSE_ORDER = 1000000; // towards the far end
 
 // Editor Title Menu: Split Editor
-// In the agents window the split editor action is moved into the overflow (...)
-// menu (see below) rather than being shown as a primary toolbar icon.
 appendEditorToolItem(
 	{
 		id: SPLIT_EDITOR,
 		title: localize('splitEditorRight', 'Split Editor Right'),
 		icon: Codicon.splitHorizontal
 	},
-	ContextKeyExpr.and(SplitEditorsVertically.negate(), IsSessionsWindowContext.toNegated()),
+	SplitEditorsVertically.negate(),
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_DOWN,
@@ -1154,7 +1070,7 @@ appendEditorToolItem(
 		title: localize('splitEditorDown', 'Split Editor Down'),
 		icon: Codicon.splitVertical
 	},
-	ContextKeyExpr.and(SplitEditorsVertically, IsSessionsWindowContext.toNegated()),
+	SplitEditorsVertically,
 	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_RIGHT,
@@ -1162,30 +1078,6 @@ appendEditorToolItem(
 		icon: Codicon.splitHorizontal
 	}
 );
-
-// Agents window: show Split Editor in the editor title overflow (...) menu
-// instead of as a primary toolbar icon. Mirror the orientation handling of the
-// primary toolbar items so the label/icon match the configured split direction.
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: SPLIT_EDITOR,
-		title: localize('splitEditorRight', 'Split Editor Right'),
-		icon: Codicon.splitHorizontal
-	},
-	group: '4_split',
-	order: 10,
-	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically.negate())
-});
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: SPLIT_EDITOR,
-		title: localize('splitEditorDown', 'Split Editor Down'),
-		icon: Codicon.splitVertical
-	},
-	group: '4_split',
-	order: 10,
-	when: ContextKeyExpr.and(IsSessionsWindowContext, SplitEditorsVertically)
-});
 
 // Side by side: layout
 appendEditorToolItem(
@@ -1208,8 +1100,7 @@ appendEditorToolItem(
 	ContextKeyExpr.and(
 		EditorTabsVisibleContext.toNegated(),
 		ActiveEditorDirtyContext.toNegated(),
-		ActiveEditorStickyContext.toNegated(),
-		ActiveEditorCannotCloseContext.toNegated()
+		ActiveEditorStickyContext.toNegated()
 	),
 	CLOSE_ORDER,
 	{
@@ -1229,8 +1120,7 @@ appendEditorToolItem(
 	ContextKeyExpr.and(
 		EditorTabsVisibleContext.toNegated(),
 		ActiveEditorDirtyContext,
-		ActiveEditorStickyContext.toNegated(),
-		ActiveEditorCannotCloseContext.toNegated()
+		ActiveEditorStickyContext.toNegated()
 	),
 	CLOSE_ORDER,
 	{
@@ -1352,21 +1242,6 @@ appendEditorToolItem(
 	undefined
 );
 
-// Custom Text Diff Editor Title Menu: Reopen as Text
-appendEditorToolItem(
-	{
-		id: ReOpenInTextEditorAction.ID,
-		title: localize('reopenAsText', 'Reopen as Text'),
-		icon: Codicon.fileCode
-	},
-	ActiveCustomEditorTextDiffContext,
-	16,
-	undefined,
-	undefined,
-	undefined,
-	true
-);
-
 const toggleWhitespace = registerIcon(
 	'diff-editor-toggle-whitespace',
 	Codicon.whitespace,
@@ -1476,8 +1351,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	title: localize('miShare', 'Share'),
 	submenu: MenuId.MenubarShare,
 	group: '45_share',
-	order: 1,
-	when: IsSessionsWindowContext.negate()
+	order: 1
 });
 
 // Layout menu
@@ -1485,8 +1359,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
 	title: localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, 'Editor &&Layout'),
 	submenu: MenuId.MenubarLayoutMenu,
-	order: 2,
-	when: IsSessionsWindowContext.negate()
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
