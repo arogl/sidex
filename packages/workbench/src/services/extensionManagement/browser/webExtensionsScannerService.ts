@@ -63,6 +63,7 @@ import { IProductService } from '@sidex/platform/product/common/productService.j
 import { validateExtensionManifest } from '@sidex/platform/extensions/common/extensionValidator.js';
 import Severity from '@sidex/base/common/severity.js';
 import { IStringDictionary } from '@sidex/base/common/collections.js';
+import { Schemas } from '@sidex/base/common/network.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesService } from '@sidex/platform/userDataProfile/common/userDataProfile.js';
 import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
@@ -896,7 +897,31 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		let manifest: IExtensionManifest | undefined;
 		let extensionLocation: URI | undefined;
 
-		if (galleryExtension.assets.manifest) {
+		// In the desktop app the Rust side owns the install: download the VSIX first, then point the
+		// extension at the folder it was unpacked into. The marketplace proxy only serves whole assets
+		// (VSIX, manifest), not the files inside a package, so resources such as theme JSON could not
+		// be loaded from the gallery location.
+		if ((globalThis as any).__SIDEX_TAURI__ === true && !metadata?.isBuiltin && galleryExtension.assets.download?.uri) {
+			try {
+				const { invoke } = await import('@tauri-apps/api/core');
+				const installed = await invoke<{ id: string; path: string }>('install_extension_from_url', {
+					url: galleryExtension.assets.download.uri
+				});
+				const localLocation = URI.file(installed.path);
+				manifest = JSON.parse(
+					await this.extensionResourceLoaderService.readExtensionResource(joinPath(localLocation, 'package.json'))
+				);
+				extensionLocation = localLocation;
+			} catch (error) {
+				this.logService.warn(
+					`Failed to install ${galleryExtension.identifier.id} locally, falling back to the gallery location`,
+					getErrorMessage(error)
+				);
+				manifest = undefined;
+			}
+		}
+
+		if (!extensionLocation && galleryExtension.assets.manifest) {
 			try {
 				const manifestUri = URI.parse(galleryExtension.assets.manifest.uri);
 				const content = await this.extensionResourceLoaderService.readExtensionResource(manifestUri);
@@ -1124,6 +1149,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async listExtensionResources(extensionLocation: URI): Promise<string[]> {
 		try {
+			if (extensionLocation.scheme === Schemas.file) {
+				// A folder the desktop app unpacked: list its entries instead of fetching a listing.
+				const stat = await this.fileService.resolve(extensionLocation);
+				return (stat.children ?? []).map(child => child.resource.toString());
+			}
 			const result = await this.extensionResourceLoaderService.readExtensionResource(extensionLocation);
 			return JSON.parse(result);
 		} catch (error) {
