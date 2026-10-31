@@ -11,7 +11,7 @@ import { URI } from '@sidex/base/common/uri.js';
 import { toErrorMessage } from '@sidex/base/common/errorMessage.js';
 import { Action } from '@sidex/base/common/actions.js';
 import { dispose, IDisposable } from '@sidex/base/common/lifecycle.js';
-import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from '../common/files.js';
+import { VIEWLET_ID, IFilesConfiguration, UndoConfirmLevel } from '../common/files.js';
 import { IFileService } from '@sidex/platform/files/common/files.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IQuickInputService, ItemActivation } from '@sidex/platform/quickinput/common/quickInput.js';
@@ -29,7 +29,7 @@ import { IClipboardService } from '@sidex/platform/clipboard/common/clipboardSer
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
 import { ICommandService, CommandsRegistry } from '@sidex/platform/commands/common/commands.js';
-import { RawContextKey } from '@sidex/platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '@sidex/platform/contextkey/common/contextkey.js';
 import { Schemas } from '@sidex/base/common/network.js';
 import { IDialogService, IConfirmationResult, getFileNamesMessage } from '@sidex/platform/dialogs/common/dialogs.js';
 import { INotificationService, Severity } from '@sidex/platform/notification/common/notification.js';
@@ -38,7 +38,6 @@ import { Constants } from '@sidex/base/common/uint.js';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { coalesce } from '@sidex/base/common/arrays.js';
 import { ExplorerItem, NewExplorerItem } from '../common/explorerModel.js';
-import { getErrorMessage } from '@sidex/base/common/errors.js';
 import { triggerUpload } from '@sidex/base/browser/dom.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -61,7 +60,8 @@ import { Action2 } from '@sidex/platform/actions/common/actions.js';
 import {
 	ActiveEditorCanToggleReadonlyContext,
 	ActiveEditorContext,
-	EmptyWorkspaceSupportContext
+	EmptyWorkspaceSupportContext,
+	IsSessionsWindowContext
 } from '../../../common/contextkeys.js';
 import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
 import { KeyChord, KeyCode, KeyMod } from '@sidex/base/common/keyCodes.js';
@@ -205,8 +205,8 @@ async function deleteFiles(
 
 	let confirmation: IConfirmationResult;
 
-	// We do not support undo of folders, so in that case the delete action is irreversible
-	const deleteDetail = distinctElements.some(e => e.isDirectory)
+	// We cannot restore folders or unknown file types, so deleting them is irreversible
+	const deleteDetail = distinctElements.some(e => e.isDirectory || e.isUnknown)
 		? nls.localize('irreversible', 'This action is irreversible!')
 		: distinctElements.length > 1
 			? nls.localize('restorePlural', 'You can restore these files using the Undo command.')
@@ -662,7 +662,7 @@ export class GlobalCompareResourcesAction extends Action2 {
 			title: GlobalCompareResourcesAction.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorContext,
+			precondition: ContextKeyExpr.and(ActiveEditorContext, IsSessionsWindowContext.negate()),
 			metadata: {
 				description: nls.localize2(
 					'compareFileWithMeta',
@@ -704,6 +704,7 @@ export class ToggleAutoSaveAction extends Action2 {
 			title: nls.localize2('toggleAutoSave', 'Toggle Auto Save'),
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
 				description: nls.localize2(
 					'toggleAutoSaveDescription',
@@ -801,6 +802,7 @@ export class FocusFilesExplorer extends Action2 {
 			title: FocusFilesExplorer.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
 				description: nls.localize2('focusFilesExplorerMetadata', 'Moves focus to the file explorer view container.')
 			}
@@ -823,6 +825,7 @@ export class ShowActiveFileInExplorer extends Action2 {
 			title: ShowActiveFileInExplorer.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
 				description: nls.localize2(
 					'showInExplorerMetadata',
@@ -854,7 +857,7 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			title: OpenActiveFileInEmptyWorkspace.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: EmptyWorkspaceSupportContext,
+			precondition: ContextKeyExpr.and(EmptyWorkspaceSupportContext, IsSessionsWindowContext.negate()),
 			metadata: {
 				description: nls.localize2(
 					'openFileInEmptyWorkspaceMetadata',
@@ -989,6 +992,7 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 			title: CompareNewUntitledTextFilesAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			metadata: {
 				description: nls.localize2(
 					'compareNewUntitledTextFilesMeta',
@@ -1022,6 +1026,7 @@ export class CompareWithClipboardAction extends Action2 {
 			title: CompareWithClipboardAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: IsSessionsWindowContext.negate(),
 			keybinding: {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC),
 				weight: KeybindingWeight.WorkbenchContrib
@@ -1118,8 +1123,9 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const commandService = accessor.get(ICommandService);
 	const pathService = accessor.get(IPathService);
 
-	const wasHidden = !viewsService.isViewVisible(VIEW_ID);
-	const view = await viewsService.openView(VIEW_ID, true);
+	const explorerViewId = explorerService.getViewId();
+	const wasHidden = !viewsService.isViewVisible(explorerViewId);
+	const view = await viewsService.openView(explorerViewId, true);
 	if (wasHidden) {
 		// Give explorer some time to resolve itself #111218
 		await timeout(500);
@@ -1582,18 +1588,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 		}
 	} catch (e) {
-		notificationService.error(
-			toErrorMessage(
-				new Error(
-					nls.localize(
-						'fileDeleted',
-						'The file(s) to paste have been deleted or moved since you copied them. {0}',
-						getErrorMessage(e)
-					)
-				),
-				false
-			)
-		);
+		notificationService.error(toErrorMessage(e, false));
 	} finally {
 		if (pasteShouldMove) {
 			// Cut is done. Make sure to clear cut state.
@@ -1689,7 +1684,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 			title,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorCanToggleReadonlyContext
+			precondition: ContextKeyExpr.and(ActiveEditorCanToggleReadonlyContext, IsSessionsWindowContext.negate())
 		});
 	}
 

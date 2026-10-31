@@ -21,6 +21,7 @@ import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from './storedFil
 import { LinkedList } from '@sidex/base/common/linkedList.js';
 import { CancellationError, isCancellationError } from '@sidex/base/common/errors.js';
 import { NotificationPriority } from '@sidex/platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '@sidex/platform/notification/common/notificationTelemetry.js';
 import { localize } from '@sidex/base/nls.js';
 
 export class StoredFileWorkingCopySaveParticipant extends Disposable {
@@ -64,6 +65,7 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 		// create an "inner" progress to allow to skip over long running save participants
 		await this.progressService.withProgress(
 			{
+				telemetry: NotificationTelemetryId.WorkingCopySaveParticipants,
 				priority: NotificationPriority.URGENT,
 				location: ProgressLocation.Notification,
 				cancellable: localize('skip', 'Skip'),

@@ -228,7 +228,6 @@ const trustedMathMlTags = Object.freeze([
 	'radialgradient',
 	'rect',
 	'stop',
-	'style',
 	'switch',
 	'symbol',
 	'text',

@@ -36,7 +36,8 @@ import {
 	IModelDecorationOptions,
 	InjectedTextCursorStops,
 	InjectedTextOptions,
-	ITextModel
+	ITextModel,
+	MinimapPosition
 } from '@sidex/editor/common/model.js';
 import { localize, localize2 } from '@sidex/base/nls.js';
 import { Categories } from '@sidex/platform/action/common/actionCommonCategories.js';
@@ -51,6 +52,7 @@ import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsR
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { bindContextKey, observableConfigValue } from '@sidex/platform/observable/common/platformObservableUtils.js';
 import { IQuickInputButton, IQuickInputService, QuickPickInput } from '@sidex/platform/quickinput/common/quickInput.js';
+import { themeColorFromId } from '@sidex/platform/theme/common/themeService.js';
 import { ActiveEditorContext } from '../../../common/contextkeys.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { getTestingConfiguration, TestingConfigKeys } from '../common/configuration.js';
@@ -64,6 +66,7 @@ import { TestingContextKeys } from '../common/testingContextKeys.js';
 import * as coverUtils from './codeCoverageDisplayUtils.js';
 import { testingCoverageMissingBranch, testingCoverageReport, testingFilterIcon, testingRerunIcon } from './icons.js';
 import { ManagedTestCoverageBars } from './testCoverageBars.js';
+import { testingCoveredMinimapBackground, testingUncoveredMinimapBackground } from './theme.js';
 
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
@@ -151,11 +154,18 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			)
 		);
 
+		const minimapEnabled = observableConfigValue(TestingConfigKeys.CoverageMinimapEnabled, true, configurationService);
 		this._register(
 			autorun(reader => {
 				const c = fileCoverage.read(reader);
 				if (c) {
-					this.apply(editor.getModel()!, c.file, c.testId, coverage.showInline.read(reader));
+					this.apply(
+						editor.getModel()!,
+						c.file,
+						c.testId,
+						coverage.showInline.read(reader),
+						minimapEnabled.read(reader)
+					);
 				} else {
 					this.clear();
 				}
@@ -372,7 +382,8 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		model: ITextModel,
 		coverage: FileCoverage,
 		testId: TestId | undefined,
-		showInlineByDefault: boolean
+		showInlineByDefault: boolean,
+		showMinimap: boolean
 	) {
 		const details = (this.details = await this.loadDetails(coverage, testId, model));
 		if (!details) {
@@ -400,7 +411,13 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const options: IModelDecorationOptions = {
 						showIfCollapsed: showMissIndicator, // only avoid collapsing if we want to show the miss indicator
 						description: 'coverage-gutter',
-						lineNumberClassName: `coverage-deco-gutter ${cls}`
+						lineNumberClassName: `coverage-deco-gutter ${cls}`,
+						minimap: showMinimap
+							? {
+									color: themeColorFromId(hits ? testingCoveredMinimapBackground : testingUncoveredMinimapBackground),
+									position: MinimapPosition.Gutter
+								}
+							: undefined
 					};
 
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
@@ -430,7 +447,15 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const options: IModelDecorationOptions = {
 						showIfCollapsed: false,
 						description: 'coverage-inline',
-						lineNumberClassName: `coverage-deco-gutter ${cls}`
+						lineNumberClassName: `coverage-deco-gutter ${cls}`,
+						minimap: showMinimap
+							? {
+									color: themeColorFromId(
+										detail.count ? testingCoveredMinimapBackground : testingUncoveredMinimapBackground
+									),
+									position: MinimapPosition.Gutter
+								}
+							: undefined
 					};
 
 					const applyHoverOptions = (target: IModelDecorationOptions) => {
@@ -1049,7 +1074,7 @@ registerAction2(
 			const result = coverage.fromResult;
 			const previousSelection = testCoverageService.filterToTest.get();
 
-			type TItem = { label: string; testId: TestId | undefined; buttons?: IQuickInputButton[] };
+			type TItem = { label: string; description?: string; testId: TestId | undefined; buttons?: IQuickInputButton[] };
 
 			const buttons: IQuickInputButton[] = [
 				{
@@ -1060,7 +1085,7 @@ registerAction2(
 			const items: QuickPickInput<TItem>[] = [
 				{ label: coverUtils.labels.allTests, testId: undefined },
 				{ type: 'separator' },
-				...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id, buttons }))
+				...tests.map(id => ({ ...coverUtils.getLabelForItem(result, id, commonPrefix), testId: id, buttons }))
 			];
 
 			// These handle the behavior that reveals the start of coverage when the

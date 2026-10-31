@@ -192,7 +192,7 @@ export interface IStartupMetrics {
 		 * The time it took to run the main bundle.
 		 *
 		 * * Happens in the main-process
-		 * * Measured with the `didStartMain` and `didRunMainBundle` performance marks.
+		 * * Measured with the `willRunMainBundle` and `didRunMainBundle` performance marks.
 		 */
 		readonly ellapsedRunMainBundle?: number;
 
@@ -730,7 +730,7 @@ export abstract class AbstractTimerService implements ITimerService {
 					? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle')
 					: undefined,
 				ellapsedRunMainBundle: initialStartup
-					? this._marks.getDuration('code/didStartMain', 'code/didRunMainBundle')
+					? this._marks.getDuration('code/willRunMainBundle', 'code/didRunMainBundle')
 					: undefined,
 				ellapsedCrashReporter: initialStartup
 					? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter')

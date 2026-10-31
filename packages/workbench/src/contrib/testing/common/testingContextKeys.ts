@@ -62,7 +62,7 @@ export namespace TestingContextKeys {
 	});
 	export const supportsContinuousRun = new RawContextKey('testing.supportsContinuousRun', false, {
 		type: 'boolean',
-		description: localize('testing.supportsContinuousRun', 'Indicates whether continous test running is supported')
+		description: localize('testing.supportsContinuousRun', 'Indicates whether continuous test running is supported')
 	});
 	export const isParentRunningContinuously = new RawContextKey('testing.isParentRunningContinuously', false, {
 		type: 'boolean',

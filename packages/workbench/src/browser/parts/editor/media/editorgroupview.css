@@ -80,7 +80,24 @@
 
 /* Watermark & shortcuts — SideX minimal */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark-toolbar-container {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 35px;
+	display: flex;
+	align-items: center;
+	padding: 0 8px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
 	max-width: 400px;
@@ -91,7 +108,7 @@
 	gap: 16px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .watermark-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper > .editor-group-watermark > .watermark-container {
 	display: flex;
 	width: 100%;
 	flex-direction: column;
@@ -100,7 +117,7 @@
 	gap: 16px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark {
+.monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark-wrapper {
 	display: none;
 }
 
@@ -115,23 +132,27 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts {
 	width: 100%;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark .shortcuts,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark .shortcuts,
-.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark .shortcuts {
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts,
+.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts {
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts > .watermark-box {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-wrapper .editor-group-watermark .shortcuts > .watermark-box {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl {
+.monaco-workbench .editor-group-watermark .watermark-box .monaco-action-bar.vertical .actions-container {
+	display: block;
+}
+
+.monaco-workbench .editor-group-watermark .watermark-entry {
 	display: flex;
 	justify-content: space-between;
 	margin: 3px 0;
@@ -140,12 +161,15 @@
 	font-size: 12px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:first-of-type {
-	margin-top: 0;
+.monaco-workbench .editor-group-watermark .watermark-entry:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:last-of-type {
-	margin-bottom: 0;
+.monaco-workbench .editor-group-watermark .watermark-entry:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dt {
@@ -180,12 +204,21 @@
 	z-index: 9;
 	pointer-events: none;
 	background-color: var(--title-border-bottom-color);
-	width: 100%;
+	width: var(--title-border-bottom-width, 100%);
 	height: 1px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.empty > .title {
 	display: none;
+}
+
+/* Optional full-width header rendered in flow between the tab bar and the editor
+ * pane (used by the Agents window single-pane layout). Height is set inline. */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
 }
 
 /* Toolbar */

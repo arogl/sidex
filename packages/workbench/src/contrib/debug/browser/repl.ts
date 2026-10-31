@@ -39,6 +39,7 @@ import {
 	CompletionItemInsertTextRule,
 	CompletionItemKind,
 	CompletionItemKinds,
+	CompletionItemLabel,
 	CompletionList
 } from '@sidex/editor/common/languages.js';
 import { ITextModel } from '@sidex/editor/common/model.js';
@@ -294,7 +295,12 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 				if (this.styleChangedWhenInvisible) {
 					this.styleChangedWhenInvisible = false;
-					this.tree?.updateChildren(undefined, true, false);
+					// Only update children when the tree has an input - it may not yet
+					// (no debug session has been focused since this view was created),
+					// in which case `_updateChildren` would throw `Tree input not set`.
+					if (this.tree?.getInput()) {
+						this.tree.updateChildren(undefined, true, false);
+					}
 					this.onDidStyleChange();
 				}
 			})
@@ -388,10 +394,12 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 													insertText.substring(item.selectionStart + selectionLength);
 											}
 
+											const label: string | CompletionItemLabel = item.detail
+												? { label: item.label, description: item.detail }
+												: item.label;
 											suggestions.push({
-												label: item.label,
+												label,
 												insertText,
-												detail: item.detail,
 												kind: CompletionItemKinds.fromString(item.type || 'property'),
 												filterText:
 													item.start && item.length

@@ -19,6 +19,10 @@ import { SEARCH_RESULT_LANGUAGE_ID } from '../../../services/search/common/searc
 
 export type SearchEditorData = { resultsModel: ITextModel; configurationModel: SearchConfigurationModel };
 
+interface ISearchEditorModelReference {
+	resolve(): Promise<SearchEditorData>;
+}
+
 export class SearchConfigurationModel {
 	private _onConfigDidUpdate = new Emitter<SearchConfiguration>();
 	public readonly onConfigDidUpdate = this._onConfigDidUpdate.event;
@@ -31,15 +35,25 @@ export class SearchConfigurationModel {
 }
 
 export class SearchEditorModel {
-	constructor(private resource: URI) {}
+	private readonly modelReference: ISearchEditorModelReference;
+
+	constructor(private readonly resource: URI) {
+		this.modelReference = assertReturnsDefined(searchEditorModelFactory.models.get(this.resource));
+	}
 
 	async resolve(): Promise<SearchEditorData> {
-		return assertReturnsDefined(searchEditorModelFactory.models.get(this.resource)).resolve();
+		return this.modelReference.resolve();
+	}
+
+	dispose(): void {
+		if (searchEditorModelFactory.models.get(this.resource) === this.modelReference) {
+			searchEditorModelFactory.models.delete(this.resource);
+		}
 	}
 }
 
 class SearchEditorModelFactory {
-	models = new ResourceMap<{ resolve: () => Promise<SearchEditorData> }>();
+	models = new ResourceMap<ISearchEditorModelReference>();
 
 	constructor() {}
 

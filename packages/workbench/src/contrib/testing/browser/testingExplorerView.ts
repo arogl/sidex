@@ -397,6 +397,8 @@ export class TestingExplorerView extends ViewPane {
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action, options);
 			case TestCommandId.DebugSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action, options);
+			case TestCommandId.CoverageSelectedAction:
+				return this.getRunGroupDropdown(TestRunProfileBitset.Coverage, action, options);
 			case TestCommandId.StartContinousRun:
 			case TestCommandId.StopContinousRun:
 				return this.getContinuousRunDropdown(action, options);
@@ -530,7 +532,12 @@ export class TestingExplorerView extends ViewPane {
 			{
 				id: defaultAction.id,
 				title: defaultAction.label,
-				icon: group === TestRunProfileBitset.Run ? icons.testingRunAllIcon : icons.testingDebugAllIcon
+				icon:
+					group === TestRunProfileBitset.Run
+						? icons.testingRunAllIcon
+						: group === TestRunProfileBitset.Debug
+							? icons.testingDebugAllIcon
+							: icons.testingCoverageAllIcon
 			},
 			undefined,
 			undefined,

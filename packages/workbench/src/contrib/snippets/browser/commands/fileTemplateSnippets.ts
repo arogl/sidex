@@ -58,6 +58,9 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 		}
 
 		if (editor.hasModel()) {
+			// set language before applying so snippet comment variables resolve against this language
+			editor.getModel().setLanguage(langService.createById(selection.langId), ApplyFileSnippetAction.Id);
+
 			// apply snippet edit -> replaces everything
 			SnippetController2.get(editor)?.apply([
 				{
@@ -65,9 +68,6 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 					template: selection.snippet.body
 				}
 			]);
-
-			// set language if possible
-			editor.getModel().setLanguage(langService.createById(selection.langId), ApplyFileSnippetAction.Id);
 
 			editor.focus();
 		}

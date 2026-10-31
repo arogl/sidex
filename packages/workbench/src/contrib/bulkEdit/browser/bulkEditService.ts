@@ -26,7 +26,7 @@ import { Extensions, IConfigurationRegistry } from '@sidex/platform/configuratio
 import { IDialogService } from '@sidex/platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
-import { ILogService } from '@sidex/platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '@sidex/platform/log/common/log.js';
 import { IProgress, IProgressStep, Progress } from '@sidex/platform/progress/common/progress.js';
 import { Registry } from '@sidex/platform/registry/common/platform.js';
 import { UndoRedoGroup, UndoRedoSource } from '@sidex/platform/undoRedo/common/undoRedo.js';
@@ -180,6 +180,13 @@ class BulkEdit {
 		return resources.flat();
 	}
 
+	private _logEdits(operation: string, edits: ResourceEdit[]): void {
+		// avoid serializing (potentially very many) edits when debug logging is off
+		if (canLog(this._logService.getLevel(), LogLevel.Debug)) {
+			this._logService.debug(operation, JSON.stringify(edits));
+		}
+	}
+
 	private async _performFileEdits(
 		edits: ResourceFileEdit[],
 		undoRedoGroup: UndoRedoGroup,
@@ -187,7 +194,7 @@ class BulkEdit {
 		confirmBeforeUndo: boolean,
 		progress: IProgress<void>
 	): Promise<readonly URI[]> {
-		this._logService.debug('_performFileEdits', JSON.stringify(edits));
+		this._logEdits('_performFileEdits', edits);
 		const model = this._instaService.createInstance(
 			BulkFileEdits,
 			this._label || localize('workspaceEdit', 'Workspace Edit'),
@@ -209,7 +216,7 @@ class BulkEdit {
 		progress: IProgress<void>,
 		reason: TextModelEditSource | undefined
 	): Promise<readonly URI[]> {
-		this._logService.debug('_performTextEdits', JSON.stringify(edits));
+		this._logEdits('_performTextEdits', edits);
 		const model = this._instaService.createInstance(
 			BulkTextEdits,
 			this._label || localize('workspaceEdit', 'Workspace Edit'),
@@ -230,7 +237,7 @@ class BulkEdit {
 		undoRedoSource: UndoRedoSource | undefined,
 		progress: IProgress<void>
 	): Promise<readonly URI[]> {
-		this._logService.debug('_performCellEdits', JSON.stringify(edits));
+		this._logEdits('_performCellEdits', edits);
 		const model = this._instaService.createInstance(
 			BulkCellEdits,
 			undoRedoGroup,
@@ -248,7 +255,7 @@ class BulkEdit {
 		undoRedoSource: UndoRedoSource | undefined,
 		progress: IProgress<void>
 	): Promise<readonly URI[]> {
-		this._logService.debug('_performOpaqueEdits', JSON.stringify(edits));
+		this._logEdits('_performOpaqueEdits', edits);
 		const model = this._instaService.createInstance(
 			OpaqueEdits,
 			undoRedoGroup,

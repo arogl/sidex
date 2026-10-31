@@ -5,6 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Disposable, toDisposable, type IDisposable } from '@sidex/base/common/lifecycle.js';
+import { Schemas } from '@sidex/base/common/network.js';
 import { IClipboardService } from '@sidex/platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import {
@@ -96,7 +97,16 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
 	 */
 	async paste(): Promise<void> {
-		await this._paste(await this._clipboardService.readText());
+		let text = await this._clipboardService.readText();
+
+		if (!text) {
+			const [resource] = await this._clipboardService.readResources();
+			if (resource?.scheme === Schemas.file) {
+				text = resource.fsPath;
+			}
+		}
+
+		await this._paste(text);
 	}
 
 	/**
@@ -200,7 +210,6 @@ const terminalAvailableWhenClause = ContextKeyExpr.or(
 	TerminalContextKeys.terminalHasBeenCreated
 );
 
-// TODO: Move these commands into this terminalContrib/
 registerActiveInstanceAction({
 	id: TerminalCommandId.CopyLastCommand,
 	title: localize2('workbench.action.terminal.copyLastCommand', 'Copy Last Command'),

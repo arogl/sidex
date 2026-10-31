@@ -68,7 +68,7 @@ interface IWebkitDataTransfer {
 }
 
 interface IWebkitDataTransferItem {
-	webkitGetAsEntry(): IWebkitDataTransferItemEntry;
+	webkitGetAsEntry(): IWebkitDataTransferItemEntry | null;
 }
 
 interface IWebkitDataTransferItemEntry {
@@ -159,7 +159,13 @@ export class BrowserFileUpload {
 		// an array we own as early as possible before using it.
 		const entries: IWebkitDataTransferItemEntry[] = [];
 		for (const item of items) {
-			entries.push(item.webkitGetAsEntry());
+			// `webkitGetAsEntry()` returns `null` for data transfer items that
+			// do not represent a file system entry (e.g. dragged text/URLs).
+			// Skip those so we never operate on a `null` entry later on.
+			const entry = item.webkitGetAsEntry();
+			if (entry) {
+				entries.push(entry);
+			}
 		}
 
 		const results: { isFile: boolean; resource: URI }[] = [];
@@ -696,6 +702,12 @@ interface IDownloadOperation {
 	fileBytesDownloaded: number;
 }
 
+interface IDownloadSource {
+	readonly resource: URI;
+	readonly name: string;
+	readonly isDirectory: boolean;
+}
+
 export class FileDownload {
 	private static readonly LAST_USED_DOWNLOAD_PATH_STORAGE_KEY = 'workbench.explorer.downloadPath';
 
@@ -708,7 +720,7 @@ export class FileDownload {
 		@IStorageService private readonly storageService: IStorageService
 	) {}
 
-	download(source: ExplorerItem[]): Promise<void> {
+	download(source: readonly IDownloadSource[]): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		// Indicate progress globally
@@ -730,7 +742,7 @@ export class FileDownload {
 	}
 
 	private async doDownload(
-		sources: ExplorerItem[],
+		sources: readonly IDownloadSource[],
 		progress: IProgress<IProgressStep>,
 		cts: CancellationTokenSource
 	): Promise<void> {
@@ -934,7 +946,7 @@ export class FileDownload {
 	}
 
 	private async doDownloadNative(
-		explorerItem: ExplorerItem,
+		explorerItem: IDownloadSource,
 		progress: IProgress<IProgressStep>,
 		cts: CancellationTokenSource
 	): Promise<void> {

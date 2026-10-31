@@ -404,6 +404,10 @@
 	opacity: 1;
 }
 
+.monaco-workbench .part.titlebar.inactive.menubar-focused > .titlebar-container {
+	opacity: 1;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label,
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.monaco-dropdown-with-primary .action-label {
 	color: var(--vscode-titleBar-activeForeground);
@@ -579,7 +583,8 @@
 	height: env(titlebar-area-height, 32px);
 }
 
-.monaco-workbench.web .part.titlebar .titlebar-left .window-controls-container {
+.monaco-workbench.web .part.titlebar .titlebar-left .window-controls-container,
+.monaco-workbench.linux:not(.web) .part.titlebar .titlebar-left .window-controls-container.wco-enabled {
 	width: env(titlebar-area-x, 0px);
 	height: env(titlebar-area-height, 32px);
 }

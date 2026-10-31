@@ -125,7 +125,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private readonly systemExtensionsCacheResource: URI | undefined = undefined;
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
-	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -158,8 +157,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			// Eventually update caches
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateCaches());
 		}
-		this.extensionsEnabledWithApiProposalVersion =
-			productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 	}
 
 	private _customBuiltinExtensionsInfoPromise:
@@ -1107,9 +1104,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
 
-		const validateApiVersion = this.extensionsEnabledWithApiProposalVersion.includes(
-			webExtension.identifier.id.toLowerCase()
-		);
 		validations.push(
 			...validateExtensionManifest(
 				this.productService.version,
@@ -1127,7 +1121,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			}
 		}
 
-		if (manifest.enabledApiProposals && validateApiVersion) {
+		if (manifest.enabledApiProposals) {
 			manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 		}
 

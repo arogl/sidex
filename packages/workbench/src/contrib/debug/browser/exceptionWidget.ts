@@ -21,6 +21,8 @@ import { ActionBar } from '@sidex/base/browser/ui/actionbar/actionbar.js';
 import { Action } from '@sidex/base/common/actions.js';
 import { widgetClose } from '@sidex/platform/theme/common/iconRegistry.js';
 import { Range } from '@sidex/editor/common/core/range.js';
+import { Codicon } from '@sidex/base/common/codicons.js';
+import { IClipboardService } from '@sidex/platform/clipboard/common/clipboardService.js';
 
 const $ = dom.$;
 
@@ -46,7 +48,8 @@ export class ExceptionWidget extends ZoneWidget {
 		private debugSession: IDebugSession | undefined,
 		private readonly shouldScroll: () => boolean,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super(editor, {
 			showFrame: true,
@@ -99,6 +102,19 @@ export class ExceptionWidget extends ZoneWidget {
 		let ariaLabel = label.textContent;
 
 		const actionBar = this._disposables.add(new ActionBar(actions));
+		actionBar.push(
+			new Action(
+				'editor.copyExceptionInfo',
+				nls.localize('copy', 'Copy'),
+				ThemeIcon.asClassName(Codicon.copy),
+				true,
+				async () => {
+					const clipboardText = this.buildExceptionText();
+					await this.clipboardService.writeText(clipboardText);
+				}
+			),
+			{ label: false, icon: true }
+		);
 		actionBar.push(
 			new Action(
 				'editor.closeExceptionWidget',
@@ -160,6 +176,22 @@ export class ExceptionWidget extends ZoneWidget {
 		if (this.shouldScroll()) {
 			super.revealRange(range, isLastLine);
 		}
+	}
+
+	private buildExceptionText(): string {
+		const parts: string[] = [];
+		if (this.exceptionInfo.id) {
+			parts.push(nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id));
+		} else {
+			parts.push(nls.localize('exceptionThrown', 'Exception has occurred.'));
+		}
+		if (this.exceptionInfo.description) {
+			parts.push(this.exceptionInfo.description);
+		}
+		if (this.exceptionInfo.details?.stackTrace) {
+			parts.push(this.exceptionInfo.details.stackTrace);
+		}
+		return parts.join('\n');
 	}
 
 	focus(): void {

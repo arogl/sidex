@@ -18,11 +18,11 @@ import {
 	IPrompt,
 	IAsyncPromptResult
 } from '@sidex/platform/dialogs/common/dialogs.js';
+import { IMarkdownString } from '@sidex/base/common/htmlContent.js';
 import { ILayoutService } from '@sidex/platform/layout/browser/layoutService.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import Severity from '@sidex/base/common/severity.js';
-import { IMarkdownString } from '@sidex/base/common/htmlContent.js';
-import { Dialog, IDialogResult } from '@sidex/base/browser/ui/dialog/dialog.js';
+import { Dialog, DialogContentsAlignment, IDialogResult } from '@sidex/base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
 import { IClipboardService } from '@sidex/platform/clipboard/common/clipboardService.js';
@@ -129,6 +129,16 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		}
 	}
 
+	/** Default link handler for Markdown rendered within a dialog, see {@link openLinkFromMarkdown}. */
+	private defaultMarkdownActionHandler(link: string, mdStr: IMarkdownString): Promise<boolean> {
+		return openLinkFromMarkdown(
+			this.openerService,
+			link,
+			mdStr.isTrusted,
+			true /* skip URL validation to prevent another dialog from showing which is unsupported */
+		);
+	}
+
 	private async doShow(
 		type: Severity | DialogType | undefined,
 		message: string,
@@ -142,6 +152,19 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
+		// A Markdown `detail` is rendered ahead of time into a plain element:
+		// the base `Dialog` widget has no Markdown rendering capability of its
+		// own (it lives below the platform layer), so it is handed the result
+		// via `detailElement` instead of the raw `IMarkdownString`.
+		const detailElement =
+			typeof detail === 'object'
+				? dialogDisposables.add(
+						this.markdownRendererService.render(detail, {
+							actionHandler: (link, mdStr) => this.defaultMarkdownActionHandler(link, mdStr)
+						})
+					).element
+				: undefined;
+
 		const renderBody = customOptions
 			? (parent: HTMLElement) => {
 					parent.classList.add(...(customOptions.classes || []));
@@ -149,15 +172,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 						const result = dialogDisposables.add(
 							this.markdownRendererService.render(markdownDetail.markdown, {
 								actionHandler:
-									markdownDetail.actionHandler ||
-									((link, mdStr) => {
-										return openLinkFromMarkdown(
-											this.openerService,
-											link,
-											mdStr.isTrusted,
-											true /* skip URL validation to prevent another dialog from showing which is unsupported */
-										);
-									})
+									markdownDetail.actionHandler || ((link, mdStr) => this.defaultMarkdownActionHandler(link, mdStr))
 							})
 						);
 						parent.appendChild(result.element);
@@ -172,11 +187,16 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 			buttons,
 			createWorkbenchDialogOptions(
 				{
-					detail: typeof detail === 'string' ? detail : detail?.value,
+					detail: typeof detail === 'string' ? detail : undefined,
+					detailElement,
 					cancelId,
 					type: this.getDialogType(type),
 					renderBody,
 					icon: customOptions?.icon,
+					alignment:
+						customOptions?.alignment === 'vertical'
+							? DialogContentsAlignment.Vertical
+							: DialogContentsAlignment.Horizontal,
 					disableCloseAction: customOptions?.disableCloseAction,
 					buttonOptions: customOptions?.buttonDetails?.map(detail => ({ sublabel: detail })),
 					checkboxLabel: checkbox?.label,

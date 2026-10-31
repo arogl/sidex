@@ -17,7 +17,8 @@ import {
 	ThemeSettingDefaults,
 	COLOR_THEME_DARK_INITIAL_COLORS,
 	COLOR_THEME_LIGHT_INITIAL_COLORS,
-	migrateThemeSettingsId
+	migrateThemeSettingsId,
+	IColorMap
 } from '../common/workbenchThemeService.js';
 import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
@@ -32,7 +33,7 @@ import {
 } from '@sidex/platform/theme/common/themeService.js';
 import { Event, Emitter } from '@sidex/base/common/event.js';
 import { registerFileIconThemeSchemas } from '../common/fileIconThemeSchema.js';
-import { IDisposable, Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
+import { IDisposable, Disposable, DisposableStore, toDisposable } from '@sidex/base/common/lifecycle.js';
 import { FileIconThemeData, FileIconThemeLoader } from './fileIconThemeData.js';
 import { createStyleSheet } from '@sidex/base/browser/domStylesheets.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
@@ -158,6 +159,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	private readonly colorThemeWatcher: ThemeFileWatcher;
 	private colorThemingParticipantChangeListener: IDisposable | undefined;
 	private readonly colorThemeSequencer: Sequencer;
+	private readonly colorThemeOverlays = new Set<{ getColors: (theme: IWorkbenchColorTheme) => IColorMap }>();
 
 	private readonly fileIconThemeRegistry: ThemeRegistry<FileIconThemeData>;
 	private currentFileIconTheme: FileIconThemeData;
@@ -205,7 +207,12 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.colorThemeWatcher = this._register(
 			new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this))
 		);
-		this.onColorThemeChange = this._register(new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 }));
+		this.onColorThemeChange = this._register(
+			new Emitter<IWorkbenchColorTheme>({
+				leakWarningThreshold: 400,
+				leakWarningName: 'ThemeService.onColorThemeChange'
+			})
+		);
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.colorThemeSequencer = new Sequencer();
 
@@ -221,7 +228,12 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			)
 		);
 		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, languageService);
-		this.onFileIconThemeChange = this._register(new Emitter<IWorkbenchFileIconTheme>({ leakWarningThreshold: 400 }));
+		this.onFileIconThemeChange = this._register(
+			new Emitter<IWorkbenchFileIconTheme>({
+				leakWarningThreshold: 400,
+				leakWarningName: 'ThemeService.onFileIconThemeChange'
+			})
+		);
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();
 
@@ -489,6 +501,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 						hasColorChanges = true;
 					}
 					if (hasColorChanges) {
+						this.applyColorThemeOverlays(this.currentColorTheme);
 						this.updateDynamicCSSRules(this.currentColorTheme);
 						this.onColorThemeChange.fire(this.currentColorTheme);
 					}
@@ -591,9 +604,12 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
+		let previous = { dark: this.hostColorService.dark, highContrast: this.hostColorService.highContrast };
 		this._register(
 			this.hostColorService.onDidChangeColorScheme(() => {
-				if (this.settings.isDetectingColorScheme()) {
+				const restoreColorTheme = this.settings.isPreferredColorSchemeChange(previous);
+				previous = { dark: this.hostColorService.dark, highContrast: this.hostColorService.highContrast };
+				if (restoreColorTheme) {
 					this.restoreColorTheme();
 				}
 			})
@@ -640,6 +656,40 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	public get onDidColorThemeChange(): Event<IWorkbenchColorTheme> {
 		return this.onColorThemeChange.event;
+	}
+
+	public registerColorThemeOverlay(getColors: (theme: IWorkbenchColorTheme) => IColorMap): IDisposable {
+		const overlay = { getColors };
+		this.colorThemeOverlays.add(overlay);
+		this.refreshColorThemeOverlays();
+		return toDisposable(() => {
+			if (this.colorThemeOverlays.delete(overlay) && !this._store.isDisposed) {
+				this.refreshColorThemeOverlays();
+			}
+		});
+	}
+
+	public getBaseColorTheme(): IWorkbenchColorTheme {
+		return this.currentColorTheme.getBaseTheme();
+	}
+
+	private refreshColorThemeOverlays(): void {
+		this.applyColorThemeOverlays(this.currentColorTheme);
+		this.updateDynamicCSSRules(this.currentColorTheme);
+		this.onColorThemeChange.fire(this.currentColorTheme);
+	}
+
+	private applyColorThemeOverlays(theme: ColorThemeData): void {
+		if (this.colorThemeOverlays.size) {
+			const baseTheme = theme.getBaseTheme();
+			const colors: IColorMap = {};
+			for (const overlay of this.colorThemeOverlays) {
+				Object.assign(colors, overlay.getColors(baseTheme));
+			}
+			theme.setTransientColors(colors);
+		} else {
+			theme.setTransientColors(undefined);
+		}
 	}
 
 	public setColorTheme(
@@ -757,6 +807,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		settingsTarget: ThemeSettingTarget,
 		silent = false
 	): Promise<IWorkbenchColorTheme | null> {
+		this.applyColorThemeOverlays(newTheme);
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {

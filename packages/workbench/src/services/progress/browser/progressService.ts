@@ -43,6 +43,12 @@ import { ILayoutService } from '@sidex/platform/layout/browser/layoutService.js'
 import { Dialog } from '@sidex/base/browser/ui/dialog/dialog.js';
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
 import { parseLinkedText } from '@sidex/base/common/linkedText.js';
+import { isLegacyExtensionLinkParsing } from '@sidex/platform/notification/common/notificationLegacy.js';
+import { NotificationText } from '@sidex/platform/notification/common/notificationMessage.js';
+import {
+	NotificationActionTelemetryId,
+	withNotificationActionTelemetry
+} from '@sidex/platform/notification/common/notificationTelemetry.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
@@ -166,7 +172,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 	private withWindowProgress<R = unknown>(
 		options: IProgressWindowOptions,
-		callback: (progress: IProgress<{ message?: string }>) => Promise<R>
+		callback: (progress: IProgress<IProgressStep>) => Promise<R>
 	): Promise<R> {
 		const task: [IProgressWindowOptions, Progress<IProgressStep>] = [
 			options,
@@ -183,7 +189,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			// show progress for at least 150ms
 			Promise.all([timeout(150), promise]).finally(() => {
 				const idx = this.windowProgressStack.indexOf(task);
-				this.windowProgressStack.splice(idx, 1);
+				if (idx !== -1) {
+					this.windowProgressStack.splice(idx, 1);
+				}
 				this.updateWindowProgress();
 			});
 		}, 150);
@@ -308,6 +316,11 @@ export class ProgressService extends Disposable implements IProgressService {
 		})();
 
 		const createWindowProgress = () => {
+			const toPlainText = (message: string | NotificationText | undefined) =>
+				isLegacyExtensionLinkParsing(options.legacyExtensionLinkParsing) && typeof message === 'string'
+					? parseLinkedText(message).toString()
+					: message?.toString();
+
 			// Create a promise that we can resolve as needed
 			// when the outside calls dispose on us
 			const promise = new DeferredPromise<void>();
@@ -315,7 +328,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			this.withWindowProgress(
 				{
 					location: ProgressLocation.Window,
-					title: options.title ? parseLinkedText(options.title.toString()).toString() : undefined, // convert markdown links => string
+					title: toPlainText(options.title),
 					command: 'notifications.showList',
 					type: options.type
 				},
@@ -323,7 +336,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					function reportProgress(step: IProgressStep) {
 						if (step.message) {
 							progress.report({
-								message: parseLinkedText(step.message.toString()).toString() // convert markdown links => string
+								message: toPlainText(step.message)
 							});
 						}
 					}
@@ -349,7 +362,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		const createNotification = (
-			message: string,
+			message: string | NotificationText,
 			priority?: NotificationPriority,
 			increment?: number
 		): INotificationHandle => {
@@ -391,13 +404,16 @@ export class ProgressService extends Disposable implements IProgressService {
 					}
 				})();
 				notificationDisposables.add(cancelAction);
+				withNotificationActionTelemetry(cancelAction, NotificationActionTelemetryId.ProgressCancel);
 
 				primaryActions.push(cancelAction);
 			}
 
 			const notification = this.notificationService.notify({
+				telemetry: options.telemetry,
 				severity: Severity.Info,
-				message: stripIcons(message), // status entries support codicons, but notifications do not (https://github.com/microsoft/vscode/issues/145722)
+				message: typeof message === 'string' ? stripIcons(message) : message.mapText(stripIcons),
+				legacyExtensionLinkParsing: options.legacyExtensionLinkParsing,
 				source: options.source,
 				actions: { primary: primaryActions, secondary: secondaryActions },
 				progress:
@@ -444,12 +460,15 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		let notificationHandle: INotificationHandle | undefined;
 		let notificationTimeout: Timeout | undefined;
-		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
+		let titleAndMessage: string | NotificationText | undefined; // hoisted to make sure a delayed notification shows the most recent message
 
 		const updateNotification = (step?: IProgressStep): void => {
 			// full message (inital or update)
 			if (step?.message && options.title) {
-				titleAndMessage = `${options.title.toString()}: ${step.message.toString()}`; // always prefix with overall title if we have it (https://github.com/microsoft/vscode/issues/50932)
+				titleAndMessage =
+					typeof options.title === 'string' && typeof step.message === 'string'
+						? `${options.title}: ${step.message}`
+						: NotificationText.concat(options.title, ': ', step.message);
 			} else {
 				titleAndMessage = options.title?.toString() || step?.message?.toString();
 			}
@@ -708,8 +727,8 @@ export class ProgressService extends Disposable implements IProgressService {
 			}, 0)
 		);
 
-		const updateDialog = function (message?: string): void {
-			latestMessage = message;
+		const updateDialog = function (message?: string | NotificationText): void {
+			latestMessage = message?.toString();
 
 			// Make sure to only run one dialog update and not multiple
 			if (!scheduler.isScheduled()) {

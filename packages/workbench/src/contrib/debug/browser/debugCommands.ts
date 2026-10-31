@@ -43,6 +43,7 @@ import {
 	CONTEXT_DISASSEMBLY_VIEW_FOCUS,
 	CONTEXT_EXPRESSION_SELECTED,
 	CONTEXT_FOCUSED_SESSION_IS_ATTACH,
+	CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES,
 	CONTEXT_IN_DEBUG_MODE,
 	CONTEXT_IN_DEBUG_REPL,
 	CONTEXT_JUMP_TO_CURSOR_SUPPORTED,
@@ -583,7 +584,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_OUT_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.Shift | KeyCode.F11,
-	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
+	when: ContextKeyExpr.and(CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_THREAD_HAS_MULTIPLE_STACK_FRAMES),
 	handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {

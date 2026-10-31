@@ -94,7 +94,9 @@ export class DebugStorage extends Disposable {
 					);
 				}
 			);
-		} catch (_e) {}
+		} catch (e) {
+			this.logService.error('Failed to load breakpoints from storage', e);
+		}
 
 		return result || [];
 	}
@@ -107,7 +109,9 @@ export class DebugStorage extends Disposable {
 					return new FunctionBreakpoint(fb, fb.id);
 				}
 			);
-		} catch (_e) {}
+		} catch (e) {
+			this.logService.error('Failed to load function breakpoints from storage', e);
+		}
 
 		return result || [];
 	}
@@ -120,7 +124,9 @@ export class DebugStorage extends Disposable {
 					return new ExceptionBreakpoint(exBreakpoint, exBreakpoint.id);
 				}
 			);
-		} catch (_e) {}
+		} catch (e) {
+			this.logService.error('Failed to load exception breakpoints from storage', e);
+		}
 
 		return result || [];
 	}
@@ -133,7 +139,9 @@ export class DebugStorage extends Disposable {
 					return new DataBreakpoint(dbp, dbp.id);
 				}
 			);
-		} catch (_e) {}
+		} catch (e) {
+			this.logService.error('Failed to load data breakpoints from storage', e);
+		}
 
 		return result || [];
 	}
@@ -146,7 +154,9 @@ export class DebugStorage extends Disposable {
 					return new Expression(watchStoredData.name, watchStoredData.id);
 				}
 			);
-		} catch (_e) {}
+		} catch (e) {
+			this.logService.error('Failed to load watch expressions from storage', e);
+		}
 
 		return result || [];
 	}

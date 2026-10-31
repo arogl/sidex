@@ -78,7 +78,7 @@ export const grammarsExtPoint: IExtensionPoint<ITMSyntaxExtensionPoint[]> = Exte
 					),
 					type: 'object',
 					additionalProperties: {
-						enum: ['string', 'comment', 'other']
+						enum: ['string', 'comment', 'other', 'regex']
 					}
 				},
 				injectTo: {

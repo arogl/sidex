@@ -15,6 +15,7 @@ import * as SearchEditorConstants from '../../searchEditor/browser/constants.js'
 import { SearchEditor } from '../../searchEditor/browser/searchEditor.js';
 import { SearchEditorInput } from '../../searchEditor/browser/searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import { assertReturnsDefined } from '@sidex/base/common/types.js';
 import { Action2, MenuId, registerAction2 } from '@sidex/platform/actions/common/actions.js';
@@ -480,11 +481,13 @@ registerAction2(
 				],
 				category,
 				f1: true,
+				precondition: IsSessionsWindowContext.negate(),
 				menu: [
 					{
 						id: MenuId.MenubarEditMenu,
 						group: '4_find_global',
-						order: 2
+						order: 2,
+						when: IsSessionsWindowContext.negate()
 					}
 				]
 			});

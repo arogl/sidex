@@ -41,7 +41,6 @@ import {
 	pathIncludedInQuery,
 	QueryType
 } from './search.js';
-import { GlobPattern } from './searchExtTypes.js';
 
 /**
  * One folder to search and a glob expression that should be applied.
@@ -72,19 +71,6 @@ export function isISearchPatternBuilder<U extends UriComponents>(
 	return typeof object === 'object' && 'uri' in object && 'pattern' in object;
 }
 
-export function globPatternToISearchPatternBuilder(globPattern: GlobPattern): ISearchPatternBuilder<URI> {
-	if (typeof globPattern === 'string') {
-		return {
-			pattern: globPattern
-		};
-	}
-
-	return {
-		pattern: globPattern.pattern,
-		uri: globPattern.baseUri
-	};
-}
-
 /**
  * A set of search paths and a set of glob expressions that should be applied.
  */
@@ -112,6 +98,7 @@ interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	ignoreSymlinks?: boolean;
 	ignoreGlobCase?: boolean;
 	onlyOpenEditors?: boolean;
+	changedFileUris?: URI[];
 	onlyFileScheme?: boolean;
 }
 
@@ -157,14 +144,6 @@ export class QueryBuilder {
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern = this.getContentPattern(contentPattern, options);
-		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
-
-		const fallbackToPCRE =
-			folderResources &&
-			folderResources.some(folder => {
-				const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-				return !folderConfig.search.useRipgrep;
-			});
 
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
 		return {
@@ -173,7 +152,6 @@ export class QueryBuilder {
 			contentPattern,
 			previewOptions: options.previewOptions,
 			maxFileSize: options.maxFileSize,
-			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
 			surroundingContext: options.surroundingContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
 		};
@@ -316,6 +294,13 @@ export class QueryBuilder {
 			const openEditorsQueryProps = this.commonQueryFromFileList(openEditorsInQuery);
 			this.logService.trace('QueryBuilder#commonQuery - openEditor Query', JSON.stringify(openEditorsQueryProps));
 			return { ...queryProps, ...openEditorsQueryProps };
+		}
+
+		if (options.changedFileUris !== undefined) {
+			const changedFilesInQuery = options.changedFileUris.filter(uri => pathIncludedInQuery(queryProps, uri.fsPath));
+			const changedFilesQueryProps = this.commonQueryFromFileList(changedFilesInQuery);
+			this.logService.trace('QueryBuilder#commonQuery - changedFile Query', JSON.stringify(changedFilesQueryProps));
+			return { ...queryProps, ...changedFilesQueryProps };
 		}
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
@@ -703,17 +688,17 @@ export class QueryBuilder {
 			disregardIgnoreFiles:
 				typeof options.disregardIgnoreFiles === 'boolean'
 					? options.disregardIgnoreFiles
-					: !folderConfig.search.useIgnoreFiles,
+					: !folderConfig.search?.useIgnoreFiles,
 			disregardGlobalIgnoreFiles:
 				typeof options.disregardGlobalIgnoreFiles === 'boolean'
 					? options.disregardGlobalIgnoreFiles
-					: !folderConfig.search.useGlobalIgnoreFiles,
+					: !folderConfig.search?.useGlobalIgnoreFiles,
 			disregardParentIgnoreFiles:
 				typeof options.disregardParentIgnoreFiles === 'boolean'
 					? options.disregardParentIgnoreFiles
-					: !folderConfig.search.useParentIgnoreFiles,
+					: !folderConfig.search?.useParentIgnoreFiles,
 			ignoreSymlinks:
-				typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
+				typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search?.followSymlinks,
 			ignoreGlobCase: options.ignoreGlobCase
 		};
 	}
