@@ -192,6 +192,9 @@ export interface IEditorPane extends IComposite {
 	 */
 	getViewState(): object | undefined;
 
+	/** An optional instantiation service scoped to the editor pane. */
+	readonly scopedInstantiationService?: IInstantiationService;
+
 	/**
 	 * An optional method to return the current selection in
 	 * the editor pane in case the editor pane has a selection
@@ -899,9 +902,25 @@ export const enum EditorInputCapabilities {
 
 	/**
 	 * Signals that the editor must be opened in a modal editor
-	 * part, overriding the `workbench.editor.useModal` setting.
+	 * part. This is honored unless the user has explicitly opted
+	 * out of modal editors via `workbench.editor.useModal: 'off'`.
 	 */
-	RequiresModal = 1 << 11
+	RequiresModal = 1 << 11,
+
+	/**
+	 * Signals that the editor is exempt from the opened editors
+	 * limit (`workbench.editor.limit`): it never counts towards the
+	 * limit and is never auto-closed to satisfy it.
+	 */
+	ExcludeFromEditorLimit = 1 << 12,
+
+	/**
+	 * Signals that the editor cannot be closed through standard user
+	 * initiated close actions, such as the tab close button, middle
+	 * click, or close commands. Callers with an explicit lifecycle
+	 * requirement can force the editor to close.
+	 */
+	CannotClose = 1 << 13
 }
 
 export type IUntypedEditorInput =
@@ -982,6 +1001,19 @@ export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
 	const candidate = editor as IDiffEditorInput | undefined;
 
 	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
+}
+
+export interface IEditorInputWithDiffResources extends EditorInput {
+	readonly diffResources: {
+		readonly original: URI;
+		readonly modified: URI;
+	};
+}
+
+export function isEditorInputWithDiffResources(editor: unknown): editor is IEditorInputWithDiffResources {
+	const candidate = editor as IEditorInputWithDiffResources | undefined;
+
+	return URI.isUri(candidate?.diffResources?.original) && URI.isUri(candidate.diffResources.modified);
 }
 
 export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
@@ -1221,6 +1253,15 @@ export interface IActiveEditorChangeEvent {
 	 * The new active editor or `undefined` if the group is empty.
 	 */
 	editor: EditorInput | undefined;
+
+	/**
+	 * Indicates whether the editor change is the result of an explicit
+	 * user action (`true`) or happened automatically as a side effect
+	 * (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should treat the change as explicit.
+	 */
+	isExplicit?: boolean;
 }
 
 export interface IEditorWillMoveEvent extends IEditorIdentifier {
@@ -1294,6 +1335,7 @@ interface IEditorPartConfiguration {
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabActionLocation?: 'left' | 'right';
+	tabActionReserveSpace?: boolean;
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
 	showTabIndex?: boolean;
@@ -1336,6 +1378,7 @@ interface IEditorPartConfiguration {
 
 export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
 	hasIcons: boolean;
+	showBreadcrumbs?: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {
