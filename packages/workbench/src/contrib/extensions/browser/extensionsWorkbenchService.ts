@@ -67,6 +67,7 @@ import {
 	ExtensionState,
 	IExtensionsWorkbenchService,
 	AutoUpdateConfigurationKey,
+	AutoUpdateDelayConfigurationKey,
 	AutoCheckUpdatesConfigurationKey,
 	HasOutdatedExtensionsContext,
 	AutoUpdateConfigurationValue,
@@ -93,6 +94,7 @@ import {
 	NotificationPriority,
 	Severity
 } from '@sidex/platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '@sidex/platform/notification/common/notificationTelemetry.js';
 import * as resources from '@sidex/base/common/resources.js';
 import { CancellationToken } from '@sidex/base/common/cancellation.js';
 import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
@@ -117,7 +119,7 @@ import {
 	SyncResource
 } from '@sidex/platform/userDataSync/common/nullUserDataSync.js';
 import { IContextKey, IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
-import { isBoolean, isDefined, isString, isUndefined } from '@sidex/base/common/types.js';
+import { isDefined, isString, isUndefined } from '@sidex/base/common/types.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import {
 	IExtensionService,
@@ -143,10 +145,13 @@ import { IQuickInputService } from '@sidex/platform/quickinput/common/quickInput
 import { IMarkdownString, MarkdownString } from '@sidex/base/common/htmlContent.js';
 import {
 	ExtensionGalleryResourceType,
+	ExtensionGalleryServiceUrlConfigKey,
 	getExtensionGalleryManifestResourceUri,
+	IExtensionGalleryManifest,
 	IExtensionGalleryManifestService
 } from '@sidex/platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '@sidex/base/common/date.js';
+import { hash } from '@sidex/base/common/hash.js';
 import { IUserDataProfilesService } from '@sidex/platform/userDataProfile/common/userDataProfile.js';
 import { IMeteredConnectionService } from '@sidex/platform/meteredConnection/common/meteredConnection.js';
 
@@ -430,7 +435,13 @@ export class Extension implements IExtension {
 				return false;
 			}
 			// Do not allow updating system extensions in stable
-			if (this.type === ExtensionType.System && this.productService.quality === 'stable') {
+			if (
+				this.type === ExtensionType.System &&
+				this.productService.quality === 'stable' &&
+				!this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(
+					id => id.toLowerCase() === this.identifier.id.toLowerCase()
+				)
+			) {
 				return false;
 			}
 			if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
@@ -799,7 +810,7 @@ class Extensions extends Disposable {
 		);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
-			if (extension.local && !extension.local.identifier.uuid) {
+			if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
 			if (
@@ -1360,6 +1371,20 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		this.initializeAutoUpdate();
+		this.extensionGalleryManifestService
+			.getExtensionGalleryManifest()
+			.then(manifest => {
+				if (this._store.isDisposed) {
+					return;
+				}
+				this.updateExtensionGalleryManifest(manifest);
+				this._register(
+					this.extensionGalleryManifestService.onDidChangeExtensionGalleryManifest(manifest =>
+						this.updateExtensionGalleryManifest(manifest)
+					)
+				);
+			})
+			.catch(e => this.logService.error('Error while fetching extension gallery manifest', e));
 		this.updateExtensionsNotificaiton();
 		this.reportInstalledExtensionsTelemetry();
 		this._register(
@@ -1393,6 +1418,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this.reportProgressFromOtherSources();
 			})
 		);
+		this._register(
+			this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)) {
+					this.updateExtensionsNotificaiton();
+				}
+			})
+		);
 	}
 
 	private initializeAutoUpdate(): void {
@@ -1403,6 +1435,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					if (this.isAutoUpdateEnabled()) {
 						this.eventuallyAutoUpdateExtensions();
 					}
+					// The auto update value affects whether an extension is shown as delayed
+					this._onChange.fire(undefined);
+				}
+				if (e.affectsConfiguration(AutoUpdateDelayConfigurationKey)) {
+					if (this.isAutoUpdateEnabled()) {
+						this.eventuallyAutoUpdateExtensions();
+					}
+					// The delay affects whether an extension is shown as delayed
+					this._onChange.fire(undefined);
 				}
 				if (e.affectsConfiguration(AutoCheckUpdatesConfigurationKey)) {
 					if (this.isAutoCheckUpdatesEnabled()) {
@@ -1415,7 +1456,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.extensionEnablementService.onEnablementChanged(platformExtensions => {
 				if (
 					this.isAutoCheckUpdatesEnabled() &&
-					this.getAutoUpdateValue() === 'onlyEnabledExtensions' &&
+					this.getAutoUpdateValue() === 'on' &&
 					platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))
 				) {
 					this.checkForUpdates('Extension enablement changed');
@@ -1493,19 +1534,71 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		);
 	}
 
+	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
+	private updateExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+		this.extensionGalleryManifest = manifest;
+		this.updateExtensionsNotificaiton();
+	}
+
 	private isAutoUpdateEnabled(): boolean {
 		if (this.meteredConnectionService.isConnectionMetered) {
 			return false;
 		}
-		return this.getAutoUpdateValue() !== false;
+		return this.getAutoUpdateValue() !== 'off';
 	}
 
 	getAutoUpdateValue(): AutoUpdateConfigurationValue {
-		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
-		if (<any>autoUpdate === 'onlySelectedExtensions') {
+		const autoUpdate = this.configurationService.getValue<
+			AutoUpdateConfigurationValue | boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions' | 'delayed'
+		>(AutoUpdateConfigurationKey);
+		if (autoUpdate === 'off' || autoUpdate === false || autoUpdate === 'onlySelectedExtensions') {
+			return 'off';
+		}
+		return 'on';
+	}
+
+	isAutoUpdateDelayed(extension: IExtension): boolean {
+		if (!extension.outdated) {
 			return false;
 		}
-		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+		if (!this.shouldAutoUpdateExtension(extension)) {
+			return false;
+		}
+		return this.getAutoUpdateDelayRemaining(extension) > 0;
+	}
+
+	getAutoUpdateDelayRemaining(extension: IExtension): number {
+		// Extensions from publishers trusted by the product are auto updated without delay.
+		if (this.isFromTrustedPublisher(extension)) {
+			return 0;
+		}
+		const lastUpdated = extension.gallery?.lastUpdated;
+		if (!Number.isFinite(lastUpdated) || !lastUpdated) {
+			return 0;
+		}
+		const elapsed = Date.now() - lastUpdated;
+		if (elapsed < 0) {
+			// Future timestamp (clock skew) — treat as not delayed
+			return 0;
+		}
+		const delayPeriod = this.getAutoUpdateDelay();
+		return Math.max(0, delayPeriod - elapsed);
+	}
+
+	getAutoUpdateDelay(): number {
+		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 12;
+		return delayHours * 60 * 60 * 1000; // Convert hours to milliseconds
+	}
+
+	private isFromTrustedPublisher(extension: IExtension): boolean {
+		const trustedPublishers = this.productService.trustedExtensionPublishers;
+		if (!trustedPublishers?.length) {
+			return false;
+		}
+		const publisher = extension.publisher.toLowerCase();
+		return (
+			trustedPublishers.includes(publisher) || trustedPublishers.includes(extension.publisherDisplayName.toLowerCase())
+		);
 	}
 
 	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
@@ -1517,8 +1610,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const result = await this.dialogService.confirm({
 			title: nls.localize('confirmEnableDisableAutoUpdate', 'Auto Update Extensions'),
 			message: isAutoUpdateEnabled
-				? nls.localize('confirmEnableAutoUpdate', 'Do you want to enable auto update for all extensions?')
-				: nls.localize('confirmDisableAutoUpdate', 'Do you want to disable auto update for all extensions?'),
+				? nls.localize('confirmEnableAutoUpdate', 'Do you want to enable auto update for extensions?')
+				: nls.localize('confirmDisableAutoUpdate', 'Do you want to disable auto update for extensions?'),
 			detail: nls.localize(
 				'confirmEnableDisableAutoUpdateDetail',
 				'This will reset any auto update settings you have set for individual extensions.'
@@ -1531,7 +1624,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Reset extensions enabled for auto update first to prevent them from being updated
 		this.setEnabledAutoUpdateExtensions([]);
 
-		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled);
+		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled ? 'on' : 'off');
 
 		this.setDisabledAutoUpdateExtensions([]);
 		await this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
@@ -1893,8 +1986,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				);
 				computedNotificiations.push({
 					message: needsReload
-						? nls.localize('extensions need reload', 'Extensions require a window reload to take effect.')
-						: nls.localize('extensions need restart', 'Extensions require a restart to take effect.'),
+						? nls.localize('extensions need reload', 'Extensions require a window reload to apply updates.')
+						: nls.localize('extensions need restart', 'All extensions require a restart to apply updates.'),
 					severity: Severity.Info,
 					extensions: restartRequiredExtensions,
 					query: '@restartrequired',
@@ -1937,6 +2030,37 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id))
 						.map(e => e.identifier.id.toLowerCase())
 						.join('-')
+			});
+		}
+
+		const privateMarketplaceUrl = this.configurationService.inspect<string>(
+			ExtensionGalleryServiceUrlConfigKey
+		).policyValue;
+		if (privateMarketplaceUrl) {
+			const message = new MarkdownString();
+			let linkUri: string | undefined = this.extensionGalleryManifest
+				? getExtensionGalleryManifestResourceUri(
+						this.extensionGalleryManifest,
+						ExtensionGalleryResourceType.ContactSupportUri
+					)
+				: undefined;
+			if (!linkUri) {
+				const settingsQuery = `@hasPolicy ${ExtensionGalleryServiceUrlConfigKey}`;
+				linkUri = `command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify(settingsQuery))}`;
+				message.isTrusted = { enabledCommands: ['workbench.action.openSettings'] };
+			}
+			message.appendMarkdown(
+				nls.localize(
+					'privateMarketplace',
+					'This window is connected to a [private extension marketplace]({0}) managed by your organization.',
+					linkUri
+				)
+			);
+			computedNotificiations.push({
+				message,
+				severity: Severity.Info,
+				extensions: [],
+				key: `privateMarketplace:${hash(privateMarketplaceUrl)}:${hash(linkUri)}`
 			});
 		}
 
@@ -2028,12 +2152,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		);
 	}
 
-	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
-		const viewPaneContainer = (
-			await this.viewsService.openViewContainer(VIEWLET_ID, true)
-		)?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+	async openSearch(searchValue: string, preserveFocus?: boolean): Promise<void> {
+		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as
+			| IExtensionsViewPaneContainer
+			| undefined;
+		if (!viewPaneContainer) {
+			this.logService.trace('ExtensionsWorkbenchService#openSearch: extension view pane container was not available');
+			return;
+		}
 		viewPaneContainer.search(searchValue);
-		if (!preserveFoucs) {
+		if (!preserveFocus) {
 			viewPaneContainer.focus();
 		}
 	}
@@ -2105,6 +2233,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({
+						telemetry: NotificationTelemetryId.ExtensionsAutoRestart,
 						severity: Severity.Info,
 						message: nls.localize('extensionsAutoRestart', 'Extensions were auto restarted to enable updates.'),
 						priority: NotificationPriority.SILENT
@@ -2328,7 +2457,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					}
 					return undefined;
 				} else {
-					if (isSameExtensionRunning) {
+					if (isSameExtensionRunning && !runningExtension.isUnderDevelopment) {
 						return {
 							action: reloadAction,
 							reason: nls.localize('postDisableTooltip', 'Please {0} to disable this extension.', reloadActionLabel)
@@ -2533,17 +2662,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				continue;
 			}
 			if (
+				!installed.local?.forceAutoUpdate &&
 				installed.isBuiltin &&
 				!installed.local?.pinned &&
 				(installed.type === ExtensionType.System || !installed.local?.identifier.uuid)
 			) {
-				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
+				// Skip checking updates for a builtin extension if it is a system extension or if it does not have a Marketplace identifier
 				continue;
 			}
 			if (installed.local?.source === 'resource') {
 				continue;
 			}
-			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
+			infos.push({
+				...installed.identifier,
+				preRelease: !!installed.local?.preRelease,
+				currentVersion: installed.isBuiltin ? installed.version : undefined
+			});
 		}
 		if (infos.length) {
 			const targetPlatform = await extensions[0].server.extensionManagementService.getTargetPlatform();
@@ -2667,22 +2801,31 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return;
 		}
 
-		this.progressService.withProgress({ location: ProgressLocation.Notification }, async progress => {
-			try {
-				progress.report({ message: nls.localize('downloading...', 'Downloading VSIX...') });
-				const name = `${galleryExtension.identifier.id}-${galleryExtension.version}${targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNKNOWN ? `-${targetPlatform}` : ''}.vsix`;
-				await this.galleryService.download(
-					galleryExtension,
-					this.uriIdentityService.extUri.joinPath(result[0], name),
-					InstallOperation.None
-				);
-				this.notificationService.info(nls.localize('download.completed', 'Successfully downloaded the VSIX'));
-			} catch (error) {
-				this.notificationService.error(
-					nls.localize('download.failed', 'Error while downloading the VSIX: {0}', getErrorMessage(error))
-				);
+		this.progressService.withProgress(
+			{ location: ProgressLocation.Notification, telemetry: NotificationTelemetryId.ExtensionDownload },
+			async progress => {
+				try {
+					progress.report({ message: nls.localize('downloading...', 'Downloading VSIX...') });
+					const name = `${galleryExtension.identifier.id}-${galleryExtension.version}${targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNKNOWN ? `-${targetPlatform}` : ''}.vsix`;
+					await this.galleryService.download(
+						galleryExtension,
+						this.uriIdentityService.extUri.joinPath(result[0], name),
+						InstallOperation.None
+					);
+					this.notificationService.notify({
+						severity: Severity.Info,
+						telemetry: NotificationTelemetryId.ExtensionDownloadComplete,
+						message: nls.localize('download.completed', 'Successfully downloaded the VSIX')
+					});
+				} catch (error) {
+					this.notificationService.notify({
+						severity: Severity.Error,
+						telemetry: NotificationTelemetryId.ExtensionDownloadError,
+						message: nls.localize('download.failed', 'Error while downloading the VSIX: {0}', getErrorMessage(error))
+					});
+				}
 			}
-		});
+		);
 	}
 
 	private async pickVersionToDownload(extensionId: string): Promise<IGalleryExtensionVersion | undefined> {
@@ -2813,6 +2956,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				disabledAutoUpdate.push(extension.identifier.id);
 				continue;
 			}
+			// New versions are auto updated only after the delay window has passed since they were published.
+			if (!extension.local?.forceAutoUpdate) {
+				const delayRemaining = this.getAutoUpdateDelayRemaining(extension);
+				if (delayRemaining > 0) {
+					this.logService.trace('Auto update delayed for extension', extension.identifier.id);
+					continue;
+				}
+			}
 			if (await this.shouldRequireConsentToUpdate(extension)) {
 				consentRequired.push(extension.identifier.id);
 				continue;
@@ -2873,9 +3024,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
+		if (extension.local?.forceAutoUpdate) {
+			// Extensions marked for auto-update are always auto-updated
+			return true;
+		}
+
 		const autoUpdateValue = this.getAutoUpdateValue();
 
-		if (autoUpdateValue === false) {
+		if (autoUpdateValue === 'off') {
 			const extensionsToAutoUpdate = this.getEnabledAutoUpdateExtensions();
 			const extensionId = extension.identifier.id.toLowerCase();
 			if (extensionsToAutoUpdate.includes(extensionId)) {
@@ -2899,18 +3055,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (autoUpdateValue === true) {
-			return true;
-		}
-
-		if (autoUpdateValue === 'onlyEnabledExtensions') {
-			return (
-				extension.enablementState !== EnablementState.DisabledGlobally &&
-				extension.enablementState !== EnablementState.DisabledWorkspace
-			);
-		}
-
-		return false;
+		// Auto-update is on; only update enabled extensions.
+		return (
+			extension.enablementState !== EnablementState.DisabledGlobally &&
+			extension.enablementState !== EnablementState.DisabledWorkspace
+		);
 	}
 
 	async shouldRequireConsentToUpdate(extension: IExtension): Promise<string | undefined> {
@@ -3182,6 +3331,58 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		installOptions: InstallExtensionOptions = {},
 		progressLocation?: ProgressLocation | string
 	): Promise<IExtension> {
+		const extension = await this._install(arg, installOptions, progressLocation);
+
+		if (!extension) {
+			throw new Error(nls.localize('unknown', 'Unable to install extension'));
+		}
+
+		if (installOptions.enable) {
+			if (
+				extension.enablementState === EnablementState.DisabledWorkspace ||
+				extension.enablementState === EnablementState.DisabledGlobally
+			) {
+				if (installOptions.justification) {
+					const result = await this.dialogService.confirm({
+						title: nls.localize('enableExtensionTitle', 'Enable Extension'),
+						message: nls.localize(
+							'enableExtensionMessage',
+							"Would you like to enable '{0}' extension?",
+							extension.displayName
+						),
+						detail: isString(installOptions.justification)
+							? installOptions.justification
+							: installOptions.justification.reason,
+						primaryButton: isString(installOptions.justification)
+							? nls.localize({ key: 'enableButtonLabel', comment: ['&& denotes a mnemonic'] }, '&&Enable Extension')
+							: nls.localize(
+									{ key: 'enableButtonLabelWithAction', comment: ['&& denotes a mnemonic'] },
+									'&&Enable Extension and {0}',
+									installOptions.justification.action
+								)
+					});
+					if (!result.confirmed) {
+						throw new CancellationError();
+					}
+				}
+				await this.setEnablement(
+					extension,
+					extension.enablementState === EnablementState.DisabledWorkspace
+						? EnablementState.EnabledWorkspace
+						: EnablementState.EnabledGlobally
+				);
+			}
+			await this.waitUntilExtensionIsEnabled(extension);
+		}
+
+		return extension;
+	}
+
+	private async _install(
+		arg: string | URI | IExtension,
+		installOptions: InstallExtensionOptions = {},
+		progressLocation?: ProgressLocation | string
+	): Promise<IExtension | undefined> {
 		let installable: URI | IGalleryExtension | IResourceExtension | undefined;
 		let extension: IExtension | undefined;
 		let servers: IExtensionManagementServer[] | undefined;
@@ -3195,7 +3396,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			// Install by id
 			if (isString(arg)) {
 				extension = this.local.find(e => areSameExtensions(e.identifier, { id: arg }));
-				if (!extension?.isBuiltin) {
+				if (extension?.isBuiltin) {
+					if (
+						this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(
+							id => id.toLowerCase() === arg.toLowerCase()
+						)
+					) {
+						return extension;
+					}
+				} else {
 					installableInfo = {
 						id: arg,
 						version: installOptions.version,
@@ -3405,49 +3614,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				}
 			}
 		}
-
-		if (!extension) {
-			throw new Error(nls.localize('unknown', 'Unable to install extension'));
-		}
-
-		if (installOptions.enable) {
-			if (
-				extension.enablementState === EnablementState.DisabledWorkspace ||
-				extension.enablementState === EnablementState.DisabledGlobally
-			) {
-				if (installOptions.justification) {
-					const result = await this.dialogService.confirm({
-						title: nls.localize('enableExtensionTitle', 'Enable Extension'),
-						message: nls.localize(
-							'enableExtensionMessage',
-							"Would you like to enable '{0}' extension?",
-							extension.displayName
-						),
-						detail: isString(installOptions.justification)
-							? installOptions.justification
-							: installOptions.justification.reason,
-						primaryButton: isString(installOptions.justification)
-							? nls.localize({ key: 'enableButtonLabel', comment: ['&& denotes a mnemonic'] }, '&&Enable Extension')
-							: nls.localize(
-									{ key: 'enableButtonLabelWithAction', comment: ['&& denotes a mnemonic'] },
-									'&&Enable Extension and {0}',
-									installOptions.justification.action
-								)
-					});
-					if (!result.confirmed) {
-						throw new CancellationError();
-					}
-				}
-				await this.setEnablement(
-					extension,
-					extension.enablementState === EnablementState.DisabledWorkspace
-						? EnablementState.EnabledWorkspace
-						: EnablementState.EnabledGlobally
-				);
-			}
-			await this.waitUntilExtensionIsEnabled(extension);
-		}
-
 		return extension;
 	}
 
@@ -3803,6 +3969,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.withProgress(
 			{
 				location: progressLocation ?? ProgressLocation.Extensions,
+				telemetry: NotificationTelemetryId.ExtensionInstall,
 				title
 			},
 			async () => {

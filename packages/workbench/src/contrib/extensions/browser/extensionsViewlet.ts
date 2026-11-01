@@ -24,6 +24,9 @@ import {
 	EventType,
 	clearNode
 } from '@sidex/base/browser/dom.js';
+import { renderMarkdown, renderAsPlaintext } from '@sidex/base/browser/markdownRenderer.js';
+import { isMarkdownString } from '@sidex/base/common/htmlContent.js';
+import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
 import { IInstantiationService, ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -134,6 +137,8 @@ import { registerNavigableContainer } from '../../../browser/actions/widgetNavig
 import { MenuWorkbenchToolBar } from '@sidex/platform/actions/browser/toolbar.js';
 import { createActionViewItem } from '@sidex/platform/actions/browser/menuEntryActionViewItem.js';
 import { SeverityIcon } from '@sidex/base/browser/ui/severityIcon/severityIcon.js';
+import { Button } from '@sidex/base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 import { StandardKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
 import { KeyCode } from '@sidex/base/common/keyCodes.js';
 import {
@@ -142,7 +147,6 @@ import {
 	ExtensionGalleryManifestStatus
 } from '@sidex/platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '@sidex/base/common/uri.js';
-import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '@sidex/platform/accounts/common/nullDefaultAccount.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -239,11 +243,12 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			content: localize(
 				'sign in',
 				'[Sign in to access Extensions Marketplace]({0})',
-				`command:${DEFAULT_ACCOUNT_SIGN_IN_COMMAND}`
+				`command:workbench.extensions.actions.gallery.signIn`
 			),
 			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
 		});
 
+		// Access denied applies to every provider (microsoft/github/default), so gate on status alone.
 		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
 			content: localize(
 				'access denied',
@@ -706,7 +711,8 @@ export class ExtensionsViewPaneContainer
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(
 			VIEWLET_ID,
@@ -956,60 +962,91 @@ export class ExtensionsViewPaneContainer
 		const status = this.extensionsWorkbenchService.getExtensionsNotification();
 		const query = status?.query ?? status?.extensions.map(extension => `@id:${extension.identifier.id}`).join(' ');
 		if (status && (query === this.searchBox?.getValue() || !this.searchMarketplaceExtensionsContextKey.get())) {
-			this.notificationContainer.setAttribute('aria-label', status.message);
+			const messagePlainText = isMarkdownString(status.message) ? renderAsPlaintext(status.message) : status.message;
+			this.notificationContainer.setAttribute('aria-label', messagePlainText);
 			this.notificationContainer.classList.remove('hidden');
 			const messageContainer = append(this.notificationContainer, $('.message-container'));
 			append(messageContainer, $('span')).className = SeverityIcon.className(status.severity);
 			const messageText = append(messageContainer, $('span.message-text'));
-			append(messageText, $('span.message', undefined, status.message));
-			const showAction = append(
-				messageText,
-				$(
-					'span.message-text-action',
-					{
-						tabindex: '0',
-						role: 'button',
-						'aria-label': `${status.message}. ${localize('click show', 'Click to Show')}`
-					},
-					localize('show', 'Show')
-				)
-			);
-			this.notificationDisposables.value.add(
-				addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? ''))
-			);
-			this.notificationDisposables.value.add(
-				addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const standardKeyboardEvent = new StandardKeyboardEvent(e);
-					if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-						this.search(query ?? '');
-					}
-					standardKeyboardEvent.stopPropagation();
-				})
-			);
-			const actionsContainer = append(this.notificationContainer, $('.notification-actions'));
-			if (status.action) {
-				const actionButton = append(
+			const messageElement = append(messageText, $('span.message'));
+			if (isMarkdownString(status.message)) {
+				const isTrusted = status.message.isTrusted;
+				const allowCommands = typeof isTrusted === 'object' ? isTrusted.enabledCommands : !!isTrusted;
+				this.notificationDisposables.value.add(
+					renderMarkdown(
+						status.message,
+						{
+							actionHandler: link => {
+								this.openerService.open(link, { allowCommands });
+							}
+						},
+						messageElement
+					)
+				);
+			} else {
+				messageElement.textContent = status.message;
+			}
+			const actionsContainer =
+				status.action || status.extensions.length
+					? append(this.notificationContainer, $('.notification-actions'))
+					: undefined;
+			const action = status.action;
+			if (action && actionsContainer) {
+				const actionButton = this.notificationDisposables.value.add(
+					new Button(actionsContainer, { ...defaultButtonStyles, ariaLabel: action.label })
+				);
+				actionButton.element.classList.add('message-action-button');
+				actionButton.label = action.label;
+				this.notificationDisposables.value.add(
+					actionButton.onDidClick(() => {
+						Promise.resolve(action.run()).catch(error => this.notificationService.error(error));
+					})
+				);
+			}
+			if (status.extensions.length && actionsContainer) {
+				const showAction = append(
 					actionsContainer,
 					$(
-						'span.message-action-button',
+						'span.message-text-action',
 						{
 							tabindex: '0',
 							role: 'button',
-							'aria-label': status.action.label
+							'aria-label': `${messagePlainText}. ${localize('click show', 'Click to Show')}`
 						},
-						status.action.label
+						localize('show', 'Show')
 					)
 				);
 				this.notificationDisposables.value.add(
-					addDisposableListener(actionButton, EventType.CLICK, () => {
-						Promise.resolve(status.action!.run()).catch(error => this.notificationService.error(error));
-					})
+					addDisposableListener(showAction, EventType.CLICK, () => this.search(query ?? ''))
 				);
 				this.notificationDisposables.value.add(
-					addDisposableListener(actionButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					addDisposableListener(showAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 						const standardKeyboardEvent = new StandardKeyboardEvent(e);
 						if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
-							Promise.resolve(status.action!.run()).catch(error => this.notificationService.error(error));
+							this.search(query ?? '');
+						}
+						standardKeyboardEvent.stopPropagation();
+					})
+				);
+			}
+			const dismiss = status.dismiss;
+			if (dismiss) {
+				const dismissLabel = localize('dismiss notification', 'Dismiss');
+				const dismissButton = append(
+					this.notificationContainer,
+					$('span.dismiss-action.codicon.codicon-close', {
+						tabindex: '0',
+						role: 'button',
+						'aria-label': dismissLabel,
+						title: dismissLabel
+					})
+				);
+				this.notificationDisposables.value.add(addDisposableListener(dismissButton, EventType.CLICK, () => dismiss()));
+				this.notificationDisposables.value.add(
+					addDisposableListener(dismissButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+						const standardKeyboardEvent = new StandardKeyboardEvent(e);
+						if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+							dismiss();
 						}
 						standardKeyboardEvent.stopPropagation();
 					})
@@ -1258,7 +1295,11 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 
 		const extensionsNotification = this.extensionsWorkbenchService.getExtensionsNotification();
 		if (extensionsNotification && extensionsNotification.severity === Severity.Warning) {
-			badge = new WarningBadge(() => extensionsNotification.message);
+			badge = new WarningBadge(() =>
+				isMarkdownString(extensionsNotification.message)
+					? renderAsPlaintext(extensionsNotification.message)
+					: extensionsNotification.message
+			);
 		}
 
 		if (!badge) {
@@ -1267,7 +1308,13 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 					? []
 					: this.extensionsWorkbenchService.installed.filter(e => e.runtimeState !== undefined);
 			const outdated = this.extensionsWorkbenchService.outdated.reduce(
-				(r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !actionRequired.includes(e) ? 1 : 0),
+				(r, e) =>
+					r +
+					(this.extensionEnablementService.isEnabled(e.local!) &&
+					!actionRequired.includes(e) &&
+					!this.extensionsWorkbenchService.isAutoUpdateDelayed(e)
+						? 1
+						: 0),
 				0
 			);
 			const newBadgeNumber = outdated + actionRequired.length;
