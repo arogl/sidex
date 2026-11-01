@@ -458,6 +458,11 @@ class MainThreadSCMProvider implements ISCMProvider {
 		return this._contextValue;
 	}
 
+	private readonly _activeRepositoryName = observableValue<string | undefined>(this, undefined);
+	get activeRepositoryName(): IObservable<string | undefined> {
+		return this._activeRepositoryName;
+	}
+
 	get acceptInputCommand(): Command | undefined {
 		return this.features.acceptInputCommand;
 	}
@@ -537,6 +542,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 		if (typeof features.contextValue !== 'undefined') {
 			this._contextValue.set(features.contextValue, undefined);
+		}
+
+		if (typeof features.activeRepositoryName !== 'undefined') {
+			this._activeRepositoryName.set(features.activeRepositoryName ?? undefined, undefined);
 		}
 
 		if (typeof features.count !== 'undefined') {
