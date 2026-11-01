@@ -10,6 +10,7 @@ import { URI } from '@sidex/base/common/uri.js';
 import { generateUuid } from '@sidex/base/common/uuid.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IStorageService } from '@sidex/platform/storage/common/storage.js';
+import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
 import { DiffEditorInput } from '../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from '../../contrib/webview/browser/webview.js';
@@ -104,9 +105,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService storageService: IStorageService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -139,7 +141,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 				canResolve: (webview: WebviewInput) => {
 					const viewType = this.webviewPanelViewType.toExternal(webview.viewType);
 					if (typeof viewType === 'string') {
-						extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
+						this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
 					}
 					return false;
 				},
@@ -308,6 +310,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					}
 
 					try {
+						await this.updateExtensionLocation(webviewInput);
 						await this._proxy.$deserializeWebviewPanel(
 							handle,
 							viewType,
@@ -327,6 +330,33 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 				}
 			})
 		);
+	}
+
+	private async updateExtensionLocation(webviewInput: WebviewInput): Promise<void> {
+		const oldExtension = webviewInput.extension;
+		if (!oldExtension?.location) {
+			return;
+		}
+
+		const extension = await this._extensionService.getExtension(oldExtension.id.value);
+		const extUri = this._uriIdentityService.extUri;
+		if (!extension || extUri.isEqual(oldExtension.location, extension.extensionLocation)) {
+			return;
+		}
+
+		const webview = webviewInput.webview;
+		const oldLocation = extUri.removeTrailingPathSeparator(extUri.normalizePath(oldExtension.location));
+		webview.contentOptions = {
+			...webview.contentOptions,
+			localResourceRoots: webview.contentOptions.localResourceRoots?.map(root => {
+				const normalizedRoot = extUri.normalizePath(root);
+				if (!extUri.isEqualOrParent(normalizedRoot, oldLocation)) {
+					return root;
+				}
+				return URI.joinPath(extension.extensionLocation, normalizedRoot.path.slice(oldLocation.path.length));
+			})
+		};
+		webview.extension = { id: extension.identifier, location: extension.extensionLocation };
 	}
 
 	public $unregisterSerializer(viewType: string): void {
