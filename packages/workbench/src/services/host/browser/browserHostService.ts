@@ -771,6 +771,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 		mainWindow.close();
 	}
 
+	async shutdown(): Promise<void> {
+		// SideX runs a single main window, so closing it ends the application.
+		await this.close();
+	}
+
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
 		const previousShutdownReason = this.shutdownReason;
 		try {
