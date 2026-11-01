@@ -6,6 +6,7 @@
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IProgressService, ProgressLocation } from '@sidex/platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '@sidex/platform/notification/common/notificationTelemetry.js';
 import { localize } from '@sidex/base/nls.js';
 import { IDisposable } from '@sidex/base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '@sidex/base/common/async.js';
@@ -22,6 +23,7 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 	) {
 		const options = {
 			location: ProgressLocation.Window,
+			telemetry: NotificationTelemetryId.ExtensionsActivation,
 			title: localize('activation', 'Activating Extensions...')
 		};
 
