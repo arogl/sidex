@@ -167,6 +167,10 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		this.registerAPICommands();
 	}
 
+	get windowTitle(): WindowTitle {
+		return this.mainPart.windowTitle;
+	}
+
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
 		return this.instantiationService.createInstance(MainBrowserTitlebarPart);
 	}
@@ -386,7 +390,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly isCompactContextKey: IContextKey<boolean>;
 
-	private readonly windowTitle: WindowTitle;
+	readonly windowTitle: WindowTitle;
 
 	protected readonly instantiationService: IInstantiationService;
 

@@ -16,6 +16,8 @@ export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteA
 
 export interface IRemoteAgentConnection {
 	readonly remoteAuthority: string;
+	/** False before connection establishment, during reconnection, and after disconnection. */
+	readonly isConnected: boolean;
 	readonly onReconnecting: Event<void>;
 	readonly onDidStateChange: Event<unknown>;
 	end(): Promise<void>;
