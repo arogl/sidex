@@ -23,34 +23,49 @@ struct TsServerProcess {
 }
 
 impl TsServerProcess {
+    /// Finds the classic `typescript/bin/tsserver` script (run with `node`).
+    ///
+    /// TypeScript 7 and later ship a native compiler without that script, so a
+    /// workspace on 7.x has no `tsserver` here; install `typescript@5` or `@6`.
     fn find_tsserver(workspace_folders: &[String]) -> Option<String> {
-        for folder in workspace_folders {
-            let p = std::path::Path::new(folder).join("node_modules/typescript/bin/tsserver");
+        const REL: &str = "node_modules/typescript/bin/tsserver";
+        let mut tried: Vec<String> = Vec::new();
+        let mut check = |p: std::path::PathBuf| -> Option<String> {
             if p.exists() {
                 return Some(p.to_string_lossy().to_string());
+            }
+            tried.push(p.to_string_lossy().to_string());
+            None
+        };
+
+        for folder in workspace_folders {
+            if let Some(found) = check(std::path::Path::new(folder).join(REL)) {
+                return Some(found);
             }
         }
 
         let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-        let candidates = [
-            "node_modules/typescript/bin/tsserver",
+        for rel in [
+            REL,
             "../node_modules/typescript/bin/tsserver",
             "../../node_modules/typescript/bin/tsserver",
-        ];
-        for rel in &candidates {
-            let p = cwd.join(rel);
-            if p.exists() {
-                return Some(p.to_string_lossy().to_string());
+        ] {
+            if let Some(found) = check(cwd.join(rel)) {
+                return Some(found);
             }
         }
 
-        let global_paths = [
-            "/usr/local/lib/node_modules/typescript/bin/tsserver",
-            "/opt/homebrew/lib/node_modules/typescript/bin/tsserver",
+        let mut global_paths = vec![
+            std::path::PathBuf::from("/usr/local/lib/node_modules/typescript/bin/tsserver"),
+            std::path::PathBuf::from("/opt/homebrew/lib/node_modules/typescript/bin/tsserver"),
         ];
-        for p in &global_paths {
-            if std::path::Path::new(p).exists() {
-                return Some(p.to_string());
+        // Windows: `npm i -g` puts packages under %APPDATA%\npm.
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            global_paths.push(std::path::Path::new(&appdata).join("npm").join(REL));
+        }
+        for p in global_paths {
+            if let Some(found) = check(p) {
+                return Some(found);
             }
         }
 
@@ -68,13 +83,32 @@ impl TsServerProcess {
         }
         if let Ok(out) = which_cmd_builder.output() {
             if out.status.success() {
-                let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if !path.is_empty() {
-                    return Some(path);
+                // `where` can list several matches; on Windows the first is a
+                // `.cmd` shim that `node` cannot run, so resolve the package
+                // next to it instead.
+                if let Some(first) = String::from_utf8_lossy(&out.stdout).lines().next() {
+                    let shim = std::path::Path::new(first.trim());
+                    if let Some(found) = shim.parent().and_then(|dir| {
+                        let script = dir.join(REL);
+                        script
+                            .exists()
+                            .then(|| script.to_string_lossy().to_string())
+                    }) {
+                        return Some(found);
+                    }
+                    let direct = shim.to_string_lossy().to_string();
+                    if !direct.is_empty() && shim.extension().is_none() && shim.exists() {
+                        return Some(direct);
+                    }
+                    tried.push(format!("{} (from `{which_cmd} tsserver`)", shim.display()));
                 }
             }
         }
 
+        log::warn!(
+            "[tsserver] typescript/bin/tsserver not found; tried: {}. TypeScript 7 has no tsserver script, so use typescript@5 or typescript@6 in the workspace",
+            tried.join(", ")
+        );
         None
     }
 
