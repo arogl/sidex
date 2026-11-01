@@ -909,7 +909,7 @@ export class ExtensionEditor extends EditorPane {
 
 			webview.claim(this, this.window, this.scopedContextKeyService);
 			setParentFlowTo(webview.container, container);
-			webview.layoutWebviewOverElement(container);
+			webview.setAnchorElement(container);
 
 			webview.setHtml(body);
 			webview.claim(this, this.window, undefined);
@@ -919,13 +919,6 @@ export class ExtensionEditor extends EditorPane {
 			this.contentDisposables.add(
 				webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress))
 			);
-
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
-				layout: () => {
-					webview.layoutWebviewOverElement(container);
-				}
-			});
-			this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 			let isDisposed = false;
 			this.contentDisposables.add(
