@@ -79,7 +79,7 @@ export type ConfigurationMigrationFn = (
 	value: any,
 	valueAccessor: (key: string) => any
 ) => ConfigurationValue | ConfigurationKeyValuePairs | Promise<ConfigurationValue | ConfigurationKeyValuePairs>;
-export type ConfigurationMigration = { key: string; migrateFn: ConfigurationMigrationFn };
+export type ConfigurationMigration = { key: string; migrateFn: ConfigurationMigrationFn; includeApplication?: boolean };
 
 export interface IConfigurationMigrationRegistry {
 	registerConfigurationMigrations(configurationMigrations: ConfigurationMigration[]): void;
@@ -159,6 +159,9 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 						['userRemote', ConfigurationTarget.USER_REMOTE],
 						['workspace', ConfigurationTarget.WORKSPACE]
 					];
+		if (migration.includeApplication) {
+			targetPairs.unshift(['application', ConfigurationTarget.APPLICATION]);
+		}
 		for (const [dataKey, target] of targetPairs) {
 			const inspectValue = inspectData[dataKey] as IInspectValue<unknown> | undefined;
 			if (!inspectValue) {

@@ -21,6 +21,7 @@ import {
 } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IBulkEditService } from '@sidex/editor/browser/services/bulkEditService.js';
 import { IProgressService, ProgressLocation } from '@sidex/platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '@sidex/platform/notification/common/notificationTelemetry.js';
 import { raceCancellation } from '@sidex/base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '@sidex/base/common/cancellation.js';
 import { IDialogService } from '@sidex/platform/dialogs/common/dialogs.js';
@@ -87,6 +88,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const data = await progressService
 					.withProgress(
 						{
+							telemetry: NotificationTelemetryId.FileOperationParticipants,
 							location: ProgressLocation.Notification,
 							title: this._progressLabel(operation),
 							cancellable: true,

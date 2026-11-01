@@ -76,6 +76,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 		readonly outputChannelDescriptor: IOutputChannelDescriptor,
 		private readonly outputLocation: URI,
 		private readonly outputDirPromise: Promise<void>,
+		onDispose: () => void,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -84,6 +85,7 @@ class OutputChannel extends Disposable implements IOutputChannel {
 		this.label = outputChannelDescriptor.label;
 		this.uri = URI.from({ scheme: Schemas.outputChannel, path: this.id });
 		this.model = this._register(this.createOutputChannelModel(this.uri, outputChannelDescriptor));
+		this._register(Event.once(this.model.onDispose)(onDispose));
 	}
 
 	private createOutputChannelModel(uri: URI, outputChannelDescriptor: IOutputChannelDescriptor): IOutputChannelModel {
@@ -641,27 +643,24 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	private createChannel(id: string): OutputChannel {
-		const channel = this.instantiateChannel(id);
-		this._register(
-			Event.once(channel.model.onDispose)(() => {
-				if (this.activeChannel === channel) {
-					const channels = this.getChannelDescriptors();
-					const channel = channels.length ? this.getChannel(channels[0].id) : undefined;
-					if (channel && this.viewsService.isViewVisible(OUTPUT_VIEW_ID)) {
-						this.showChannel(channel.id);
-					} else {
-						this.setActiveChannel(undefined);
-					}
+		const channel = this.instantiateChannel(id, () => {
+			if (this.activeChannel === channel) {
+				const channels = this.getChannelDescriptors();
+				const channel = channels.length ? this.getChannel(channels[0].id) : undefined;
+				if (channel && this.viewsService.isViewVisible(OUTPUT_VIEW_ID)) {
+					this.showChannel(channel.id);
+				} else {
+					this.setActiveChannel(undefined);
 				}
-				Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
-			})
-		);
+			}
+			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
+		});
 
 		return channel;
 	}
 
 	private outputFolderCreationPromise: Promise<void> | null = null;
-	private instantiateChannel(id: string): OutputChannel {
+	private instantiateChannel(id: string, onDispose: () => void): OutputChannel {
 		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(id);
 		if (!channelData) {
 			this.logService.error(`Channel '${id}' is not registered yet`);
@@ -674,7 +673,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			OutputChannel,
 			channelData,
 			this.outputLocation,
-			this.outputFolderCreationPromise
+			this.outputFolderCreationPromise,
+			onDispose
 		);
 	}
 
