@@ -161,8 +161,8 @@ entries:
       contrib: contrib/multiDiffEditor
   - id: custom-editors
     area: Custom Editors
-    status: unwired
-    summary: contrib/customEditor not imported
+    status: partial
+    summary: contrib/customEditor ported from 1.144 and imported; not yet runtime-tested
     signals:
       contrib: contrib/customEditor
   - id: interactive
