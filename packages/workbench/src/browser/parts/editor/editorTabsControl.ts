@@ -107,6 +107,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 }
 
 export interface IEditorTabsControl extends IDisposable {
+	init(): void;
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
 	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): boolean;
 	openEditors(editors: EditorInput[]): boolean;
@@ -156,7 +157,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private readonly editorLayoutActionsToolbarDisposables = this._register(new DisposableStore());
 	private readonly editorLayoutActionsDisposables = this._register(new DisposableStore());
 
-	private readonly contextMenuContextKeyService: IContextKeyService;
+	private contextMenuContextKeyService: IContextKeyService;
 	private resourceContext: ResourceContextKey;
 
 	private editorPinnedContext: IContextKey<boolean>;
@@ -173,6 +174,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private groupLockedContext: IContextKey<boolean>;
 
 	private renderDropdownAsChildElement: boolean;
+	private initialized = false;
 
 	constructor(
 		protected readonly parent: HTMLElement,
@@ -197,8 +199,19 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		super(themeService);
 
 		this.renderDropdownAsChildElement = false;
+	}
 
-		const container = this.create(parent);
+	/**
+	 * Builds the DOM and context keys. Called after construction so that subclass
+	 * field initialisers (which run after super()) cannot reset what create() sets.
+	 */
+	init(): void {
+		if (this.initialized) {
+			return;
+		}
+		this.initialized = true;
+
+		const container = this.create(this.parent);
 
 		// Context Keys
 		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(container));

@@ -229,6 +229,12 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		this.getEditorTabsController(editor).updateEditorDirty(editor);
 	}
 
+	init(): void {
+		this.stickyEditorTabsControl.init();
+		this.unstickyEditorTabsControl.init();
+		this.handleTabBarsStateChange();
+	}
+
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 		this.stickyEditorTabsControl.updateOptions(oldOptions, newOptions);
 		this.unstickyEditorTabsControl.updateOptions(oldOptions, newOptions);
