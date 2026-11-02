@@ -94,6 +94,7 @@ export class EditorTitleControl extends Themable {
 			this.showHeader,
 			this.useModernUITabs
 		);
+		control.init();
 		return this.editorTabsControlDisposable.add(control);
 	}
 
