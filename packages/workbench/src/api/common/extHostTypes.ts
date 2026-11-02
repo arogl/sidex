@@ -2809,6 +2809,11 @@ export enum NotebookVariablesRequestKind {
 
 //#region Timeline
 
+export enum TimelineTriggerKind {
+	Invoke = 1,
+	Automatic = 2
+}
+
 @es5ClassCompat
 export class TimelineItem implements vscode.TimelineItem {
 	constructor(
