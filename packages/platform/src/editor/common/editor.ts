@@ -153,15 +153,7 @@ export enum EditorResolution {
 	 *
 	 * Note: the value is non-zero so that `override` is truthy when set.
 	 */
-	EXCLUSIVE_ONLY = 1,
-
-	/**
-	 * Displays a picker and allows the user to decide which editor to use.
-	 *
-	 * Compatibility shim: VS Code 1.144 removed this member. The workbench layer
-	 * still uses it until that layer is merged.
-	 */
-	PICK = 2
+	EXCLUSIVE_ONLY = 1
 }
 
 export enum EditorOpenSource {
