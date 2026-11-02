@@ -846,6 +846,7 @@ pub fn run() {
             commands::textmate_tokenize_document,
             commands::textmate_release_stack,
             commands::get_os_info,
+            commands::toggle_devtools,
             commands::get_env,
             commands::get_all_env,
             commands::get_shell,

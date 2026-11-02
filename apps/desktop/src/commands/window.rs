@@ -46,6 +46,22 @@ pub fn create_window(
     Ok(())
 }
 
+/// Opens the web inspector for the calling window, or closes it if it is already open.
+/// The toggle runs on the main thread, where the webview APIs expect to be called.
+#[tauri::command]
+pub fn toggle_devtools(window: tauri::WebviewWindow) -> Result<(), String> {
+    let dispatcher = window.clone();
+    dispatcher
+        .run_on_main_thread(move || {
+            if window.is_devtools_open() {
+                window.close_devtools();
+            } else {
+                window.open_devtools();
+            }
+        })
+        .map_err(|e| format!("Failed to toggle developer tools: {e}"))
+}
+
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 pub fn close_window(app: AppHandle, label: String) -> Result<(), String> {
