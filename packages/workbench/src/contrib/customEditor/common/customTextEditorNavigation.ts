@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { CancellationToken } from '@sidex/base/common/cancellation.js';
+import { Event } from '@sidex/base/common/event.js';
+import { IDisposable } from '@sidex/base/common/lifecycle.js';
+import { IRange } from '@sidex/editor/common/core/range.js';
+import { ISelection } from '@sidex/editor/common/core/selection.js';
+import { ITextModel } from '@sidex/editor/common/model.js';
+
+export interface ICustomTextEditorNavigation extends IDisposable {
+	readonly model: ITextModel;
+	readonly selection: ISelection | undefined;
+	readonly onDidChangeSelection: Event<void>;
+	readonly onDidDispose: Event<void>;
+	revealRange(
+		range: IRange,
+		selection: ISelection | undefined,
+		preserveFocus: boolean,
+		token: CancellationToken
+	): Promise<void>;
+	captureViewState(): IDisposable;
+}

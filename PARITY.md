@@ -29,6 +29,7 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 
 | Area | Notes | Evidence |
 |---|---|---|
+| Custom Editors | contrib/customEditor ported from 1.144 and imported; not yet runtime-tested |  |
 | Remote / SSH | SSH/WSL/container connect+exec exist, but NullRemoteAgentService/NullRemoteExtensionsScannerService — no remote ext host | `packages/workbench/src/services/remote/browser/nullRemoteAgentService.ts`, `packages/workbench/src/services/remote/browser/nullRemoteExtensionsScannerService.ts` |
 | Testing | UI + ext-host API wired; relies on extension adapters, no dedicated backend |  |
 
@@ -48,7 +49,6 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 |---|---|---|
 | Call Hierarchy | contrib/callHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
 | Comments | contrib/comments exists but imported in no entry file |  |
-| Custom Editors | contrib/customEditor not imported |  |
 | External URI Opener | contrib/externalUriOpener defines IExternalUriOpenerService but no implementation is ever registerSingleton'd; not imported by any entry file |  |
 | Interactive Window | contrib/interactive not imported |  |
 | Simple Browser | contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported |  |
