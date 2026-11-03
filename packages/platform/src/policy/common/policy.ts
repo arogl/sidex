@@ -4,13 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '@sidex/base/common/collections.js';
+import { IPolicyData } from '@sidex/base/common/defaultAccount.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
-
-// Inline interface to avoid importing from removed defaultAccount module
-export interface IPolicyData {
-	readonly chat_preview_features_enabled?: boolean;
-	readonly chat_agent_enabled?: boolean;
-}
 import { Iterable } from '@sidex/base/common/iterator.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
 import { IManagedSettingsPolicyDefinitions, PolicyName } from '@sidex/base/common/policy.js';
