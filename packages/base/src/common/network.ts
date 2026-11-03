@@ -368,6 +368,13 @@ class FileAccessImpl {
 		}
 
 		if (uri.scheme === Schemas.file && (globalThis as any).__SIDEX_TAURI__) {
+			// Tauri's helper builds the URL form each platform's webview can load: `sidex-asset://localhost/...`
+			// on macOS and Linux, and `http(s)://sidex-asset.localhost/...` on Windows, where WebView2 does not
+			// load custom schemes directly (extension icons and fonts failed with ERR_UNKNOWN_URL_SCHEME).
+			const convertFileSrc = (globalThis as any).__TAURI_INTERNALS__?.convertFileSrc;
+			if (typeof convertFileSrc === 'function') {
+				return URI.parse(convertFileSrc(uri.fsPath, 'sidex-asset'));
+			}
 			const encoded = encodeURIComponent(uri.fsPath);
 			return URI.parse(`sidex-asset://localhost/${encoded}`);
 		}
