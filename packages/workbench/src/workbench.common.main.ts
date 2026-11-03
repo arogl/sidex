@@ -306,6 +306,7 @@ import './contrib/limitIndicator/browser/limitIndicator.contribution.js';
 import './contrib/themes/browser/themes.contribution.js';
 
 // Timeline
+import './contrib/timeline/browser/timeline.service.contribution.js';
 import './contrib/timeline/browser/timeline.contribution.js';
 
 // Language Status

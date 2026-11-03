@@ -130,9 +130,9 @@ import {
 } from '../../contrib/testing/common/testTypes.js';
 import {
 	Timeline,
-	TimelineChangeEvent,
 	TimelineOptions,
-	TimelineProviderDescriptor
+	TimelineProviderDescriptor,
+	WorkspaceTimelineProviderDescriptor
 } from '../../contrib/timeline/common/timeline.js';
 import { TypeHierarchyItem } from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import {
@@ -2180,7 +2180,13 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
-	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
+	$registerWorkspaceTimelineProvider(provider: WorkspaceTimelineProviderDescriptor): void;
+	$unregisterWorkspaceTimelineProvider(source: string): void;
+	/**
+	 * @param uris The files or folders whose timelines changed, or `undefined` if all of them changed.
+	 */
+	$emitTimelineChangeEvent(source: string, uris: UriComponents[] | undefined): void;
+	$emitWorkspaceTimelineChangeEvent(source: string): void;
 }
 
 export interface HoverWithId extends languages.Hover {
@@ -3877,9 +3883,12 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
+	/**
+	 * @param uri The file or folder to get the timeline for, or `undefined` for the workspace timeline.
+	 */
 	$getTimeline(
 		source: string,
-		uri: UriComponents,
+		uri: UriComponents | undefined,
 		options: TimelineOptions,
 		token: CancellationToken
 	): Promise<Dto<Timeline> | undefined>;
