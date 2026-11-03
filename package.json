@@ -46,7 +46,7 @@
     "@microsoft/1ds-post-js": "^4.4.5",
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-shell": "^2",
-    "@vscode/codicons": "^0.0.45",
+    "@vscode/codicons": "0.0.46-46",
     "@vscode/iconv-lite-umd": "^0.7.1",
     "@vscode/tree-sitter-wasm": "^0.3.1",
     "@xterm/addon-clipboard": "^0.2.0",
