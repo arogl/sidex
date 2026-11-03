@@ -5,6 +5,7 @@
 
 import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
 import { Event } from '@sidex/base/common/event.js';
+import { OperatingSystem } from '@sidex/base/common/platform.js';
 import {
 	EnvironmentVariableScope,
 	IEnvironmentVariableCollection,
@@ -33,6 +34,15 @@ export interface IEnvironmentVariableService {
 	readonly mergedCollection: IMergedEnvironmentVariableCollection;
 
 	/**
+	 * Gets a collection suitable for a terminal running on the provided authority. PATH
+	 * contributions are restricted to the extension host that produced them.
+	 */
+	getMergedCollection(
+		remoteAuthority: string | null | undefined,
+		os: OperatingSystem
+	): IMergedEnvironmentVariableCollection;
+
+	/**
 	 * An event that is fired when an extension's environment variable collection changes, the event
 	 * provides the new merged collection.
 	 */
@@ -51,6 +61,11 @@ export interface IEnvironmentVariableService {
 
 export interface IEnvironmentVariableCollectionWithPersistence extends IEnvironmentVariableCollection {
 	readonly persistent: boolean;
+	/**
+	 * The extension host that produced this collection. An absent value is a legacy,
+	 * unknown origin and must not be treated as local.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IEnvironmentVariableInfo {
