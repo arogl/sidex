@@ -9,7 +9,7 @@
         "@microsoft/1ds-post-js": "^4.4.5",
         "@tauri-apps/api": "^2.12.4",
         "@tauri-apps/plugin-shell": "^2",
-        "@vscode/codicons": "^0.0.45",
+        "@vscode/codicons": "0.0.46-46",
         "@vscode/iconv-lite-umd": "^0.7.1",
         "@vscode/tree-sitter-wasm": "^0.3.1",
         "@xterm/addon-clipboard": "^0.2.0",
@@ -409,7 +409,7 @@
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
-    "@vscode/codicons": ["@vscode/codicons@0.0.45", "", {}, "sha512-1KAZ7XCMagp5Gdrlr4bbbcAqgcIL623iO1wW6rfcSVGAVUQvR0WP7bQx1SbJ11gmV3fdQTSEFIJQ/5C+HuVasw=="],
+    "@vscode/codicons": ["@vscode/codicons@0.0.46-46", "", {}, "sha512-5P6z/falKoU3upoWeCcgjMV7HYJ1dQE0F6cXViLKIRe+l4JvVjQXmL0LetwUjVRV0eh7yXfpgIoDrdY2VadNoQ=="],
 
     "@vscode/iconv-lite-umd": ["@vscode/iconv-lite-umd@0.7.1", "", {}, "sha512-tK6k0DXFHW7q5+GGuGZO+phpAqpxO4WXl+BLc/8/uOk3RsM2ssAL3CQUQDb1TGfwltjsauhN6S4ghYZzs4sPFw=="],
 
