@@ -28,7 +28,7 @@ import {
 	IViewsRegistry,
 	Extensions as ViewContainerExtensions,
 	ViewContainerLocation,
-	WindowVisibility
+	WindowEnablement
 } from '../../../common/views.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TerminalEditingService } from './terminalEditingService.js';
@@ -62,8 +62,8 @@ import { TerminalMainContribution } from './terminalMainContribution.js';
 import { setupTerminalMenus } from './terminalMenus.js';
 import { TerminalProfileService } from './terminalProfileService.js';
 import { TerminalService } from './terminalService.js';
-import { TerminalTelemetryContribution } from './terminalTelemetry.js';
 import { TerminalViewPane } from './terminalView.js';
+import { AgentHostTerminalService, IAgentHostTerminalService } from './agentHostTerminalService.js';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -74,13 +74,14 @@ registerSingleton(ITerminalEditingService, TerminalEditingService, Instantiation
 registerSingleton(ITerminalGroupService, TerminalGroupService, InstantiationType.Delayed);
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, InstantiationType.Delayed);
 registerSingleton(ITerminalProfileService, TerminalProfileService, InstantiationType.Delayed);
+registerSingleton(IAgentHostTerminalService, AgentHostTerminalService, InstantiationType.Delayed);
 
 // Register workbench contributions
 // This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
 registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(
-	TerminalTelemetryContribution.ID,
-	TerminalTelemetryContribution,
+	RemoteTerminalBackendContribution.ID,
+	RemoteTerminalBackendContribution,
 	WorkbenchPhase.AfterRestored
 );
 
@@ -140,7 +141,7 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(
 		storageId: TERMINAL_VIEW_ID,
 		hideIfEmpty: true,
 		order: 3,
-		windowVisibility: WindowVisibility.Both
+		windowEnablement: WindowEnablement.Both
 	},
 	ViewContainerLocation.Panel,
 	{ doNotRegisterOpenCommand: true, isDefault: true }
@@ -154,7 +155,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 			canToggleVisibility: true,
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(TerminalViewPane),
-			windowVisibility: WindowVisibility.Both,
+			windowEnablement: WindowEnablement.Both,
 			openCommandActionDescriptor: {
 				id: TerminalCommandId.Toggle,
 				mnemonicTitle: nls.localize(

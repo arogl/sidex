@@ -11,6 +11,11 @@ import {
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/inlineHint/common/terminalInitialHintConfiguration.js';
+import {
+	terminalChatAgentToolsConfiguration,
+	TerminalChatAgentToolsSettingId
+} from '../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
+import { AgentSandboxSettingId } from '@sidex/platform/sandbox/common/settings.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
@@ -19,6 +24,7 @@ import {
 	terminalHistoryConfiguration
 } from '../terminalContrib/history/common/terminal.history.js';
 import { terminalOscNotificationsConfiguration } from '../terminalContrib/notification/common/terminalNotificationConfiguration.js';
+import { terminalResizeDimensionsOverlayConfiguration } from '../terminalContrib/resizeDimensionsOverlay/common/terminalResizeDimensionsOverlayConfiguration.js';
 import {
 	TerminalStickyScrollSettingId,
 	terminalStickyScrollConfiguration
@@ -45,17 +51,28 @@ export const enum TerminalContribCommandId {
 export const enum TerminalContribSettingId {
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
-	AgentSandboxNetworkAllowedDomains = 'terminal.integrated.agentSandbox.networkAllowedDomains',
-	AgentSandboxNetworkDeniedDomains = 'terminal.integrated.agentSandbox.networkDeniedDomains',
-	DeprecatedTerminalSandboxNetworkAllowedDomains = 'terminal.integrated.sandbox.networkAllowedDomains',
-	DeprecatedTerminalSandboxNetworkDeniedDomains = 'terminal.integrated.sandbox.networkDeniedDomains',
-	AgentSandboxEnabled = 'terminal.integrated.agentSandbox.enabled',
-	DeprecatedTerminalSandboxEnabled = 'terminal.integrated.sandbox.enabled',
-	DeprecatedTerminalSandboxNetwork = 'terminal.integrated.sandbox.network',
-	AgentSandboxLinuxFileSystem = 'terminal.integrated.agentSandbox.linuxFileSystem',
-	DeprecatedTerminalSandboxLinuxFileSystem = 'terminal.integrated.sandbox.linuxFileSystem',
-	AgentSandboxMacFileSystem = 'terminal.integrated.agentSandbox.macFileSystem',
-	DeprecatedTerminalSandboxMacFileSystem = 'terminal.integrated.sandbox.macFileSystem'
+	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
+	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
+	AutoApproveWorkspaceNpmScripts = TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts,
+	IgnoreDefaultAutoApproveRules = TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
+	BlockDetectedFileWrites = TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
+	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
+	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
+	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
+	AgentSandboxAllowNetwork = AgentSandboxSettingId.AgentSandboxAllowNetwork,
+	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
+	AgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem,
+	AgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem
+}
+
+// HACK: Export some context key strings from `terminalContrib/` that are depended upon elsewhere.
+// These are soft layer breakers between `terminal/` and `terminalContrib/` but there are
+// difficulties in removing the dependency. These are explicitly defined here to avoid an eslint
+// line override.
+export const enum TerminalContribContextKeyStrings {
+	ChatHasTerminals = TerminalChatContextKeyStrings.ChatHasTerminals,
+	ChatHasHiddenTerminals = TerminalChatContextKeyStrings.ChatHasHiddenTerminals
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since
@@ -67,6 +84,7 @@ export const terminalContribConfiguration: IConfigurationNode['properties'] = {
 	...terminalCommandGuideConfiguration,
 	...terminalHistoryConfiguration,
 	...terminalOscNotificationsConfiguration,
+	...terminalResizeDimensionsOverlayConfiguration,
 	...terminalStickyScrollConfiguration,
 	...terminalSuggestConfiguration,
 	...terminalTypeAheadConfiguration,

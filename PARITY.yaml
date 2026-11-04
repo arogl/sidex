@@ -200,10 +200,73 @@ entries:
     status: missing
     summary: No chat contrib or chat/languageModel API at all
 
+  - id: agents-voice
+    area: Agents Voice
+    status: unwired
+    summary: VS Code 1.144 voice mode for agent sessions; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/agentsVoice
+  - id: canvases
+    area: Canvases
+    status: unwired
+    summary: VS Code 1.144 session canvases; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/canvases
+  - id: vscode-chat
+    area: VS Code Chat
+    status: unwired
+    summary: VS Code 1.144 chat contrib copied as a work in progress; not imported by any entry file. SideX chat is contrib/sidexChat
+    signals:
+      contrib: contrib/chat
+  - id: edit-telemetry
+    area: Edit Telemetry
+    status: unwired
+    summary: VS Code 1.144 edit telemetry; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/editTelemetry
+  - id: git-contrib
+    area: Git Contrib
+    status: unwired
+    summary: VS Code 1.144 contrib/git; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/git
+  - id: github-contrib
+    area: GitHub Link Presentation
+    status: unwired
+    summary: VS Code 1.144 GitHub link presentation and hovers; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/github
+  - id: inline-chat
+    area: Inline Chat
+    status: unwired
+    summary: VS Code 1.144 inline chat; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/inlineChat
+  - id: mcp
+    area: MCP
+    status: unwired
+    summary: VS Code 1.144 MCP registry, discovery and views; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/mcp
+  - id: onboarding
+    area: Onboarding
+    status: unwired
+    summary: VS Code 1.144 onboarding scenarios; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/onboarding
+
 # Intentional omissions the anti-rot checks should skip. Each needs a reason.
 # Populated from Task 6 Step 1: Null* stubs not covered by a row's stub_service,
 # and contrib dirs that are unimported-in-entries but load transitively / are internal.
 ignore:
+  - stub_service: NullAgentHostCustomizationService
+    reason: >-
+      Upstream null object in the copied contrib/chat tree (agentHostCustomizationService.ts),
+      not a SideX stub; contrib/chat is not wired yet.
+  - stub_service: NullChatModelSelectionDiagnostics
+    reason: >-
+      Upstream null object in the copied contrib/chat tree (chatModelSelectionDiagnostics.ts),
+      not a SideX stub; contrib/chat is not wired yet.
   - stub_service: NullExtensionService
     reason: >-
       Exported from services/extensions/common/extensions.ts as a ported VS Code

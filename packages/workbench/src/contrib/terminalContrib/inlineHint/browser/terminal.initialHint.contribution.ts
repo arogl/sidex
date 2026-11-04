@@ -241,6 +241,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -311,8 +312,38 @@ class TerminalInitialHintWidget extends Disposable {
 		const hintElement = $('div.terminal-initial-hint');
 		hintElement.style.display = 'block';
 
-		// Suggest hint
-		const suggestEnabled = this._configurationService.getValue<boolean>(TerminalSuggestSettingId.Enabled);
+		const aiFeaturesHidden = this._chatEntitlementService.sentiment.hidden;
+
+		// Copilot CLI hint (only shown when AI features are enabled)
+		if (!aiFeaturesHidden) {
+			const handleCopilotCliClick = () => {
+				this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
+					'workbenchActionExecuted',
+					{
+						id: 'terminalCopilotCli.hintAction',
+						from: 'hint'
+					}
+				);
+				this._instance.sendText('copilot', false);
+			};
+			const copilotCliHint = localize(
+				{
+					key: 'copilotCliHint',
+					comment: ['Preserve double-square brackets and their order']
+				},
+				'Type [[copilot]] to use Copilot CLI.'
+			);
+			const copilotCliHintHandler: IContentActionHandler = {
+				callback: () => handleCopilotCliClick(),
+				disposables: this._toDispose
+			};
+			hintElement.appendChild(renderFormattedText(copilotCliHint, { actionHandler: copilotCliHintHandler }));
+			ariaLabelParts.push(localize('copilotCliHintAriaLabel', 'Type copilot to use Copilot CLI.'));
+		}
+
+		// Suggest hint - only shown when AI features are hidden (otherwise the Copilot CLI hint takes precedence)
+		const suggestEnabled =
+			aiFeaturesHidden && this._configurationService.getValue<boolean>(TerminalSuggestSettingId.Enabled);
 		const suggestKeybinding = suggestEnabled
 			? this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest)
 			: undefined;
