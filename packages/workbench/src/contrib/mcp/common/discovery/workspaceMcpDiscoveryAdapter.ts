@@ -1,0 +1,89 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { DisposableMap, IDisposable } from '@sidex/base/common/lifecycle.js';
+import { observableValue } from '@sidex/base/common/observable.js';
+import { joinPath } from '@sidex/base/common/resources.js';
+import { URI } from '@sidex/base/common/uri.js';
+import { ConfigurationTarget, IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
+import { IFileService } from '@sidex/platform/files/common/files.js';
+import { StorageScope } from '@sidex/platform/storage/common/storage.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '@sidex/platform/workspace/common/workspace.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { ExternalDiscoverySource } from '../mcpConfiguration.js';
+import { IMcpRegistry } from '../mcpRegistryTypes.js';
+import {
+	CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX,
+	McpCollectionProvenance,
+	McpCollectionSortOrder,
+	McpServerTrust
+} from '../mcpTypes.js';
+import { IMcpDiscovery } from './mcpDiscovery.js';
+import { FilesystemMcpDiscovery, WritableMcpCollectionDefinition } from './nativeMcpDiscoveryAbstract.js';
+import { claudeConfigToServerDefinition } from './nativeMcpDiscoveryAdapters.js';
+
+export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery implements IMcpDiscovery {
+	private readonly _collections = this._register(new DisposableMap<string, IDisposable>());
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IMcpRegistry mcpRegistry: IMcpRegistry,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService
+	) {
+		super(configurationService, fileService, mcpRegistry);
+	}
+
+	start(): void {
+		this._register(
+			this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
+				for (const removed of e.removed) {
+					this._collections.deleteAndDispose(removed.uri.toString());
+				}
+				for (const added of e.added) {
+					this.watchFolder(added);
+				}
+			})
+		);
+
+		for (const folder of this._workspaceContextService.getWorkspace().folders) {
+			this.watchFolder(folder);
+		}
+	}
+
+	private watchFolder(folder: IWorkspaceFolder) {
+		const configFile = joinPath(folder.uri, '.cursor', 'mcp.json');
+		const collection: WritableMcpCollectionDefinition = {
+			id: `${CURSOR_WORKSPACE_MCP_COLLECTION_ID_PREFIX}${folder.index}`,
+			provenance: McpCollectionProvenance.ExternalConfiguration,
+			discoverySource: ExternalDiscoverySource.CursorWorkspace,
+			label: `${folder.name}/.cursor/mcp.json`,
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority || null,
+			scope: StorageScope.WORKSPACE,
+			trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
+			serverDefinitions: observableValue(this, []),
+			configTarget: ConfigurationTarget.WORKSPACE_FOLDER,
+			order: McpCollectionSortOrder.WorkspaceFolder + 1,
+			presentation: {
+				origin: configFile
+			}
+		};
+
+		this._collections.set(
+			folder.uri.toString(),
+			this.watchFile(
+				URI.joinPath(folder.uri, '.cursor', 'mcp.json'),
+				collection,
+				ExternalDiscoverySource.CursorWorkspace,
+				async contents => {
+					const defs = await claudeConfigToServerDefinition(collection.id, contents, { defaultCwd: folder.uri });
+					defs?.forEach(d => (d.roots = [folder.uri]));
+					return defs;
+				}
+			)
+		);
+	}
+}

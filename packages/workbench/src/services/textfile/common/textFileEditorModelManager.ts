@@ -8,7 +8,13 @@ import { toErrorMessage } from '@sidex/base/common/errorMessage.js';
 import { Event, Emitter } from '@sidex/base/common/event.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { TextFileEditorModel } from './textFileEditorModel.js';
-import { dispose, IDisposable, Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
+import {
+	dispose,
+	IDisposable,
+	Disposable,
+	DisposableStore,
+	DisposableResourceMap
+} from '@sidex/base/common/lifecycle.js';
 import {
 	ITextFileEditorModel,
 	ITextFileEditorModelManager,
@@ -57,8 +63,10 @@ interface ITextFileEditorModelToRestore {
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 	private readonly _onDidCreate = this._register(
-		new Emitter<ITextFileEditorModel>({
-			leakWarningThreshold: 500
+		new Emitter<TextFileEditorModel>({
+			leakWarningThreshold: 500,
+			leakWarningName:
+				'TextFileEditorModelManager._onDidCreate' /* increased for users with hundreds of inputs opened */
 		})
 	);
 	readonly onDidCreate = this._onDidCreate.event;
@@ -69,25 +77,25 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onDidRemove = this._register(new Emitter<URI>());
 	readonly onDidRemove = this._onDidRemove.event;
 
-	private readonly _onDidChangeDirty = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidChangeDirty = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidChangeReadonly = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidChangeReadonly = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
-	private readonly _onDidSaveError = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidSaveError = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
 	private readonly _onDidSave = this._register(new Emitter<ITextFileSaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
-	private readonly _onDidRevert = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidRevert = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidRevert = this._onDidRevert.event;
 
-	private readonly _onDidChangeEncoding = this._register(new Emitter<ITextFileEditorModel>());
+	private readonly _onDidChangeEncoding = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
 	private readonly mapResourceToModel = new ResourceMap<TextFileEditorModel>();
@@ -116,6 +124,18 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	get models(): TextFileEditorModel[] {
 		return [...this.mapResourceToModel.values()];
+	}
+
+	retainResolvedContent(): IDisposable {
+		const store = new DisposableStore();
+		const retained = store.add(new DisposableResourceMap());
+		const retain = (model: ITextFileEditorModel) => retained.set(model.resource, model.retainResolvedContent());
+		store.add(this.onDidCreate(retain));
+		store.add(this.onDidRemove(resource => retained.deleteAndDispose(resource)));
+		for (const model of this.models) {
+			retain(model);
+		}
+		return store;
 	}
 
 	constructor(
@@ -168,7 +188,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			// the model. We also consider the added event because it could
 			// be that a file was added and updated right after.
 			if (e.contains(model.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
-				this.queueModelReload(model as TextFileEditorModel);
+				this.queueModelReload(model);
 			}
 		}
 	}
@@ -200,7 +220,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			}
 
 			if (scheme === model.resource.scheme) {
-				this.queueModelReload(model as TextFileEditorModel);
+				this.queueModelReload(model);
 			}
 		}
 	}
@@ -238,7 +258,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 					const sourceModels: TextFileEditorModel[] = [];
 					for (const model of this.models) {
 						if (this.uriIdentityService.extUri.isEqualOrParent(model.resource, source)) {
-							sourceModels.push(model as TextFileEditorModel);
+							sourceModels.push(model);
 						}
 					}
 
@@ -292,7 +312,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 					// flag. we do NOT have to restore the content because the model was only soft
 					// reverted and did not loose its original dirty contents.
 					if (model.snapshot) {
-						(this.get(model.source) as TextFileEditorModel | undefined)?.setDirty(true);
+						this.get(model.source)?.setDirty(true);
 					}
 				});
 			}
@@ -360,10 +380,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 											restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID &&
 											extname(target) !== PLAINTEXT_EXTENSION
 										) {
-											(restoredModel as TextFileEditorModel).updateTextEditorModel(
-												undefined,
-												modelToRestore.language.id
-											);
+											restoredModel.updateTextEditorModel(undefined, modelToRestore.language.id);
 										}
 									}
 								})
@@ -418,7 +435,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		let resource: URI;
 		if (URI.isUri(resourceOrModel)) {
 			resource = resourceOrModel;
-			model = this.get(resource) as TextFileEditorModel | undefined;
+			model = this.get(resource);
 		} else {
 			resource = resourceOrModel.resource;
 			model = resourceOrModel;
@@ -549,7 +566,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			currentModelCopyResolve = nextPendingModelResolve;
 			try {
 				await nextPendingModelResolve;
-			} catch (_error) {
+			} catch (error) {
 				// ignore any error here, it will bubble to the original requestor
 			}
 		}
@@ -628,14 +645,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	//#endregion
 
-	canDispose(model: ITextFileEditorModel): true | Promise<true> {
+	canDispose(model: TextFileEditorModel): true | Promise<true> {
 		// quick return if model already disposed or not dirty and not resolving
 		if (model.isDisposed() || (!this.mapResourceToPendingModelResolvers.has(model.resource) && !model.isDirty())) {
 			return true;
 		}
 
 		// promise based return in all other cases
-		return this.doCanDispose(model as TextFileEditorModel);
+		return this.doCanDispose(model);
 	}
 
 	private async doCanDispose(model: TextFileEditorModel): Promise<true> {

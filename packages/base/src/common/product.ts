@@ -37,6 +37,15 @@ export interface IFeaturedExtension {
 	readonly imagePath: string;
 }
 
+export interface IChatSessionRecommendation {
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly displayName: string;
+	readonly name: string;
+	readonly description: string;
+	readonly postInstallCommand?: string;
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
@@ -145,6 +154,25 @@ export interface IProductConfiguration {
 		readonly accessScopes?: string[];
 	};
 
+	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
+
+	readonly copilotVersions?: {
+		readonly runtime: string;
+		readonly sdk: string;
+	};
+
+	readonly dictationRuntime?: IDictationRuntimeProductConfig;
+
+	readonly mcpGallery?: {
+		readonly serviceUrl: string;
+		readonly itemWebUrl: string;
+		readonly publisherUrl: string;
+		readonly supportUrl: string;
+		readonly privacyPolicyUrl: string;
+		readonly termsOfServiceUrl: string;
+		readonly reportUrl: string;
+	};
+
 	readonly extensionPublisherOrgs?: readonly string[];
 	readonly trustedExtensionPublishers?: readonly string[];
 
@@ -165,6 +193,7 @@ export interface IProductConfiguration {
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
 	readonly trustedExtensionAuthAccess?: string[] | IStringDictionary<string[]>;
+	readonly trustedMcpAuthAccess?: string[] | IStringDictionary<string[]>;
 	readonly inheritAuthAccountPreference?: IStringDictionary<string[]>;
 	readonly trustedExtensionProtocolHandlers?: readonly string[];
 
@@ -224,8 +253,6 @@ export interface IProductConfiguration {
 	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[] };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[] };
 
-	/** @deprecated Removed upstream in 1.144.0; the platform layer still reads it until that layer is merged. */
-	readonly extensionsEnabledWithApiProposalVersion?: string[];
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
@@ -250,7 +277,11 @@ export interface IProductConfiguration {
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
+	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
 
+	readonly defaultChatAgent: IDefaultChatAgent;
+	readonly chatParticipantRegistry?: string;
+	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
 	readonly voiceWsUrl?: string;
 
@@ -263,11 +294,10 @@ export interface IProductConfiguration {
 	 * setting to a policy owned by an in-code setting. References let a `product.json`-provided
 	 * setting be governed by a policy whose `value` callback — which JSON cannot carry — lives in code.
 	 */
-	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
+	/** @deprecated Removed upstream in 1.144.0; the platform layer still reads it until that layer is merged. */
+	readonly extensionsEnabledWithApiProposalVersion?: string[];
 
-	readonly aiGeneratedWorkspaceTrust?: {
-		readonly endpoint: string;
-	};
+	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy | IExtensionConfigurationPolicyReference>;
 
 	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
@@ -396,4 +426,62 @@ export interface ISurveyData {
 	languageId: string;
 	editCount: number;
 	userProbability: number;
+}
+
+export interface IAiGeneratedWorkspaceTrust {
+	readonly title: string;
+	readonly checkboxText: string;
+	readonly trustOption: string;
+	readonly dontTrustOption: string;
+	readonly startupTrustRequestLearnMore: string;
+}
+
+export interface IDefaultChatAgent {
+	readonly extensionId: string;
+	readonly chatExtensionId: string;
+
+	readonly chatExtensionOutputId: string;
+	readonly chatExtensionOutputExtensionStateCommand: string;
+
+	readonly documentationUrl: string;
+	readonly skusDocumentationUrl: string;
+	readonly optimizeUsageDocumentationUrl: string;
+	readonly publicCodeMatchesUrl: string;
+	readonly managePlanUrl: string;
+	readonly upgradePlanUrl: string;
+	readonly signUpUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
+
+	readonly provider: {
+		default: { id: string; name: string };
+		enterprise: { id: string; name: string };
+		google: { id: string; name: string };
+		apple: { id: string; name: string };
+		microsoft: { id: string; name: string };
+	};
+
+	readonly providerExtensionId: string;
+	readonly providerUriSetting: string;
+	readonly providerScopes: string[][];
+
+	readonly entitlementUrl: string;
+	readonly entitlementSignupLimitedUrl: string;
+	readonly tokenEntitlementUrl: string;
+	readonly mcpRegistryDataUrl: string;
+	readonly mcpConnectorsUrl?: string;
+	readonly managedSettingsUrl: string;
+
+	readonly chatQuotaExceededContext: string;
+	readonly completionsQuotaExceededContext: string;
+
+	readonly walkthroughCommand: string;
+	readonly completionsMenuCommand: string;
+	readonly chatRefreshTokenCommand: string;
+	readonly generateCommitMessageCommand: string;
+	readonly resolveMergeConflictsCommand: string;
+
+	readonly completionsAdvancedSetting: string;
+	readonly completionsEnablementSetting: string;
+	readonly nextEditSuggestionsSetting: string;
 }
