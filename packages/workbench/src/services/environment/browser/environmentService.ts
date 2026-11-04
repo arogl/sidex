@@ -127,6 +127,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.userRoamingDataHome, 'agent-sessions.code-workspace');
+	}
+
+	@memoize
 	get userRoamingDataHome(): URI {
 		return URI.file('/User').with({ scheme: Schemas.vscodeUserData });
 	}
