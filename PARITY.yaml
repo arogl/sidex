@@ -195,6 +195,54 @@ entries:
     summary: contrib/externalUriOpener defines IExternalUriOpenerService but no implementation is ever registerSingleton'd; not imported by any entry file
     signals:
       contrib: contrib/externalUriOpener
+  - id: agents-voice
+    area: Agents Voice
+    status: unwired
+    summary: VS Code 1.144 voice mode for agent sessions; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/agentsVoice
+  - id: edit-telemetry
+    area: Edit Telemetry
+    status: unwired
+    summary: VS Code 1.144 edit telemetry; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/editTelemetry
+  - id: git-contrib
+    area: Git Contrib
+    status: unwired
+    summary: VS Code 1.144 contrib/git; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/git
+  - id: github-contrib
+    area: GitHub Link Presentation
+    status: unwired
+    summary: VS Code 1.144 GitHub link presentation and hovers; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/github
+  - id: speech
+    area: Speech
+    status: unwired
+    summary: VS Code 1.144 speech service and voice providers; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/speech
+  - id: onboarding
+    area: Onboarding
+    status: unwired
+    summary: VS Code 1.144 onboarding scenarios; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/onboarding
+  - id: vscode-chat
+    area: VS Code Chat
+    status: unwired
+    summary: VS Code 1.144 chat contrib copied as a work in progress; not imported by any entry file. SideX chat is contrib/sidexChat
+    signals:
+      contrib: contrib/chat
+  - id: mcp
+    area: MCP
+    status: unwired
+    summary: VS Code 1.144 MCP registry, discovery and views; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/mcp
   - id: ai-chat
     area: AI / Chat / Copilot
     status: missing

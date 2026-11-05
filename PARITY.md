@@ -47,12 +47,20 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 
 | Area | Notes | Evidence |
 |---|---|---|
+| Agents Voice | VS Code 1.144 voice mode for agent sessions; copied for the chat port, not imported by any entry file |  |
 | Call Hierarchy | contrib/callHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
 | Comments | contrib/comments exists but imported in no entry file |  |
+| Edit Telemetry | VS Code 1.144 edit telemetry; copied for the chat port, not imported by any entry file |  |
 | External URI Opener | contrib/externalUriOpener defines IExternalUriOpenerService but no implementation is ever registerSingleton'd; not imported by any entry file |  |
+| Git Contrib | VS Code 1.144 contrib/git; copied for the chat port, not imported by any entry file |  |
+| GitHub Link Presentation | VS Code 1.144 GitHub link presentation and hovers; copied for the chat port, not imported by any entry file |  |
 | Interactive Window | contrib/interactive not imported |  |
+| MCP | VS Code 1.144 MCP registry, discovery and views; copied for the chat port, not imported by any entry file |  |
+| Onboarding | VS Code 1.144 onboarding scenarios; copied for the chat port, not imported by any entry file |  |
 | Simple Browser | contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported |  |
+| Speech | VS Code 1.144 speech service and voice providers; copied for the chat port, not imported by any entry file |  |
 | Type Hierarchy | contrib/typeHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
+| VS Code Chat | VS Code 1.144 chat contrib copied as a work in progress; not imported by any entry file. SideX chat is contrib/sidexChat |  |
 
 ## Missing
 
