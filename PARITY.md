@@ -59,6 +59,7 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 | Simple Browser | contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported |  |
 | Speech | VS Code 1.144 speech service and voice providers; copied for the chat port, not imported by any entry file |  |
 | Type Hierarchy | contrib/typeHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
+| VS Code Chat | VS Code 1.144 chat contrib copied as a work in progress; not imported by any entry file. SideX chat is contrib/sidexChat |  |
 
 ## Missing
 

@@ -231,6 +231,12 @@ entries:
     summary: VS Code 1.144 onboarding scenarios; copied for the chat port, not imported by any entry file
     signals:
       contrib: contrib/onboarding
+  - id: vscode-chat
+    area: VS Code Chat
+    status: unwired
+    summary: VS Code 1.144 chat contrib copied as a work in progress; not imported by any entry file. SideX chat is contrib/sidexChat
+    signals:
+      contrib: contrib/chat
   - id: ai-chat
     area: AI / Chat / Copilot
     status: missing
