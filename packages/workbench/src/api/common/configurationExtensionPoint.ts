@@ -31,9 +31,11 @@ import {
 import {
 	workspaceSettingsSchemaId,
 	launchSchemaId,
-	tasksSchemaId
+	tasksSchemaId,
+	MCP_CONFIGURATION_KEY,
+	mcpSchemaId
 } from '../../services/configuration/common/configuration.js';
-import { isObject, isUndefined } from '@sidex/base/common/types.js';
+import { hasKey, isObject, isUndefined } from '@sidex/base/common/types.js';
 import { ExtensionIdentifierMap, IExtensionManifest } from '@sidex/platform/extensions/common/extensions.js';
 import { IStringDictionary } from '@sidex/base/common/collections.js';
 import {
@@ -48,6 +50,7 @@ import { Disposable } from '@sidex/base/common/lifecycle.js';
 import { SyncDescriptor } from '@sidex/platform/instantiation/common/descriptors.js';
 import { MarkdownString } from '@sidex/base/common/htmlContent.js';
 import product from '@sidex/platform/product/common/product.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -176,6 +179,25 @@ const configurationEntrySchema: IJSONSchema = {
 									'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.'
 								)
 							},
+							deprecationMessageSeverity: {
+								type: 'string',
+								enum: ['warning', 'info'],
+								enumDescriptions: [
+									nls.localize(
+										'scope.deprecationMessageSeverity.warning',
+										'Shows the deprecation message using the standard warning treatment.'
+									),
+									nls.localize(
+										'scope.deprecationMessageSeverity.info',
+										'Shows the deprecation message using an informational treatment.'
+									)
+								],
+								default: 'warning',
+								description: nls.localize(
+									'scope.deprecationMessageSeverity',
+									'Controls the severity used to display the deprecation message.'
+								)
+							},
 							editPresentation: {
 								type: 'string',
 								enum: ['singlelineText', 'multilineText'],
@@ -241,6 +263,30 @@ const configurationEntrySchema: IJSONSchema = {
 									'scope.tags',
 									'A list of tags under which to place the setting. The tag can then be searched up in the Settings editor. For example, specifying the `experimental` tag allows one to find the setting by searching `@tag:experimental`.'
 								)
+							},
+							agentsWindow: {
+								type: 'object',
+								markdownDescription: nls.localize(
+									'scope.agentsWindow',
+									'Configuration overrides for the Agents window. Allows specifying a different default value and read-only behavior for this setting when running in the Agents window.\n\n**Note**: This is a proposed API. To use it, extensions must include `agentsWindowConfiguration` in their `enabledApiProposals`.'
+								),
+								properties: {
+									default: {
+										description: nls.localize(
+											'scope.agentsWindow.default',
+											'The default value for this setting in the Agents window.'
+										)
+									},
+									readOnly: {
+										type: 'boolean',
+										description: nls.localize(
+											'scope.agentsWindow.readOnly',
+											'When true, this setting cannot be changed by the user in the Agents window.'
+										),
+										default: false
+									}
+								},
+								additionalProperties: false
 							}
 						}
 					}
@@ -428,13 +474,46 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 					);
 					continue;
 				}
-				if (extensionConfigurationPolicy?.[key]) {
-					propertyConfiguration.policy = extensionConfigurationPolicy?.[key];
+				const policyEntry = extensionConfigurationPolicy?.[key];
+				if (policyEntry) {
+					// A reference entry carries a `policyReference` pointer; a full (owner/"parent")
+					// entry declares the policy inline. References attach this setting to a policy
+					// *owned* by an in-code setting (whose `value` callback JSON cannot carry).
+					if (hasKey(policyEntry, { policyReference: true })) {
+						propertyConfiguration.policyReference = policyEntry.policyReference;
+					} else {
+						propertyConfiguration.policy = policyEntry;
+					}
 				}
 				if (propertyConfiguration.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
 					propertyConfiguration.experiment = {
 						mode: 'startup'
 					};
+				}
+				if (
+					propertyConfiguration.agentsWindow &&
+					!isProposedApiEnabled(extension.description, 'agentsWindowConfiguration')
+				) {
+					extension.collector.error(
+						nls.localize(
+							'config.property.agentsWindow.proposed',
+							"Extension '{0}' CANNOT use 'agentsWindow' property on configuration '{1}' without enabling the 'agentsWindowConfiguration' API proposal.",
+							extension.description.identifier.value,
+							key
+						)
+					);
+					delete propertyConfiguration.agentsWindow;
+				}
+				if (propertyConfiguration.agentHost) {
+					extension.collector.error(
+						nls.localize(
+							'config.property.agentHost.unsupported',
+							"Extension '{0}' CANNOT use the 'agentHost' property on configuration '{1}'.",
+							extension.description.identifier.value,
+							key
+						)
+					);
+					delete propertyConfiguration.agentHost;
 				}
 				seenProperties.add(key);
 				propertyConfiguration.scope = propertyConfiguration.scope
@@ -538,7 +617,30 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			type: 'object',
 			default: {},
 			description: nls.localize('workspaceConfig.settings.description', 'Workspace settings'),
-			$ref: workspaceSettingsSchemaId
+			allOf: [
+				{ $ref: workspaceSettingsSchemaId },
+				{
+					properties: {
+						[MCP_CONFIGURATION_KEY]: {
+							type: 'object',
+							default: {
+								inputs: [],
+								servers: {
+									'mcp-server-time': {
+										command: 'uvx',
+										args: ['mcp_server_time', '--local-timezone=America/Los_Angeles']
+									}
+								}
+							},
+							description: nls.localize(
+								'workspaceConfig.mcp.description',
+								'Model Context Protocol server configurations'
+							),
+							$ref: mcpSchemaId
+						}
+					}
+				}
+			]
 		},
 		launch: {
 			type: 'object',
