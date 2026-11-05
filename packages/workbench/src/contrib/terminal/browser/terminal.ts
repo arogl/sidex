@@ -88,6 +88,7 @@ export const ITerminalEditorService = createDecorator<ITerminalEditorService>('t
 export const ITerminalEditingService = createDecorator<ITerminalEditingService>('terminalEditingService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+export const ITerminalChatService = createDecorator<ITerminalChatService>('terminalChatService');
 
 /**
  * A terminal contribution that gets created whenever a terminal is created. A contribution has
@@ -1741,7 +1742,7 @@ export interface IInternalXtermTerminal {
 	 * **WARNING:** This should never be used outside of the terminal component and only for
 	 * developer purposed inside the terminal component.
 	 */
-	_writeText(data: string): void;
+	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
 }
 
 export interface IXtermColorProvider {

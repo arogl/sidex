@@ -36,6 +36,7 @@ import { registerColors } from '../common/terminalColorRegistry.js';
 import { registerTerminalConfiguration } from '../common/terminalConfiguration.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import './media/terminal.css';
+import './media/terminalVoice.css';
 import './media/widgets.css';
 import './media/xterm.css';
 import {
@@ -79,11 +80,6 @@ registerSingleton(IAgentHostTerminalService, AgentHostTerminalService, Instantia
 // Register workbench contributions
 // This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
 registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(
-	RemoteTerminalBackendContribution.ID,
-	RemoteTerminalBackendContribution,
-	WorkbenchPhase.AfterRestored
-);
 
 // Tauri terminal backend — register it so VSCode's built-in terminal panel uses our PTY
 import './tauriTerminalBackend.js';

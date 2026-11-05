@@ -57,7 +57,13 @@ export const enum LayoutSettings {
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
-	SHADOWS = 'workbench.shadows'
+	SHADOWS = 'workbench.shadows',
+	MODERN_UI = 'workbench.experimental.modernUI',
+	MODERN_UI_DENSITY = 'window.density.layout',
+	MODERN_UI_FROSTED_GLASS = 'workbench.modernUIFrostedGlass',
+	MODERN_UI_FROSTED_GLASS_OPACITY = 'workbench.modernUIFrostedGlassOpacity',
+	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
+	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
 }
 
 export const enum ActivityBarPosition {

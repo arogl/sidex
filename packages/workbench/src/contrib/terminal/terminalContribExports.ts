@@ -10,6 +10,7 @@ import {
 } from '../terminalContrib/accessibility/common/terminal.accessibility.js';
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
+import { TerminalChatCommandId, TerminalChatContextKeyStrings } from '../terminalContrib/chat/browser/terminalChat.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/inlineHint/common/terminalInitialHintConfiguration.js';
 import {
 	terminalChatAgentToolsConfiguration,
@@ -42,7 +43,14 @@ import { terminalZoomConfiguration } from '../terminalContrib/zoom/common/termin
 // removing the dependency. These are explicitly defined here to avoid an eslint line override.
 export const enum TerminalContribCommandId {
 	A11yFocusAccessibleBuffer = TerminalAccessibilityCommandId.FocusAccessibleBuffer,
-	DeveloperRestartPtyHost = TerminalDeveloperCommandId.RestartPtyHost
+	DeveloperRestartPtyHost = TerminalDeveloperCommandId.RestartPtyHost,
+	OpenTerminalSettingsLink = TerminalChatCommandId.OpenTerminalSettingsLink,
+	DisableSessionAutoApproval = TerminalChatCommandId.DisableSessionAutoApproval,
+	FocusMostRecentChatTerminalOutput = TerminalChatCommandId.FocusMostRecentChatTerminalOutput,
+	FocusMostRecentChatTerminal = TerminalChatCommandId.FocusMostRecentChatTerminal,
+	ToggleChatTerminalOutput = TerminalChatCommandId.ToggleChatTerminalOutput,
+	FocusChatInstanceAction = TerminalChatCommandId.FocusChatInstanceAction,
+	ContinueInBackground = TerminalChatCommandId.ContinueInBackground
 }
 
 // HACK: Export some settings from `terminalContrib/` that are depended upon elsewhere. These are
@@ -80,6 +88,7 @@ export const enum TerminalContribContextKeyStrings {
 export const terminalContribConfiguration: IConfigurationNode['properties'] = {
 	...terminalAccessibilityConfiguration,
 	...terminalAutoRepliesConfiguration,
+	...terminalChatAgentToolsConfiguration,
 	...terminalInitialHintConfiguration,
 	...terminalCommandGuideConfiguration,
 	...terminalHistoryConfiguration,

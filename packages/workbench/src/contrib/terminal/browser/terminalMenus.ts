@@ -26,6 +26,7 @@ import { DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { hasKey } from '@sidex/base/common/types.js';
+import { TerminalContribContextKeyStrings } from '../terminalContribExports.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -446,6 +447,7 @@ export function setupTerminalMenus(): void {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
+					ContextKeyExpr.not(TerminalContribContextKeyStrings.ChatHasHiddenTerminals),
 					ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
 					ContextKeyExpr.or(
@@ -820,7 +822,7 @@ export function setupTerminalMenus(): void {
 			order: 10,
 			when: ContextKeyExpr.and(
 				ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-				ContextKeyExpr.false(),
+				HasSpeechProvider,
 				TerminalContextKeys.terminalDictationInProgress
 			),
 			isHiddenByDefault: true
@@ -991,11 +993,17 @@ function splitContributedProfiles(
 }
 
 function isAiContributedProfile(profile: IExtensionTerminalProfile): boolean {
+	const extensionIdentifier = profile.extensionIdentifier.toLowerCase();
+	if (extensionIdentifier === 'github.copilot-chat' || extensionIdentifier === 'anthropic.claude-code') {
+		return true;
+	}
+
 	return isAiProfileName(profile.title);
 }
 
-function isAiProfileName(_name: string): boolean {
-	return false;
+function isAiProfileName(name: string): boolean {
+	const lowerCaseName = name.toLowerCase();
+	return lowerCaseName.includes('copilot') || lowerCaseName.includes('claude');
 }
 
 function addProfileActions(

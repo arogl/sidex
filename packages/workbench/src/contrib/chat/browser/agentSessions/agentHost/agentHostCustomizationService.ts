@@ -82,7 +82,7 @@ import type { IAgentFileToolInventoryEntry } from '../../../common/customization
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer } from './agentHostMcpServer.js';
 import {
 	resolveMcpServerAuthentication,
 	agentHostMcpServerId,

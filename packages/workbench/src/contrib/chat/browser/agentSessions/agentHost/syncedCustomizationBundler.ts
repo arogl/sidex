@@ -37,8 +37,8 @@ import {
 	IAgentHostFileSystemService,
 	SYNCED_CUSTOMIZATION_DISPLAY_NAME,
 	SYNCED_CUSTOMIZATION_SCHEME
-} from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
-import { IgnoreFile } from '../../../../../../workbench/services/search/common/ignoreFile.js';
+} from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { IgnoreFile } from '../../../../../services/search/common/ignoreFile.js';
 
 // Re-export so existing consumers don't need to change their import source.
 export { SYNCED_CUSTOMIZATION_SCHEME };
