@@ -242,6 +242,12 @@ entries:
     summary: VS Code 1.144 inline chat; copied for the chat port, not imported by any entry file
     signals:
       contrib: contrib/inlineChat
+  - id: speech
+    area: Speech
+    status: unwired
+    summary: VS Code 1.144 speech service and voice providers; copied for the chat port, not imported by any entry file
+    signals:
+      contrib: contrib/speech
   - id: mcp
     area: MCP
     status: unwired
