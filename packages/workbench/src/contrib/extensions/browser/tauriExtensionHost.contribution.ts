@@ -60,7 +60,7 @@ import {
 	type IExtensionManifestSummary
 } from './extensionPlatformClient.js';
 import { listen } from '@tauri-apps/api/event';
-import { isRealExtensionHostEnabled } from '../../../services/extensions/browser/realExtensionHost.js';
+import { isRealExtensionHostEnabled } from '../../../services/extensions/browser/realExtensionHostFlag.js';
 import { ITerminalService, ITerminalGroupService } from '../../terminal/browser/terminal.js';
 import { INotificationService, Severity as _Severity } from '@sidex/platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '@sidex/platform/progress/common/progress.js';
