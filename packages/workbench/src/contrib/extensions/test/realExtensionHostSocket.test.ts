@@ -31,6 +31,7 @@ describe('RealExtensionHostSocket', () => {
 		// `hi` was sent by the mocked host while `start` was still resolving, before anything listened.
 		const received: string[] = [];
 		socket.onData(d => received.push(d.toString()));
+		await Promise.resolve();
 		expect(received).toEqual(['hi']);
 		handlers.get('sidex-exthost-real-data')?.({ payload: { id: 'abc', data: btoa('there') } });
 		expect(received).toEqual(['hi', 'there']);
@@ -41,6 +42,7 @@ describe('RealExtensionHostSocket', () => {
 		const socket = await RealExtensionHostSocket.connect();
 		const received: string[] = [];
 		socket.onData(d => received.push(d.toString()));
+		await Promise.resolve();
 		received.length = 0;
 		handlers.get('sidex-exthost-real-data')?.({ payload: { id: 'other', data: btoa('ignored') } });
 		expect(received).toEqual([]);

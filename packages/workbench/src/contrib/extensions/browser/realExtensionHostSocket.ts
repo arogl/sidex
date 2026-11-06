@@ -32,6 +32,7 @@ export class RealExtensionHostSocket extends Disposable implements ISocket {
 	private _pendingWrites: Promise<void> = Promise.resolve();
 	/** Data that arrived before anything listened. The host sends its first message right on connect. */
 	private _backlog: VSBuffer[] | undefined = [];
+	private _flushScheduled = false;
 	private _closed = false;
 
 	private constructor(
@@ -103,13 +104,18 @@ export class RealExtensionHostSocket extends Disposable implements ISocket {
 
 	onData(listener: (e: VSBuffer) => void) {
 		const disposable = this._onData.event(listener);
-		const backlog = this._backlog;
-		if (backlog) {
-			// The first listener (the protocol) gets everything received so far, in order, before live data.
-			this._backlog = undefined;
-			for (const data of backlog) {
-				this._onData.fire(data);
-			}
+		if (this._backlog && !this._flushScheduled) {
+			this._flushScheduled = true;
+			// The first listener is the PersistentProtocol constructor. Flushing inside it would parse the
+			// host's Ready message before the caller can subscribe to the protocol's onMessage, and lose it.
+			// Data arriving before the flush runs is appended to the backlog, so order is kept.
+			queueMicrotask(() => {
+				const backlog = this._backlog ?? [];
+				this._backlog = undefined;
+				for (const data of backlog) {
+					this._onData.fire(data);
+				}
+			});
 		}
 		return disposable;
 	}
