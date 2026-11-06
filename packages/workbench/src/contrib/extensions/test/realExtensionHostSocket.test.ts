@@ -26,13 +26,24 @@ const { RealExtensionHostSocket } = await import('../browser/realExtensionHostSo
 const { VSBuffer } = await import('@sidex/base/common/buffer.js');
 
 describe('RealExtensionHostSocket', () => {
-	it('delivers data for its own session id only', async () => {
+	it('holds data that arrives before a listener attaches, then delivers it first and in order', async () => {
+		const socket = await RealExtensionHostSocket.connect();
+		// `hi` was sent by the mocked host while `start` was still resolving, before anything listened.
+		const received: string[] = [];
+		socket.onData(d => received.push(d.toString()));
+		expect(received).toEqual(['hi']);
+		handlers.get('sidex-exthost-real-data')?.({ payload: { id: 'abc', data: btoa('there') } });
+		expect(received).toEqual(['hi', 'there']);
+		socket.dispose();
+	});
+
+	it('ignores data for other sessions', async () => {
 		const socket = await RealExtensionHostSocket.connect();
 		const received: string[] = [];
 		socket.onData(d => received.push(d.toString()));
-		handlers.get('sidex-exthost-real-data')?.({ payload: { id: 'abc', data: btoa('there') } });
+		received.length = 0;
 		handlers.get('sidex-exthost-real-data')?.({ payload: { id: 'other', data: btoa('ignored') } });
-		expect(received).toEqual(['there']);
+		expect(received).toEqual([]);
 		socket.dispose();
 	});
 
