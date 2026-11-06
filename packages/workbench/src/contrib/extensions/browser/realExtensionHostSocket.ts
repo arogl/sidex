@@ -30,6 +30,8 @@ export class RealExtensionHostSocket extends Disposable implements ISocket {
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
 	private readonly _onEnd = this._register(new Emitter<void>());
 	private _pendingWrites: Promise<void> = Promise.resolve();
+	/** Data that arrived before anything listened. The host sends its first message right on connect. */
+	private _backlog: VSBuffer[] | undefined = [];
 	private _closed = false;
 
 	private constructor(
@@ -79,8 +81,14 @@ export class RealExtensionHostSocket extends Disposable implements ISocket {
 	}
 
 	private _deliver(event: IRelayDataEvent): void {
-		if (event.id === this.id && !this._closed) {
-			this._onData.fire(VSBuffer.wrap(decodeBase64(event.data).buffer));
+		if (event.id !== this.id || this._closed) {
+			return;
+		}
+		const data = VSBuffer.wrap(decodeBase64(event.data).buffer);
+		if (this._backlog) {
+			this._backlog.push(data);
+		} else {
+			this._onData.fire(data);
 		}
 	}
 
@@ -94,7 +102,16 @@ export class RealExtensionHostSocket extends Disposable implements ISocket {
 	}
 
 	onData(listener: (e: VSBuffer) => void) {
-		return this._onData.event(listener);
+		const disposable = this._onData.event(listener);
+		const backlog = this._backlog;
+		if (backlog) {
+			// The first listener (the protocol) gets everything received so far, in order, before live data.
+			this._backlog = undefined;
+			for (const data of backlog) {
+				this._onData.fire(data);
+			}
+		}
+		return disposable;
 	}
 
 	onClose(listener: (e: SocketCloseEvent) => void) {
