@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { VSBuffer } from '@sidex/base/common/buffer.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
-import { Disposable } from '@sidex/base/common/lifecycle.js';
+import { Disposable, toDisposable } from '@sidex/base/common/lifecycle.js';
 import * as platform from '@sidex/base/common/platform.js';
 import { URI } from '@sidex/base/common/uri.js';
 import type { IMessagePassingProtocol } from '@sidex/base/parts/ipc/common/ipc.js';
@@ -25,6 +25,7 @@ import {
 	MessageType,
 	UIKind
 } from '../common/extensionHostProtocol.js';
+import { RpcTrafficTracer } from './rpcTrafficTracer.js';
 import type { ExtensionRunningLocation } from '../common/extensionRunningLocation.js';
 import {
 	type ExtensionHostExtensions,
@@ -114,7 +115,32 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 		await this._performHandshake(protocol);
 		// The relay is a reliable local stream, so the reconnection machinery has nothing to do.
 		protocol.sendResume();
-		return protocol;
+		return this._traceRpcTraffic(protocol);
+	}
+
+	/**
+	 * Report the busiest RPC methods in each direction to the Rust log every 10 seconds, so a runaway
+	 * exchange between the workbench and the host shows up by method name. Reads message headers only.
+	 */
+	private _traceRpcTraffic(protocol: PersistentProtocol): IMessagePassingProtocol {
+		const tracer = new RpcTrafficTracer();
+		const timer = setInterval(() => {
+			const lines = tracer.flush();
+			if (lines.length) {
+				trace('info', `rpc traffic in the last 10s:\n${lines.join('\n')}`);
+			}
+		}, 10_000);
+		this._register(toDisposable(() => clearInterval(timer)));
+		return {
+			send: buffer => {
+				tracer.observe('out', buffer);
+				protocol.send(buffer);
+			},
+			onMessage: Event.map(protocol.onMessage, buffer => {
+				tracer.observe('in', buffer);
+				return buffer;
+			})
+		};
 	}
 
 	private _performHandshake(protocol: PersistentProtocol): Promise<void> {
