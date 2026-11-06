@@ -3,9 +3,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 import { build } from 'esbuild';
-const C = `${ROOT}/.cache/vscode-sync/1.144.0/packages`;
+const VSCODE_TAG = fs.readFileSync(`${ROOT}/.vscode-version`, 'utf8').trim();
+const C = `${ROOT}/.cache/vscode-sync/${VSCODE_TAG}/packages`;
 const out = process.argv[2] ?? `${ROOT}/apps/desktop/extension-host/real-host.cjs`;
 const entry = process.argv[3] ?? `${C}/workbench/src/api/node/extensionHostProcess.ts`;
+if (!fs.existsSync(entry)) {
+	console.error(
+		`VS Code ${VSCODE_TAG} sources are not in .cache/vscode-sync yet (missing ${entry}).\nFetch them once with:\n  bun packages/build/src/vscode-sync/cli.ts prepare ${VSCODE_TAG}`
+	);
+	process.exit(1);
+}
 const res = await build({
   entryPoints: [entry],
   bundle: true,
