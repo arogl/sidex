@@ -141,7 +141,8 @@ function prepare(tag: string, repoUrl: string): string {
 	try {
 		const tarball = path.join(tmp, 'src.tar');
 		run('git', ['--git-dir', bareRepo, 'archive', '--format=tar', '-o', tarball, tag, 'src/vs']);
-		run('tar', ['-xf', tarball, '-C', tmp]);
+		// Run from `tmp` with a relative name: GNU tar (Git Bash) reads `C:\...` as `host:path` and tries to connect.
+		run('tar', ['-xf', path.basename(tarball)], tmp);
 		fs.rmSync(out, { recursive: true, force: true });
 		fs.mkdirSync(out, { recursive: true });
 		relocate(path.join(tmp, 'src', 'vs'), out);
