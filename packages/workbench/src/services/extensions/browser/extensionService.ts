@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RealExtensionHost, isRealExtensionHostEnabled } from './realExtensionHost.js';
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { Schemas } from '@sidex/base/common/network.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
@@ -306,7 +307,15 @@ class BrowserExtensionHostFactory implements IExtensionHostFactory {
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if ((globalThis as any).__SIDEX_TAURI__) {
-					return null;
+					if (!isRealExtensionHostEnabled()) {
+						return null;
+					}
+					return this._instantiationService.createInstance(
+						RealExtensionHost,
+						runningLocation,
+						ExtensionHostStartup.EagerAutoStart,
+						this._createLocalExtensionHostDataProvider(runningLocations, runningLocation, isInitialStart)
+					);
 				}
 				const startup = ExtensionHostStartup.LazyAutoStart;
 				return this._instantiationService.createInstance(
