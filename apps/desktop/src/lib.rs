@@ -471,6 +471,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .manage(commands::RealExtHostState::default())
         .manage(AuthState::new())
         .manage(UpdateManagerState::new())
         .manage(Arc::new(commands::textmate::TextMateStore::new()))
@@ -927,6 +928,9 @@ pub fn run() {
             commands::extension_platform_restart,
             commands::extension_platform_stop,
             commands::extension_platform_init_data,
+            commands::ext_host_real_start,
+            commands::ext_host_real_send,
+            commands::ext_host_real_stop,
             commands::fetch_url,
             commands::fetch_url_text,
             commands::proxy_request,

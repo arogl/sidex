@@ -17,6 +17,7 @@
     "prepare": "lefthook install || true",
     "setup": "bun run packages/build/src/extension-meta/cli.ts",
     "setup:full": "bash scripts/setup-extensions.sh && bun run packages/build/src/extension-meta/cli.ts",
+    "build:ext-host": "node scripts/ext-host/build.mjs",
     "build:wasm": "bun run packages/build/src/wasm/build.ts",
     "build:wasm:test": "bun run packages/build/src/wasm/build-test-fixture.ts",
     "server:build": "cd sidexai/sidex-server && go build -tags fts5 -o sidex-server ./cmd/server",
