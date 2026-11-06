@@ -929,6 +929,7 @@ pub fn run() {
             commands::extension_platform_stop,
             commands::extension_platform_init_data,
             commands::ext_host_real_start,
+            commands::ext_host_real_log,
             commands::ext_host_real_send,
             commands::ext_host_real_stop,
             commands::fetch_url,

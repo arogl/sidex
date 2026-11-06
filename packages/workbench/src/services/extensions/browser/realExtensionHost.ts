@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { VSBuffer } from '@sidex/base/common/buffer.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
@@ -42,6 +43,18 @@ export interface IRealExtensionHostDataProvider {
 }
 
 const HANDSHAKE_TIMEOUT_MS = 60_000;
+
+/**
+ * Handshake progress goes to the Rust log as well, so it shows in the `tauri dev` terminal even when the
+ * webview's log level hides it.
+ */
+function trace(level: 'info' | 'warn' | 'error', message: string): void {
+	void invoke('ext_host_real_log', { level, message }).catch(() => undefined);
+}
+
+function describeError(err: unknown): string {
+	return err instanceof Error ? (err.stack ?? err.message) : String(err);
+}
 
 /**
  * Runs extensions in VS Code's real Node extension host, started and relayed by the Rust side
@@ -97,6 +110,7 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 			})
 		);
 		this._logService.info(`[RealExtensionHost] started host session ${socket.id}`);
+		trace('info', `connected to host session ${socket.id}`);
 		await this._performHandshake(protocol);
 		// The relay is a reliable local stream, so the reconnection machinery has nothing to do.
 		protocol.sendResume();
@@ -117,29 +131,39 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 			const listener = protocol.onMessage(msg => {
 				if (isMessageOfType(msg, MessageType.Ready)) {
 					clearTimeout(timeout);
+					trace('info', 'received Ready, building init data');
 					this._createInitData().then(
 						data => {
+							const json = JSON.stringify(data);
+							trace('info', `sending init data (${json.length} bytes)`);
 							arm('its initialized message');
-							protocol.send(VSBuffer.fromString(JSON.stringify(data)));
+							protocol.send(VSBuffer.fromString(json));
 						},
-						err => reject(err)
+						err => {
+							trace('error', `building init data failed: ${describeError(err)}`);
+							reject(err);
+						}
 					);
 					return;
 				}
 				if (isMessageOfType(msg, MessageType.Initialized)) {
 					clearTimeout(timeout);
 					listener.dispose();
+					trace('info', 'received Initialized, handshake complete');
 					resolve();
 					return;
 				}
+				trace('warn', `unexpected message during handshake (${msg.byteLength} bytes)`);
 				this._logService.warn('[RealExtensionHost] unexpected message during handshake', msg);
 			});
 		});
 	}
 
 	private async _createInitData(): Promise<IExtensionHostInitData> {
+		trace('info', 'collecting the extensions to run');
 		const { extensions } = await this._initDataProvider.getInitData();
 		this.extensions = extensions;
+		trace('info', 'extensions collected');
 		const workspace = this._contextService.getWorkspace();
 		const env = this._environmentService as IWorkbenchEnvironmentService & { appRoot?: string };
 		return {
