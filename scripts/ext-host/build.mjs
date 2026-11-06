@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 import { build } from 'esbuild';
 const C = `${ROOT}/.cache/vscode-sync/1.144.0/packages`;
-const out = process.argv[2];
+const out = process.argv[2] ?? `${ROOT}/apps/desktop/extension-host/real-host.cjs`;
 const entry = process.argv[3] ?? `${C}/workbench/src/api/node/extensionHostProcess.ts`;
 const res = await build({
   entryPoints: [entry],
@@ -32,7 +32,8 @@ const res = await build({
     },
   }],
   nodePaths: [`${ROOT}/node_modules`],
-  external: ['vscode-regexpp', 'https-proxy-agent', 'http-proxy-agent', '@vscode/windows-process-tree', '@vscode/ripgrep-universal', '@vscode/proxy-agent', 'minimist', 'electron', 'fsevents', '@vscode/native-watchdog', '@vscode/spdlog', '@parcel/watcher', 'node-pty', 'native-keymap', '@vscode/windows-registry', 'kerberos', '@vscode/sqlite3'],
+  alias: { minimist: `${ROOT}/scripts/ext-host/shims/minimist.js`, 'vscode-regexpp': `${ROOT}/scripts/ext-host/shims/vscode-regexpp.js`, '@vscode/proxy-agent': `${ROOT}/scripts/ext-host/shims/proxy-agent.js` },
+  external: ['https-proxy-agent', 'http-proxy-agent', '@vscode/windows-process-tree', '@vscode/ripgrep-universal', 'electron', 'fsevents', '@vscode/native-watchdog', '@vscode/spdlog', '@parcel/watcher', 'node-pty', 'native-keymap', '@vscode/windows-registry', 'kerberos', '@vscode/sqlite3'],
   define: { 'import.meta.url': '__importMetaUrl' },
   banner: { js: "const __importMetaUrl = require('url').pathToFileURL(__filename).href;" },
   tsconfigRaw: { compilerOptions: { experimentalDecorators: true, useDefineForClassFields: false } },
