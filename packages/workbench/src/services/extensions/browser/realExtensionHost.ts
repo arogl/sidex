@@ -41,23 +41,6 @@ export interface IRealExtensionHostDataProvider {
 	getInitData(): Promise<IRealExtensionHostInitData>;
 }
 
-/** Local storage key / URL flag that makes SideX run extensions in VS Code's real extension host. */
-export const REAL_EXTENSION_HOST_FLAG = 'sidex.realExtensionHost';
-
-export function isRealExtensionHostEnabled(): boolean {
-	try {
-		if (!(globalThis as { __SIDEX_TAURI__?: boolean }).__SIDEX_TAURI__) {
-			return false;
-		}
-		return (
-			globalThis.localStorage?.getItem(REAL_EXTENSION_HOST_FLAG) === '1' ||
-			new URLSearchParams(globalThis.location?.search ?? '').get('realExtensionHost') === '1'
-		);
-	} catch {
-		return false;
-	}
-}
-
 const HANDSHAKE_TIMEOUT_MS = 60_000;
 
 /**
