@@ -347,7 +347,7 @@ mod tests {
             .await
             .expect("host should send its handshake")
             .expect("channel open");
-        assert!(!first.is_empty());
+        assert_ne!(first.len(), 0, "host sent an empty first chunk");
         tx.send(Msg::Stop).unwrap();
         tokio::time::timeout(Duration::from_secs(10), closed_rx.recv())
             .await
