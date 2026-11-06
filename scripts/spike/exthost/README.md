@@ -4,7 +4,7 @@ Headless check for the real host (the app wiring is the Rust relay in `apps/desk
 can be bundled from `.cache/vscode-sync/1.144.0` and driven by a headless "main thread" harness.
 
 ```bash
-bun packages/build/src/vscode-sync/cli.ts   # make sure .cache/vscode-sync/1.144.0 exists
+bun packages/build/src/vscode-sync/cli.ts prepare 1.144.0   # once: fetches VS Code into .cache/vscode-sync
 bun run build:ext-host                      # -> apps/desktop/extension-host/real-host.cjs (no extra npm packages)
 node scripts/ext-host/build.mjs /tmp/harness.cjs scripts/spike/exthost/harness.ts
 node /tmp/harness.cjs apps/desktop/extension-host/real-host.cjs scripts/spike/exthost/ext/spike.hello
