@@ -60,6 +60,7 @@ import {
 	type IExtensionManifestSummary
 } from './extensionPlatformClient.js';
 import { listen } from '@tauri-apps/api/event';
+import { isRealExtensionHostEnabled } from '../../../services/extensions/browser/realExtensionHost.js';
 import { ITerminalService, ITerminalGroupService } from '../../terminal/browser/terminal.js';
 import { INotificationService, Severity as _Severity } from '@sidex/platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '@sidex/platform/progress/common/progress.js';
@@ -210,6 +211,12 @@ class TauriExtensionHostContribution extends Disposable implements IWorkbenchCon
 
 	private async _init(): Promise<void> {
 		if ((globalThis as any).__SIDEX_TAURI__ !== true) {
+			return;
+		}
+		if (isRealExtensionHostEnabled()) {
+			// ExtensionService runs extensions in VS Code's real extension host; starting host.cjs as well
+			// would activate every extension twice.
+			this.logService.info('[ExtHost] real extension host enabled; not starting host.cjs');
 			return;
 		}
 		this._register(
