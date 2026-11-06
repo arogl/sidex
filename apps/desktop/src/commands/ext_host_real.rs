@@ -10,11 +10,12 @@ use crate::commands::extension_platform::resolve_node_runtime;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::mpsc;
 
@@ -144,8 +145,48 @@ async fn relay<S: AsyncRead + AsyncWrite + Unpin>(
     }
 }
 
+/// Cap on the host's stderr kept for error messages.
+const STDERR_TAIL_BYTES: usize = 8 * 1024;
+
+/// Log the host's stderr line by line and keep the most recent lines for error messages.
+fn forward_stderr(stderr: tokio::process::ChildStderr) -> Arc<Mutex<String>> {
+    let tail = Arc::new(Mutex::new(String::new()));
+    let sink = tail.clone();
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            log::warn!("[ext-host-real] {line}");
+            if let Ok(mut kept) = sink.lock() {
+                kept.push_str(&line);
+                kept.push('\n');
+                while kept.len() > STDERR_TAIL_BYTES {
+                    match kept.find('\n') {
+                        Some(end) => {
+                            kept.drain(..=end);
+                        }
+                        None => kept.clear(),
+                    }
+                }
+            }
+        }
+    });
+    tail
+}
+
+/// Append what the host wrote to stderr (after a moment for the reader to catch up) to `reason`.
+async fn with_stderr(reason: String, tail: &Mutex<String>) -> String {
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let kept = tail.lock().map(|t| t.clone()).unwrap_or_default();
+    if kept.trim().is_empty() {
+        reason
+    } else {
+        format!("{reason}\n{}", kept.trim_end())
+    }
+}
+
 /// Bind the endpoint, spawn `node host_script`, accept its connection and relay until it ends.
-/// `on_data` receives bytes from the host; the returned sender writes bytes to it.
+/// `on_data` receives bytes from the host; the returned sender writes bytes to it. If the host exits
+/// or does not connect, the error carries its exit status and what it wrote to stderr.
 pub async fn start_host(
     node: &str,
     host_script: &PathBuf,
@@ -161,21 +202,34 @@ pub async fn start_host(
         .arg("--type=extensionHost")
         .env("VSCODE_EXTHOST_IPC_HOOK", &name)
         .env("VSCODE_HANDLES_UNCAUGHT_ERRORS", "true")
+        .stderr(Stdio::piped())
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
-    let mut child = command.spawn().map_err(|e| format!("spawn {node}: {e}"))?;
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("spawn {node} {}: {e}", host_script.display()))?;
+    let stderr_tail = child.stderr.take().map(forward_stderr);
 
-    let accepted = tokio::time::timeout(ACCEPT_TIMEOUT, listener.accept()).await;
-    let stream = match accepted {
-        Ok(Ok(stream)) => stream,
-        Ok(Err(e)) => {
+    let outcome = tokio::select! {
+        accepted = tokio::time::timeout(ACCEPT_TIMEOUT, listener.accept()) => match accepted {
+            Ok(Ok(stream)) => Ok(stream),
+            Ok(Err(e)) => Err(format!("accept: {e}")),
+            Err(_) => Err("extension host did not connect in time".to_string()),
+        },
+        status = child.wait() => Err(match status {
+            Ok(status) => format!("extension host exited before connecting ({status})"),
+            Err(e) => format!("waiting for the extension host failed: {e}"),
+        }),
+    };
+    let stream = match outcome {
+        Ok(stream) => stream,
+        Err(reason) => {
             let _ = child.kill().await;
-            return Err(format!("accept: {e}"));
-        }
-        Err(_) => {
-            let _ = child.kill().await;
-            return Err("extension host did not connect in time".to_string());
+            return Err(match &stderr_tail {
+                Some(tail) => with_stderr(reason, tail).await,
+                None => reason,
+            });
         }
     };
 
@@ -188,16 +242,24 @@ pub async fn start_host(
     Ok(tx)
 }
 
+/// Node's CJS resolver fails on a `\\?\E:\...` main script (`EISDIR ... lstat 'E:'`), and Tauri's
+/// resource lookup returns that form on Windows, so hand Node the plain drive-letter path.
+fn node_script_path(path: &Path) -> PathBuf {
+    dunce::simplified(path).to_path_buf()
+}
+
 fn resolve_real_host_script(app: &AppHandle) -> PathBuf {
     if let Ok(p) = app.path().resolve(
         "extension-host/real-host.cjs",
         tauri::path::BaseDirectory::Resource,
     ) {
         if p.exists() {
-            return p;
+            return node_script_path(&p);
         }
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("extension-host/real-host.cjs")
+    node_script_path(
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("extension-host/real-host.cjs"),
+    )
 }
 
 /// Start the real extension host. Returns a session id; bytes flow through
@@ -284,6 +346,31 @@ pub async fn ext_host_real_stop(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn node_script_path_drops_the_verbatim_prefix() {
+        let path = node_script_path(Path::new(r"\\?\E:\editor\sidex\real-host.cjs"));
+        assert_eq!(path, PathBuf::from(r"E:\editor\sidex\real-host.cjs"));
+    }
+
+    #[test]
+    fn node_script_path_leaves_plain_paths_alone() {
+        let path = PathBuf::from("extension-host/real-host.cjs");
+        assert_eq!(node_script_path(&path), path);
+    }
+
+    #[tokio::test]
+    async fn a_host_that_exits_early_reports_its_stderr() {
+        let script =
+            std::env::temp_dir().join(format!("sidex-exthost-fail-{}.js", std::process::id()));
+        std::fs::write(&script, "console.error('boom from host'); process.exit(3);").unwrap();
+        let result = start_host("node", &script, |_| {}, || {}).await;
+        let _ = std::fs::remove_file(&script);
+        let err = result.expect_err("host exits before connecting");
+        assert!(err.contains("exited before connecting"), "{err}");
+        assert!(err.contains("boom from host"), "{err}");
+    }
 
     #[tokio::test]
     async fn relay_copies_bytes_both_ways_and_stops() {
