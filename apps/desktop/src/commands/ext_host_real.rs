@@ -119,30 +119,68 @@ impl Listener {
     }
 }
 
-/// Copy bytes both ways until either side closes or `Msg::Stop` arrives.
+/// How often the relay reports traffic while it is moving.
+const PROGRESS_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Bytes moved in each direction over a relay's lifetime.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct RelayStats {
+    from_host: u64,
+    to_host: u64,
+}
+
+/// Copy bytes both ways until either side closes or `Msg::Stop` arrives. Logs the first chunk in each
+/// direction and periodic totals, so the terminal shows how far the handshake and RPC traffic got
+/// without depending on the webview's log level.
 async fn relay<S: AsyncRead + AsyncWrite + Unpin>(
+    label: &str,
     stream: S,
     mut rx: mpsc::UnboundedReceiver<Msg>,
     mut on_data: impl FnMut(Vec<u8>),
-) {
+) -> RelayStats {
     let (mut reader, mut writer) = tokio::io::split(stream);
     let mut buf = vec![0u8; 64 * 1024];
+    let mut stats = RelayStats::default();
+    let mut reported = stats;
+    let mut progress = tokio::time::interval(PROGRESS_INTERVAL);
+    progress.tick().await;
     loop {
         tokio::select! {
             read = reader.read(&mut buf) => match read {
                 Ok(0) | Err(_) => break,
-                Ok(n) => on_data(buf[..n].to_vec()),
+                Ok(n) => {
+                    if stats.from_host == 0 {
+                        log::info!("[ext-host-real] {label}: first {n} bytes from the host");
+                    }
+                    stats.from_host += n as u64;
+                    on_data(buf[..n].to_vec());
+                }
             },
             msg = rx.recv() => match msg {
                 Some(Msg::Data(bytes)) => {
+                    if stats.to_host == 0 {
+                        log::info!("[ext-host-real] {label}: first {} bytes from the webview", bytes.len());
+                    }
+                    stats.to_host += bytes.len() as u64;
                     if writer.write_all(&bytes).await.is_err() {
                         break;
                     }
                 }
                 Some(Msg::Stop) | None => break,
             },
+            _ = progress.tick() => {
+                if stats != reported {
+                    log::info!(
+                        "[ext-host-real] {label}: {} bytes from the host, {} to the host so far",
+                        stats.from_host,
+                        stats.to_host
+                    );
+                    reported = stats;
+                }
+            }
         }
     }
+    stats
 }
 
 /// Cap on the host's stderr kept for error messages.
@@ -193,7 +231,9 @@ pub async fn start_host(
     on_data: impl FnMut(Vec<u8>) + Send + 'static,
     on_close: impl FnOnce() + Send + 'static,
 ) -> Result<mpsc::UnboundedSender<Msg>, String> {
-    let name = endpoint_name(&uuid::Uuid::new_v4().to_string());
+    let id = uuid::Uuid::new_v4().to_string();
+    let label = id[..8].to_string();
+    let name = endpoint_name(&id);
     let listener = Listener::bind(&name).map_err(|e| format!("bind {name}: {e}"))?;
 
     let mut command = Command::new(node);
@@ -234,8 +274,14 @@ pub async fn start_host(
     };
 
     let (tx, rx) = mpsc::unbounded_channel();
+    log::info!("[ext-host-real] {label}: host connected");
     tokio::spawn(async move {
-        relay(stream, rx, on_data).await;
+        let stats = relay(&label, stream, rx, on_data).await;
+        log::info!(
+            "[ext-host-real] {label}: closed after {} bytes from the host and {} to it",
+            stats.from_host,
+            stats.to_host
+        );
         let _ = child.kill().await;
         on_close();
     });
@@ -378,7 +424,7 @@ mod tests {
         let (tx, rx) = mpsc::unbounded_channel();
         let received = std::sync::Arc::new(Mutex::new(Vec::new()));
         let sink = received.clone();
-        let task = tokio::spawn(relay(server, rx, move |bytes| {
+        let task = tokio::spawn(relay("test", server, rx, move |bytes| {
             sink.lock().unwrap().extend(bytes);
         }));
 
@@ -391,15 +437,22 @@ mod tests {
         assert_eq!(&echoed, b"to host");
 
         tx.send(Msg::Stop).unwrap();
-        task.await.unwrap();
+        let stats = task.await.unwrap();
         assert_eq!(received.lock().unwrap().as_slice(), b"from host");
+        assert_eq!(
+            stats,
+            RelayStats {
+                from_host: 9,
+                to_host: 7
+            }
+        );
     }
 
     #[tokio::test]
     async fn relay_ends_when_peer_closes() {
         let (client, server) = tokio::io::duplex(64);
         let (_tx, rx) = mpsc::unbounded_channel();
-        let task = tokio::spawn(relay(server, rx, |_| {}));
+        let task = tokio::spawn(relay("test", server, rx, |_| {}));
         drop(client);
         tokio::time::timeout(Duration::from_secs(5), task)
             .await
