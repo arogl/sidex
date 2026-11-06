@@ -360,6 +360,18 @@ pub async fn ext_host_real_start(
     Ok(id)
 }
 
+/// Let the webview put handshake milestones and errors in the terminal log, which shows at any
+/// webview log level.
+#[tauri::command]
+pub async fn ext_host_real_log(level: String, message: String) -> Result<(), String> {
+    match level.as_str() {
+        "error" => log::error!("[ext-host-real] webview: {message}"),
+        "warn" => log::warn!("[ext-host-real] webview: {message}"),
+        _ => log::info!("[ext-host-real] webview: {message}"),
+    }
+    Ok(())
+}
+
 /// Write bytes (base64) to the host's socket.
 #[tauri::command]
 pub async fn ext_host_real_send(
