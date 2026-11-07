@@ -372,6 +372,21 @@ pub async fn ext_host_real_log(level: String, message: String) -> Result<(), Str
     Ok(())
 }
 
+/// Where the built-in extensions live on disk. The webview sees them as `http://.../extensions/...`; the Node
+/// host needs real paths.
+#[tauri::command]
+pub async fn ext_host_real_builtin_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = super::extension_platform::resolve_builtin_extensions_dir(&app);
+    let dir = dunce::simplified(&dir).to_path_buf();
+    if !dir.is_dir() {
+        return Err(format!(
+            "built-in extensions folder not found: {}",
+            dir.display()
+        ));
+    }
+    Ok(dir.to_string_lossy().into_owned())
+}
+
 /// Write bytes (base64) to the host's socket.
 #[tauri::command]
 pub async fn ext_host_real_send(

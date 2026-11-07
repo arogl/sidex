@@ -33,6 +33,7 @@ import {
 	type IExtensionHost,
 	type IExtensionInspectInfo
 } from '../common/extensions.js';
+import { withFileLocations } from './realExtensionHostLocations.js';
 import { RpcTrafficTracer } from './rpcTrafficTracer.js';
 
 export interface IRealExtensionHostInitData {
@@ -194,6 +195,9 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 		const { extensions } = await this._initDataProvider.getInitData();
 		this.extensions = extensions;
 		trace('info', 'extensions collected');
+		const builtinExtensionsDir = await invoke<string>('ext_host_real_builtin_dir');
+		const snapshot = extensions.toSnapshot();
+		const allExtensions = withFileLocations(snapshot.allExtensions, builtinExtensionsDir);
 		const workspace = this._contextService.getWorkspace();
 		const env = this._environmentService as IWorkbenchEnvironmentService & { appRoot?: string };
 		return {
@@ -229,7 +233,7 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 						},
 			remote: { authority: this._environmentService.remoteAuthority, connectionData: null, isRemote: false },
 			consoleForward: { includeStack: false, logNative: false },
-			extensions: extensions.toSnapshot(),
+			extensions: { ...snapshot, allExtensions },
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
