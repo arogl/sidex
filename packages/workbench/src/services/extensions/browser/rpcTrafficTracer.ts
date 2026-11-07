@@ -27,6 +27,7 @@ interface IStat {
  */
 export class RpcTrafficTracer {
 	private _stats = new Map<string, IStat>();
+	private readonly _errors = new Map<string, string>();
 	private readonly _pending: Record<RpcDirection, Map<number, string>> = { in: new Map(), out: new Map() };
 
 	observe(direction: RpcDirection, message: VSBuffer): void {
@@ -50,6 +51,9 @@ export class RpcTrafficTracer {
 		if (request !== undefined && type >= 7) {
 			this._pending[other].delete(req);
 		}
+		if (type === 11 && direction === 'in') {
+			this._recordError(request ?? `request ${req}`, message);
+		}
 		label = MESSAGE_NAMES[type] ?? `type ${type}`;
 		this._add(`${direction} ${label}${request ? ` to ${request}` : ''}`, message.byteLength);
 	}
@@ -59,6 +63,41 @@ export class RpcTrafficTracer {
 		const entries = [...this._stats.entries()].sort((a, b) => b[1].bytes - a[1].bytes).slice(0, limit);
 		this._stats = new Map();
 		return entries.map(([key, stat]) => `${key}: ${stat.count} messages, ${stat.bytes} bytes`);
+	}
+
+	/**
+	 * The distinct error replies the host sent since the last call, as `method: name: message` plus the first
+	 * stack lines, so a failing call is explained by its error and not only counted. Resets the list.
+	 */
+	flushErrors(limit = 6): string[] {
+		const out = [...this._errors.values()].slice(0, limit);
+		this._errors.clear();
+		return out;
+	}
+
+	private _recordError(request: string, message: VSBuffer): void {
+		let text: string;
+		try {
+			// ReplyErrError: [type][req u32][length u32][JSON of the serialized error]
+			const length = message.readUInt32BE(5);
+			const parsed = JSON.parse(message.slice(9, 9 + length).toString()) as {
+				name?: string;
+				message?: string;
+				stack?: string;
+			};
+			const stack = (parsed.stack ?? '')
+				.split('\n')
+				.slice(1, 4)
+				.map(line => line.trim())
+				.join(' | ');
+			text = `${request}: ${parsed.name ?? 'Error'}: ${parsed.message ?? ''}${stack ? ` [${stack}]` : ''}`;
+		} catch {
+			text = `${request}: undecodable error reply (${message.byteLength} bytes)`;
+		}
+		const key = text.slice(0, 400);
+		if (!this._errors.has(key)) {
+			this._errors.set(key, key);
+		}
 	}
 
 	private _add(key: string, bytes: number): void {

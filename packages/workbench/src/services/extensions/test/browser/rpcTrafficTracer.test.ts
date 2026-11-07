@@ -41,4 +41,30 @@ describe('RpcTrafficTracer', () => {
 		expect(tracer.flush()).toEqual(['in Acknowledged: 1 messages, 5 bytes']);
 		expect(tracer.flush()).toEqual([]);
 	});
+
+	it('decodes error replies and reports each distinct error once', () => {
+		const tracer = new RpcTrafficTracer();
+		tracer.observe('out', request(2, 7, 102, '$onFileEvent'));
+		const body = VSBuffer.fromString(
+			JSON.stringify({ name: 'TypeError', message: 'boom', stack: 'TypeError: boom\n    at a\n    at b' })
+		);
+		const err = VSBuffer.alloc(9 + body.byteLength);
+		err.writeUInt8(11, 0);
+		err.writeUInt32BE(7, 1);
+		err.writeUInt32BE(body.byteLength, 5);
+		err.set(body, 9);
+		tracer.observe('in', err);
+		tracer.observe('out', request(2, 8, 102, '$onFileEvent'));
+		tracer.observe(
+			'in',
+			(() => {
+				const e = VSBuffer.alloc(err.byteLength);
+				e.set(err, 0);
+				e.writeUInt32BE(8, 1);
+				return e;
+			})()
+		);
+		expect(tracer.flushErrors()).toEqual(['102:$onFileEvent: TypeError: boom [at a | at b]']);
+		expect(tracer.flushErrors()).toEqual([]);
+	});
 });

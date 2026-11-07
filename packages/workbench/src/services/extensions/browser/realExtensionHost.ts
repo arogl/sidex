@@ -1,4 +1,3 @@
-import { invoke } from '@tauri-apps/api/core';
 import { VSBuffer } from '@sidex/base/common/buffer.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable, toDisposable } from '@sidex/base/common/lifecycle.js';
@@ -8,15 +7,17 @@ import type { IMessagePassingProtocol } from '@sidex/base/parts/ipc/common/ipc.j
 import { PersistentProtocol } from '@sidex/base/parts/ipc/common/ipc.net.js';
 import { IEnvironmentService } from '@sidex/platform/environment/common/environment.js';
 import { ILabelService } from '@sidex/platform/label/common/label.js';
-import { ILogService, ILoggerService } from '@sidex/platform/log/common/log.js';
+import { ILoggerService, ILogService } from '@sidex/platform/log/common/log.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
 import { IUserDataProfilesService } from '@sidex/platform/userDataProfile/common/userDataProfile.js';
 import {
 	IWorkspaceContextService,
-	WorkbenchState,
-	isUntitledWorkspace
+	isUntitledWorkspace,
+	WorkbenchState
 } from '@sidex/platform/workspace/common/workspace.js';
+import { invoke } from '@tauri-apps/api/core';
+import { RealExtensionHostSocket } from '../../../contrib/extensions/browser/realExtensionHostSocket.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import {
 	createMessageOfType,
@@ -25,7 +26,6 @@ import {
 	MessageType,
 	UIKind
 } from '../common/extensionHostProtocol.js';
-import { RpcTrafficTracer } from './rpcTrafficTracer.js';
 import type { ExtensionRunningLocation } from '../common/extensionRunningLocation.js';
 import {
 	type ExtensionHostExtensions,
@@ -33,7 +33,7 @@ import {
 	type IExtensionHost,
 	type IExtensionInspectInfo
 } from '../common/extensions.js';
-import { RealExtensionHostSocket } from '../../../contrib/extensions/browser/realExtensionHostSocket.js';
+import { RpcTrafficTracer } from './rpcTrafficTracer.js';
 
 export interface IRealExtensionHostInitData {
 	readonly extensions: ExtensionHostExtensions;
@@ -128,6 +128,10 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 			const lines = tracer.flush();
 			if (lines.length) {
 				trace('info', `rpc traffic in the last 10s:\n${lines.join('\n')}`);
+			}
+			const errors = tracer.flushErrors();
+			if (errors.length) {
+				trace('warn', `rpc errors from the host in the last 10s:\n${errors.join('\n')}`);
 			}
 		}, 10_000);
 		this._register(toDisposable(() => clearInterval(timer)));
