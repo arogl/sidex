@@ -27,14 +27,15 @@ import { ISelection, Selection } from '@sidex/editor/common/core/selection.js';
 import { IChange } from '@sidex/editor/common/diff/legacyLinesDiffComputer.js';
 import * as editorCommon from '@sidex/editor/common/editorCommon.js';
 import { StandardTokenType } from '@sidex/editor/common/encodedTokenAttributes.js';
+import { CharacterPair, CommentRule, EnterAction } from '@sidex/editor/common/languages/languageConfiguration.js';
 import * as languages from '@sidex/editor/common/languages.js';
 import { CompletionItemLabel } from '@sidex/editor/common/languages.js';
-import { CharacterPair, CommentRule, EnterAction } from '@sidex/editor/common/languages/languageConfiguration.js';
 import { EndOfLineSequence } from '@sidex/editor/common/model.js';
 import { EditSuggestionId } from '@sidex/editor/common/textModelEditSource.js';
 import { ISerializedModelContentChangedEvent } from '@sidex/editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '@sidex/platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '@sidex/platform/action/common/action.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '@sidex/platform/browserView/common/cdp/types.js';
 import {
 	ConfigurationTarget,
 	IConfigurationChange,
@@ -156,10 +157,10 @@ import {
 	MissingExtensionDependency
 } from '../../services/extensions/common/extensions.js';
 import {
+	createProxyIdentifier,
 	Dto,
 	IRPCProtocol,
-	SerializableObjectWithBuffers,
-	createProxyIdentifier
+	SerializableObjectWithBuffers
 } from '../../services/extensions/common/proxyIdentifier.js';
 import { ILanguageStatus } from '../../services/languageStatus/common/languageStatusService.js';
 import { OutputChannelUpdateMode } from '../../services/output/common/output.js';
@@ -171,7 +172,6 @@ import { ISaveProfileResult } from '../../services/userDataProfile/common/userDa
 import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
-import { CDPEvent, CDPRequest, CDPResponse } from '@sidex/platform/browserView/common/cdp/types.js';
 
 export type IconPathDto = UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 
@@ -4031,6 +4031,12 @@ export interface MainThreadTestingShape {
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
+	MainThreadLanguageModels: createProxyIdentifier<unknown>('MainThreadLanguageModels'),
+	MainThreadEmbeddings: createProxyIdentifier<unknown>('MainThreadEmbeddings'),
+	MainThreadChatAgents2: createProxyIdentifier<unknown>('MainThreadChatAgents2'),
+	MainThreadCodeMapper: createProxyIdentifier<unknown>('MainThreadCodeMapper'),
+	MainThreadLanguageModelTools: createProxyIdentifier<unknown>('MainThreadLanguageModelTools'),
+	MainThreadGitExtension: createProxyIdentifier<unknown>('MainThreadGitExtension'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -4057,10 +4063,13 @@ export const MainContext = {
 	MainThreadOutputService: createProxyIdentifier<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createProxyIdentifier<MainThreadProgressShape>('MainThreadProgress'),
 	MainThreadQuickDiff: createProxyIdentifier<MainThreadQuickDiffShape>('MainThreadQuickDiff'),
+	MainThreadAgentEditorComments: createProxyIdentifier<unknown>('MainThreadAgentEditorComments'),
+	MainThreadDocumentDiff: createProxyIdentifier<unknown>('MainThreadDocumentDiff'),
 	MainThreadQuickOpen: createProxyIdentifier<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
 	MainThreadStatusBar: createProxyIdentifier<MainThreadStatusBarShape>('MainThreadStatusBar'),
 	MainThreadSecretState: createProxyIdentifier<MainThreadSecretStateShape>('MainThreadSecretState'),
 	MainThreadStorage: createProxyIdentifier<MainThreadStorageShape>('MainThreadStorage'),
+	MainThreadSpeech: createProxyIdentifier<unknown>('MainThreadSpeech'),
 	MainThreadTelemetry: createProxyIdentifier<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadMeteredConnection: createProxyIdentifier<MainThreadMeteredConnectionShape>('MainThreadMeteredConnection'),
 	MainThreadTerminalService: createProxyIdentifier<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
@@ -4088,6 +4097,7 @@ export const MainContext = {
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadPower: createProxyIdentifier<MainThreadPowerShape>('MainThreadPower'),
+	MainThreadGitHub: createProxyIdentifier<unknown>('MainThreadGitHub'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadNotebook: createProxyIdentifier<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadNotebookDocuments: createProxyIdentifier<MainThreadNotebookDocumentsShape>(
@@ -4101,13 +4111,25 @@ export const MainContext = {
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
+	MainThreadChatArtifactIntegrations: createProxyIdentifier<unknown>('MainThreadChatArtifactIntegrations'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
 	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
+	MainThreadMcp: createProxyIdentifier<unknown>('MainThreadMcp'),
+	MainThreadAiRelatedInformation: createProxyIdentifier<unknown>('MainThreadAiRelatedInformation'),
+	MainThreadAiEmbeddingVector: createProxyIdentifier<unknown>('MainThreadAiEmbeddingVector'),
+	MainThreadChatStatus: createProxyIdentifier<unknown>('MainThreadChatStatus'),
+	MainThreadChatQuota: createProxyIdentifier<unknown>('MainThreadChatQuota'),
+	MainThreadChatInputNotification: createProxyIdentifier<unknown>('MainThreadChatInputNotification'),
+	MainThreadAiSettingsSearch: createProxyIdentifier<unknown>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
+	MainThreadChatSessions: createProxyIdentifier<unknown>('MainThreadChatSessions'),
+	MainThreadChatContext: createProxyIdentifier<unknown>('MainThreadChatContext'),
+	MainThreadChatDebug: createProxyIdentifier<unknown>('MainThreadChatDebug'),
 	MainThreadBrowsers: createProxyIdentifier<MainThreadBrowsersShape>('MainThreadBrowsers')
 };
 
 export const ExtHostContext = {
+	ExtHostCodeMapper: createProxyIdentifier<unknown>('ExtHostCodeMapper'),
 	ExtHostCommands: createProxyIdentifier<ExtHostCommandsShape>('ExtHostCommands'),
 	ExtHostConfiguration: createProxyIdentifier<ExtHostConfigurationShape>('ExtHostConfiguration'),
 	ExtHostDiagnostics: createProxyIdentifier<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
@@ -4132,6 +4154,7 @@ export const ExtHostContext = {
 	ExtHostLanguageFeatures: createProxyIdentifier<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createProxyIdentifier<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostQuickDiff: createProxyIdentifier<ExtHostQuickDiffShape>('ExtHostQuickDiff'),
+	ExtHostAgentEditorComments: createProxyIdentifier<unknown>('ExtHostAgentEditorComments'),
 	ExtHostStatusBar: createProxyIdentifier<ExtHostStatusBarShape>('ExtHostStatusBar'),
 	ExtHostShare: createProxyIdentifier<ExtHostShareShape>('ExtHostShare'),
 	ExtHostExtensionService: createProxyIdentifier<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
@@ -4158,6 +4181,7 @@ export const ExtHostContext = {
 	ExtHostStorage: createProxyIdentifier<ExtHostStorageShape>('ExtHostStorage'),
 	ExtHostUrls: createProxyIdentifier<ExtHostUrlsShape>('ExtHostUrls'),
 	ExtHostUriOpeners: createProxyIdentifier<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
+	ExtHostChatOutputRenderer: createProxyIdentifier<unknown>('ExtHostChatOutputRenderer'),
 	ExtHostProfileContentHandlers: createProxyIdentifier<ExtHostProfileContentHandlersShape>(
 		'ExtHostProfileContentHandlers'
 	),
@@ -4172,15 +4196,31 @@ export const ExtHostContext = {
 		'ExtHostNotebookDocumentSaveParticipant'
 	),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
+	ExtHostChatAgents2: createProxyIdentifier<unknown>('ExtHostChatAgents2'),
+	ExtHostLanguageModelTools: createProxyIdentifier<unknown>('ExtHostLanguageModelTools'),
+	ExtHostChatProvider: createProxyIdentifier<unknown>('ExtHostChatProvider'),
+	ExtHostChatContext: createProxyIdentifier<unknown>('ExtHostChatContext'),
+	ExtHostChatDebug: createProxyIdentifier<unknown>('ExtHostChatDebug'),
+	ExtHostSpeech: createProxyIdentifier<unknown>('ExtHostSpeech'),
+	ExtHostEmbeddings: createProxyIdentifier<unknown>('ExtHostEmbeddings'),
+	ExtHostAiRelatedInformation: createProxyIdentifier<unknown>('ExtHostAiRelatedInformation'),
+	ExtHostAiEmbeddingVector: createProxyIdentifier<unknown>('ExtHostAiEmbeddingVector'),
+	ExtHostAiSettingsSearch: createProxyIdentifier<unknown>('ExtHostAiSettingsSearch'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostManagedSockets: createProxyIdentifier<ExtHostManagedSocketsShape>('ExtHostManagedSockets'),
+	ExtHostBrowserTunnelProxy: createProxyIdentifier<unknown>('ExtHostBrowserTunnelProxy'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
+	ExtHostChatArtifactIntegrations: createProxyIdentifier<unknown>('ExtHostChatArtifactIntegrations'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
 	ExtHostMeteredConnection: createProxyIdentifier<ExtHostMeteredConnectionShape>('ExtHostMeteredConnection'),
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
+	ExtHostMcp: createProxyIdentifier<unknown>('ExtHostMcp'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
+	ExtHostChatSessions: createProxyIdentifier<unknown>('ExtHostChatSessions'),
+	ExtHostChatQuota: createProxyIdentifier<unknown>('ExtHostChatQuota'),
+	ExtHostGitExtension: createProxyIdentifier<unknown>('ExtHostGitExtension'),
 	ExtHostBrowsers: createProxyIdentifier<ExtHostBrowsersShape>('ExtHostBrowsers')
 };
