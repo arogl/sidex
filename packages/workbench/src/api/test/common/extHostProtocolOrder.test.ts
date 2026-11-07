@@ -77,6 +77,7 @@ const MAIN_CONTEXT = [
 	'MainThreadTheming',
 	'MainThreadTunnelService',
 	'MainThreadManagedSockets',
+	'MainThreadBrowserTunnelProxy',
 	'MainThreadTimeline',
 	'MainThreadChatArtifactIntegrations',
 	'MainThreadTesting',
@@ -90,6 +91,7 @@ const MAIN_CONTEXT = [
 	'MainThreadAiSettingsSearch',
 	'MainThreadDataChannels',
 	'MainThreadChatSessions',
+	'MainThreadChatOutputRenderer',
 	'MainThreadChatContext',
 	'MainThreadChatDebug',
 	'MainThreadBrowsers'

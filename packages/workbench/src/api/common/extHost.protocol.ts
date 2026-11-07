@@ -4110,6 +4110,7 @@ export const MainContext = {
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
+	MainThreadBrowserTunnelProxy: createProxyIdentifier<unknown>('MainThreadBrowserTunnelProxy'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadChatArtifactIntegrations: createProxyIdentifier<unknown>('MainThreadChatArtifactIntegrations'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
@@ -4123,6 +4124,7 @@ export const MainContext = {
 	MainThreadAiSettingsSearch: createProxyIdentifier<unknown>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
 	MainThreadChatSessions: createProxyIdentifier<unknown>('MainThreadChatSessions'),
+	MainThreadChatOutputRenderer: createProxyIdentifier<unknown>('MainThreadChatOutputRenderer'),
 	MainThreadChatContext: createProxyIdentifier<unknown>('MainThreadChatContext'),
 	MainThreadChatDebug: createProxyIdentifier<unknown>('MainThreadChatDebug'),
 	MainThreadBrowsers: createProxyIdentifier<MainThreadBrowsersShape>('MainThreadBrowsers')
