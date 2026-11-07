@@ -89,6 +89,14 @@ import { WorkspaceTrustRequestOptions } from '@sidex/platform/workspace/common/w
 import { SaveReason } from '../../common/editor.js';
 import { IRevealOptions, ITreeItem, IViewBadge } from '../../common/views.js';
 import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierarchy.js';
+import type {
+	IChatMessage,
+	IChatResponsePart,
+	ILanguageModelChatInfoOptions,
+	ILanguageModelChatMetadataAndIdentifier,
+	ILanguageModelChatRequestOptions,
+	ILanguageModelChatSelector
+} from '../../contrib/chat/common/languageModels.js';
 import {
 	DebugConfigurationProviderTriggerKind,
 	IAdapterDescriptor,
@@ -4028,10 +4036,61 @@ export interface MainThreadTestingShape {
 
 // --- proxy identifiers
 
+export interface MainThreadLanguageModelsShape extends IDisposable {
+	$registerLanguageModelProvider(vendor: string): void;
+	$onLMProviderChange(vendor: string): void;
+	$unregisterProvider(vendor: string): void;
+	$tryStartChatRequest(
+		extension: ExtensionIdentifier,
+		modelIdentifier: string,
+		requestId: number,
+		messages: SerializableObjectWithBuffers<IChatMessage[]>,
+		options: {},
+		token: CancellationToken
+	): Promise<void>;
+	$reportResponsePart(
+		requestId: number,
+		chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>
+	): Promise<void>;
+	$reportResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
+	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
+	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
+	$cancelLanguageModelChatRequest(requestId: number): void;
+	$fileIsIgnored(uri: UriComponents, token: CancellationToken): Promise<boolean>;
+	$registerFileIgnoreProvider(handle: number): void;
+	$unregisterFileIgnoreProvider(handle: number): void;
+}
+
+export interface ExtHostLanguageModelsShape {
+	$provideLanguageModelChatInfo(
+		vendor: string,
+		options: ILanguageModelChatInfoOptions,
+		token: CancellationToken
+	): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
+	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
+	$onChatModelsChange(): void;
+	$startChatRequest(
+		modelId: string,
+		requestId: number,
+		from: ExtensionIdentifier | undefined,
+		messages: SerializableObjectWithBuffers<IChatMessage[]>,
+		options: ILanguageModelChatRequestOptions,
+		token: CancellationToken
+	): Promise<void>;
+	$acceptResponsePart(
+		requestId: number,
+		chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>
+	): Promise<void>;
+	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
+	$cancelLanguageModelChatRequest(requestId: number): void;
+	$provideTokenLength(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
+	$isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean>;
+}
+
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
-	MainThreadLanguageModels: createProxyIdentifier<unknown>('MainThreadLanguageModels'),
+	MainThreadLanguageModels: createProxyIdentifier<MainThreadLanguageModelsShape>('MainThreadLanguageModels'),
 	MainThreadEmbeddings: createProxyIdentifier<unknown>('MainThreadEmbeddings'),
 	MainThreadChatAgents2: createProxyIdentifier<unknown>('MainThreadChatAgents2'),
 	MainThreadCodeMapper: createProxyIdentifier<unknown>('MainThreadCodeMapper'),
@@ -4200,7 +4259,7 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostChatAgents2: createProxyIdentifier<unknown>('ExtHostChatAgents2'),
 	ExtHostLanguageModelTools: createProxyIdentifier<unknown>('ExtHostLanguageModelTools'),
-	ExtHostChatProvider: createProxyIdentifier<unknown>('ExtHostChatProvider'),
+	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostChatContext: createProxyIdentifier<unknown>('ExtHostChatContext'),
 	ExtHostChatDebug: createProxyIdentifier<unknown>('ExtHostChatDebug'),
 	ExtHostSpeech: createProxyIdentifier<unknown>('ExtHostSpeech'),

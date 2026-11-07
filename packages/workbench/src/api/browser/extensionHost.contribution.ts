@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../common/contributions.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
-
-// --- other interested parties
-import { JSONValidationExtensionPoint } from '../common/jsonValidationExtensionPoint.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../common/contributions.js';
+import { LanguageConfigurationFileHandler } from '../../contrib/codeEditor/common/languageConfigurationExtensionPoint.js';
+import { CSSExtensionPoint } from '../../services/themes/browser/cssExtensionPoint.js';
 import { ColorExtensionPoint } from '../../services/themes/common/colorExtensionPoint.js';
 import { IconExtensionPoint } from '../../services/themes/common/iconExtensionPoint.js';
 import { TokenClassificationExtensionPoints } from '../../services/themes/common/tokenClassificationExtensionPoint.js';
-import { LanguageConfigurationFileHandler } from '../../contrib/codeEditor/common/languageConfigurationExtensionPoint.js';
+// --- other interested parties
+import { JSONValidationExtensionPoint } from '../common/jsonValidationExtensionPoint.js';
 import { StatusBarItemsExtensionPoint } from './statusBarExtensionPoint.js';
-import { CSSExtensionPoint } from '../../services/themes/browser/cssExtensionPoint.js';
 
 // --- mainThread participants
 import './mainThreadLocalization.js';
 import './mainThreadBulkEdits.js';
+import './mainThreadLanguageModels.js';
 import './mainThreadCodeInsets.js';
 import './mainThreadCLICommands.js';
 import './mainThreadClipboard.js';
