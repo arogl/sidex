@@ -41,6 +41,10 @@ mock.module('../../../../contrib/extensions/browser/realExtensionHostSocket.js',
 	RealExtensionHostSocket: { connect: async () => rendererSocket }
 }));
 
+mock.module('@tauri-apps/api/core', () => ({
+	invoke: async (command: string) => (command === 'ext_host_real_builtin_dir' ? '/repo/extensions' : undefined)
+}));
+
 const { RealExtensionHost } = await import('../../browser/realExtensionHost.js');
 const { MessageType, createMessageOfType } = await import('../../common/extensionHostProtocol.js');
 const { ExtensionHostExtensions, ExtensionHostStartup } = await import('../../common/extensions.js');
