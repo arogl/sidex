@@ -243,6 +243,12 @@ entries:
     summary: VS Code 1.144 MCP registry, discovery and views; copied for the chat port, not imported by any entry file
     signals:
       contrib: contrib/mcp
+  - id: canvases
+    area: Canvases
+    status: unwired
+    summary: VS Code 1.144 canvas contract copied because the chat layer references it; not imported by any entry file
+    signals:
+      contrib: contrib/canvases
   - id: ai-chat
     area: AI / Chat / Copilot
     status: missing

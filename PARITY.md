@@ -49,6 +49,7 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 |---|---|---|
 | Agents Voice | VS Code 1.144 voice mode for agent sessions; copied for the chat port, not imported by any entry file |  |
 | Call Hierarchy | contrib/callHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
+| Canvases | VS Code 1.144 canvas contract copied because the chat layer references it; not imported by any entry file |  |
 | Comments | contrib/comments exists but imported in no entry file |  |
 | Edit Telemetry | VS Code 1.144 edit telemetry; copied for the chat port, not imported by any entry file |  |
 | External URI Opener | contrib/externalUriOpener defines IExternalUriOpenerService but no implementation is ever registerSingleton'd; not imported by any entry file |  |

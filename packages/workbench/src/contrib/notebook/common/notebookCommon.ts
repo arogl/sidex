@@ -236,3 +236,9 @@ export interface ICellReplaceEdit {
 	count: number;
 	cells: unknown[];
 }
+
+export type ICellEditOperation =
+	| ICellReplaceEdit
+	| ICellMetadataEdit
+	| ICellPartialMetadataEdit
+	| IDocumentMetadataEdit;

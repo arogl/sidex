@@ -13,3 +13,8 @@ export interface IBrowserViewCDPService {
 	onCDPMessage(...args: any[]): any;
 	onDidDestroy(...args: any[]): any;
 }
+
+/** SideX: the integrated browser was removed; the chat layer only names its model type. */
+export interface IBrowserViewModel {
+	readonly _browserViewModelBrand: undefined;
+}
