@@ -41,8 +41,16 @@ mock.module('../../../../contrib/extensions/browser/realExtensionHostSocket.js',
 	RealExtensionHostSocket: { connect: async () => rendererSocket }
 }));
 
+const invokeCalls: { command: string; args?: { productJson?: string } }[] = [];
+
 mock.module('@tauri-apps/api/core', () => ({
-	invoke: async (command: string) => (command === 'ext_host_real_builtin_dir' ? '/repo/extensions' : undefined)
+	invoke: async (command: string, args?: { productJson?: string }) => {
+		invokeCalls.push({ command, args });
+		if (command === 'ext_host_real_builtin_dir') {
+			return '/repo/extensions';
+		}
+		return command === 'ext_host_real_app_root' ? '/data/ext-host-app-root' : undefined;
+	}
 }));
 
 const { RealExtensionHost } = await import('../../browser/realExtensionHost.js');
@@ -92,6 +100,10 @@ describe('RealExtensionHost handshake', () => {
 		expect(initData.version).toBe('1.144.0');
 		expect(initData.autoStart).toBe(true);
 		expect(initData.extensions.versionId).toBe(7);
+		// extensions read <appRoot>/product.json, so the host gets a folder the app wrote it into
+		expect(initData.environment.appRoot.path).toBe('/data/ext-host-app-root');
+		const appRootCall = invokeCalls.find(call => call.command === 'ext_host_real_app_root');
+		expect(JSON.parse(appRootCall?.args?.productJson ?? '{}').nameLong).toBe('SideX');
 		await started;
 		expect(host.extensions).toBe(extensions);
 		host.dispose();

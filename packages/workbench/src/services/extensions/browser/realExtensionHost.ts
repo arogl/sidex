@@ -199,7 +199,9 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 		const snapshot = extensions.toSnapshot();
 		const allExtensions = withFileLocations(snapshot.allExtensions, builtinExtensionsDir);
 		const workspace = this._contextService.getWorkspace();
-		const env = this._environmentService as IWorkbenchEnvironmentService & { appRoot?: string };
+		const appRoot = await invoke<string>('ext_host_real_app_root', {
+			productJson: JSON.stringify(this._productService)
+		});
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
@@ -208,7 +210,7 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: false,
-				appRoot: env.appRoot ? URI.file(env.appRoot) : undefined,
+				appRoot: URI.file(appRoot),
 				appName: this._productService.nameLong,
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
