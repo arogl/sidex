@@ -170,6 +170,10 @@ const _allApiProposals = {
 		proposal:
 			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribAccessibilityHelpContent.d.ts'
 	},
+	contribChatEditorInlineGutterMenu: {
+		proposal:
+			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribChatEditorInlineGutterMenu.d.ts'
+	},
 	contribCommentEditorActionsMenu: {
 		proposal:
 			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribCommentEditorActionsMenu.d.ts'
@@ -205,6 +209,10 @@ const _allApiProposals = {
 	contribLabelFormatterWorkspaceTooltip: {
 		proposal:
 			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribLabelFormatterWorkspaceTooltip.d.ts'
+	},
+	contribLanguageModelToolSets: {
+		proposal:
+			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribLanguageModelToolSets.d.ts'
 	},
 	contribMenuBarHome: {
 		proposal:
@@ -521,6 +529,10 @@ const _allApiProposals = {
 		proposal:
 			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts'
 	},
+	remoteCodingAgents: {
+		proposal:
+			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.remoteCodingAgents.d.ts'
+	},
 	resolvers: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.resolvers.d.ts'
 	},
@@ -559,6 +571,9 @@ const _allApiProposals = {
 	shareProvider: {
 		proposal:
 			'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.shareProvider.d.ts'
+	},
+	speech: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.speech.d.ts'
 	},
 	statusBarItemTooltip: {
 		proposal:
