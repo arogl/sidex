@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
 import { asArray } from '@sidex/base/common/arrays.js';
-import { illegalArgument } from '@sidex/base/common/errors.js';
+import { illegalArgument, SerializedError, transformErrorForSerialization } from '@sidex/base/common/errors.js';
 import { IRelativePattern } from '@sidex/base/common/glob.js';
 import { nextCharLength } from '@sidex/base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '@sidex/base/common/types.js';
@@ -15,6 +14,7 @@ import { TextEditorSelectionSource } from '@sidex/platform/editor/common/editor.
 import { ExtensionIdentifier, IExtensionDescription } from '@sidex/platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '@sidex/platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '@sidex/platform/remote/common/remoteAuthorityResolver.js';
+import type * as vscode from 'vscode';
 import { IRelativePatternDto } from './extHost.protocol.js';
 import { CodeActionKind } from './extHostTypes/codeActionKind.js';
 import { Diagnostic } from './extHostTypes/diagnostic.js';
@@ -3208,3 +3208,52 @@ export enum KeywordRecognitionStatus {
 }
 
 //#endregion
+
+export class LanguageModelError extends Error {
+	static readonly #name = 'LanguageModelError';
+
+	static NotFound(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NotFound.name);
+	}
+
+	static NoPermissions(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.NoPermissions.name);
+	}
+
+	static Blocked(message?: string): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.Blocked.name);
+	}
+
+	static RateLimited(message?: string, retryAfter?: number): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.RateLimited.name, undefined, retryAfter);
+	}
+
+	static tryDeserialize(data: SerializedLanguageModelError): LanguageModelError | undefined {
+		if (data.name !== LanguageModelError.#name) {
+			return undefined;
+		}
+		return new LanguageModelError(data.message, data.code, data.cause, data.retryAfter);
+	}
+
+	readonly code: string;
+	readonly retryAfter?: number;
+
+	constructor(message?: string, code?: string, cause?: Error, retryAfter?: number) {
+		super(message, { cause });
+		this.name = LanguageModelError.#name;
+		this.code = code ?? '';
+		if (typeof retryAfter === 'number' && retryAfter >= 0) {
+			this.retryAfter = retryAfter;
+		}
+	}
+}
+
+type SerializedLanguageModelError = SerializedError & { readonly retryAfter?: number };
+
+/** Like {@link transformErrorForSerialization}, but keeps {@link LanguageModelError.retryAfter}. */
+export function serializeLanguageModelError(error: unknown): SerializedLanguageModelError {
+	const data: SerializedLanguageModelError = transformErrorForSerialization(error);
+	return error instanceof LanguageModelError && error.retryAfter !== undefined
+		? { ...data, retryAfter: error.retryAfter }
+		: data;
+}

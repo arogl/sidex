@@ -233,8 +233,8 @@ entries:
       contrib: contrib/onboarding
   - id: vscode-chat
     area: VS Code Chat
-    status: unwired
-    summary: VS Code 1.144 chat contrib copied as a work in progress; not imported by any entry file. SideX chat is contrib/sidexChat
+    status: partial
+    summary: VS Code 1.144 chat port in progress. Language model registry and its extension host customer are wired; the chat service, agents, tools and UI are still copied only. SideX chat is contrib/sidexChat
     signals:
       contrib: contrib/chat
   - id: mcp

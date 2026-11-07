@@ -32,6 +32,7 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 | Custom Editors | contrib/customEditor ported from 1.144 and imported; not yet runtime-tested |  |
 | Remote / SSH | SSH/WSL/container connect+exec exist, but NullRemoteAgentService/NullRemoteExtensionsScannerService — no remote ext host | `packages/workbench/src/services/remote/browser/nullRemoteAgentService.ts`, `packages/workbench/src/services/remote/browser/nullRemoteExtensionsScannerService.ts` |
 | Testing | UI + ext-host API wired; relies on extension adapters, no dedicated backend |  |
+| VS Code Chat | VS Code 1.144 chat port in progress. Language model registry and its extension host customer are wired; the chat service, agents, tools and UI are still copied only. SideX chat is contrib/sidexChat |  |
 
 ## Stubbed
 
@@ -61,7 +62,6 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 | Simple Browser | contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported |  |
 | Speech | VS Code 1.144 speech service and voice providers; copied for the chat port, not imported by any entry file |  |
 | Type Hierarchy | contrib/typeHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
-| VS Code Chat | VS Code 1.144 chat contrib copied as a work in progress; not imported by any entry file. SideX chat is contrib/sidexChat |  |
 
 ## Missing
 
