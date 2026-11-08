@@ -18,6 +18,11 @@ describe('chat language models wiring', () => {
 		}
 	);
 
+	it('instantiates the extension point handler that contributes tools from manifests', () => {
+		expect(contribution).toContain('registerWorkbenchContribution2(');
+		expect(contribution).toContain('LanguageModelToolsExtensionPointHandler.ID');
+	});
+
 	it('imports the registrations from the workbench entry', () => {
 		expect(read('workbench.common.main.ts')).toContain('./contrib/chat/browser/chat.languageModels.contribution.js');
 	});

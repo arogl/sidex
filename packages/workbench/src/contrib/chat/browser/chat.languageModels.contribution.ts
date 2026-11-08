@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
+import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
 import { LeanLanguageModelToolsService } from './tools/leanLanguageModelToolsService.js';
@@ -18,3 +20,11 @@ registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesSe
 
 // A reduced tools service (no chat UI yet); the real one replaces it when the chat workbench is ported.
 registerSingleton(ILanguageModelToolsService, LeanLanguageModelToolsService, InstantiationType.Delayed);
+
+// Reads `languageModelTools` and `languageModelToolSets` from extension manifests and registers them with the
+// tools service. Without it an extension's registerTool call fails with "Tool ... was not contributed".
+registerWorkbenchContribution2(
+	LanguageModelToolsExtensionPointHandler.ID,
+	LanguageModelToolsExtensionPointHandler,
+	WorkbenchPhase.BlockStartup
+);
