@@ -931,6 +931,7 @@ pub fn run() {
             commands::ext_host_real_start,
             commands::ext_host_real_log,
             commands::ext_host_real_builtin_dir,
+            commands::ext_host_real_app_root,
             commands::ext_host_real_send,
             commands::ext_host_real_stop,
             commands::fetch_url,

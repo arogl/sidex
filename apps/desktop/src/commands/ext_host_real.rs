@@ -387,6 +387,32 @@ pub async fn ext_host_real_builtin_dir(app: tauri::AppHandle) -> Result<String, 
     Ok(dir.to_string_lossy().into_owned())
 }
 
+/// Write `product.json` under `base/ext-host-app-root` and return that folder.
+///
+/// VS Code extensions read `<vscode.env.appRoot>/product.json` (extension-editing does it at activation), so the
+/// host needs an `appRoot` that really contains one.
+fn write_app_root(base: &Path, product_json: &str) -> Result<PathBuf, String> {
+    serde_json::from_str::<serde_json::Value>(product_json)
+        .map_err(|e| format!("product.json is not valid JSON: {e}"))?;
+    let dir = base.join("ext-host-app-root");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let file = dir.join("product.json");
+    std::fs::write(&file, product_json)
+        .map_err(|e| format!("cannot write {}: {e}", file.display()))?;
+    Ok(dir)
+}
+
+/// Give the Node host an `appRoot` that contains the product configuration the webview is running with.
+#[tauri::command]
+pub async fn ext_host_real_app_root(
+    app: tauri::AppHandle,
+    product_json: String,
+) -> Result<String, String> {
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let dir = write_app_root(&base, &product_json)?;
+    Ok(dunce::simplified(&dir).to_string_lossy().into_owned())
+}
+
 /// Write bytes (base64) to the host's socket.
 #[tauri::command]
 pub async fn ext_host_real_send(
@@ -425,6 +451,24 @@ mod tests {
     fn node_script_path_drops_the_verbatim_prefix() {
         let path = node_script_path(Path::new(r"\\?\E:\editor\sidex\real-host.cjs"));
         assert_eq!(path, PathBuf::from(r"E:\editor\sidex\real-host.cjs"));
+    }
+
+    #[test]
+    fn app_root_gets_the_product_json() {
+        let base = std::env::temp_dir().join(format!("sidex-app-root-{}", std::process::id()));
+        let json = r#"{"nameLong":"SideX","extensionAllowedBadgeProviders":["example.com"]}"#;
+        let dir = write_app_root(&base, json).unwrap();
+        let written = std::fs::read_to_string(dir.join("product.json")).unwrap();
+        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(written, json);
+    }
+
+    #[test]
+    fn app_root_rejects_invalid_json() {
+        let base = std::env::temp_dir().join(format!("sidex-app-root-bad-{}", std::process::id()));
+        let err = write_app_root(&base, "{not json").unwrap_err();
+        assert!(err.contains("not valid JSON"), "{err}");
+        assert!(!base.exists());
     }
 
     #[test]
