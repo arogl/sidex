@@ -46,3 +46,17 @@ describe('progressToChunks', () => {
 		expect(c.content).toContain('textEdit');
 	});
 });
+
+describe('default participant aliases', () => {
+	const copilot = [
+		{ id: 'github.copilot.default', name: 'GitHubCopilot', isDefault: true },
+		{ id: 'github.copilot.editsAgent', name: 'agent' }
+	];
+	it('routes @copilot to the default participant', () => {
+		expect(routeToParticipant('@copilot hello', copilot)?.agent.id).toBe('github.copilot.default');
+		expect(routeToParticipant('@GitHubCopilot hello', copilot)?.agent.id).toBe('github.copilot.default');
+	});
+	it('does not alias when there is no default participant', () => {
+		expect(routeToParticipant('@copilot hello', [{ id: 'x', name: 'x' }])).toBeUndefined();
+	});
+});
