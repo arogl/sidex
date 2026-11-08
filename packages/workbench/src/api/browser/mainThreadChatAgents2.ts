@@ -134,7 +134,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			description?.contributes as { chatParticipants?: IChatParticipantContribution[] } | undefined
 		)?.chatParticipants?.find(p => p.id === id);
 		if (!contribution && !dynamicProps) {
-			throw new Error(`chatParticipant must be declared in package.json: ${id}`);
+			throw new Error(
+				`chatParticipant '${id}' is not declared in package.json; chat session participants (such as Copilot CLI or the cloud agent) are not supported in SideX yet`
+			);
 		}
 
 		const data: IChatAgentData = {
