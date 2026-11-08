@@ -9,6 +9,7 @@ import { IRemoteConsoleLog } from '@sidex/base/common/console.js';
 import { SerializedError } from '@sidex/base/common/errors.js';
 import { IRelativePattern } from '@sidex/base/common/glob.js';
 import { IMarkdownString } from '@sidex/base/common/htmlContent.js';
+import type { IJSONSchema } from '@sidex/base/common/jsonSchema.js';
 import { IDisposable } from '@sidex/base/common/lifecycle.js';
 import {
 	IAuthorizationProtectedResourceMetadata,
@@ -97,6 +98,16 @@ import type {
 	ILanguageModelChatRequestOptions,
 	ILanguageModelChatSelector
 } from '../../contrib/chat/common/languageModels.js';
+import type {
+	IPreparedToolInvocation,
+	IStreamedToolInvocation,
+	IToolInvocation,
+	IToolInvocationPreparationContext,
+	IToolInvocationStreamContext,
+	IToolProgressStep,
+	IToolResult,
+	ToolDataSource
+} from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import {
 	DebugConfigurationProviderTriggerKind,
 	IAdapterDescriptor,
@@ -4087,6 +4098,69 @@ export interface ExtHostLanguageModelsShape {
 	$isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 }
 
+export interface ILanguageModelChatSelectorDto {
+	vendor?: string;
+	family?: string;
+	version?: string;
+	id?: string;
+}
+
+export interface IToolDataDto {
+	id: string;
+	toolReferenceName?: string;
+	legacyToolReferenceFullNames?: readonly string[];
+	fullReferenceName: string | undefined;
+	tags?: readonly string[];
+	displayName: string;
+	userDescription?: string;
+	modelDescription: string;
+	source: Dto<ToolDataSource>;
+	inputSchema?: IJSONSchema;
+}
+
+export interface IToolDefinitionDto extends IToolDataDto {
+	icon?: IconPathDto;
+	models?: ILanguageModelChatSelectorDto[];
+	toolSet?: string;
+}
+
+export interface MainThreadLanguageModelToolsShape extends IDisposable {
+	$getTools(): Promise<Dto<IToolDataDto>[]>;
+	$acceptToolProgress(callId: string, progress: IToolProgressStep): void;
+	$invokeTool(
+		dto: Dto<IToolInvocation>,
+		token?: CancellationToken
+	): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
+	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
+	$registerTool(id: string, hasHandleToolStream: boolean): void;
+	$registerToolWithDefinition(
+		extensionId: ExtensionIdentifier,
+		definition: IToolDefinitionDto,
+		hasHandleToolStream: boolean
+	): void;
+	$unregisterTool(name: string): void;
+}
+
+export interface ExtHostLanguageModelToolsShape {
+	$onDidChangeTools(tools: IToolDataDto[]): void;
+	$invokeTool(
+		dto: Dto<IToolInvocation>,
+		token: CancellationToken
+	): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
+	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
+
+	$handleToolStream(
+		toolId: string,
+		context: IToolInvocationStreamContext,
+		token: CancellationToken
+	): Promise<IStreamedToolInvocation | undefined>;
+	$prepareToolInvocation(
+		toolId: string,
+		context: IToolInvocationPreparationContext,
+		token: CancellationToken
+	): Promise<IPreparedToolInvocation | undefined>;
+}
+
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
@@ -4094,7 +4168,8 @@ export const MainContext = {
 	MainThreadEmbeddings: createProxyIdentifier<unknown>('MainThreadEmbeddings'),
 	MainThreadChatAgents2: createProxyIdentifier<unknown>('MainThreadChatAgents2'),
 	MainThreadCodeMapper: createProxyIdentifier<unknown>('MainThreadCodeMapper'),
-	MainThreadLanguageModelTools: createProxyIdentifier<unknown>('MainThreadLanguageModelTools'),
+	MainThreadLanguageModelTools:
+		createProxyIdentifier<MainThreadLanguageModelToolsShape>('MainThreadLanguageModelTools'),
 	MainThreadGitExtension: createProxyIdentifier<unknown>('MainThreadGitExtension'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
@@ -4258,7 +4333,7 @@ export const ExtHostContext = {
 	),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostChatAgents2: createProxyIdentifier<unknown>('ExtHostChatAgents2'),
-	ExtHostLanguageModelTools: createProxyIdentifier<unknown>('ExtHostLanguageModelTools'),
+	ExtHostLanguageModelTools: createProxyIdentifier<ExtHostLanguageModelToolsShape>('ExtHostLanguageModelTools'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostChatContext: createProxyIdentifier<unknown>('ExtHostChatContext'),
 	ExtHostChatDebug: createProxyIdentifier<unknown>('ExtHostChatDebug'),
