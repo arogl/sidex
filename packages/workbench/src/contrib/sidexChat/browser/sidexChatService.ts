@@ -2,28 +2,33 @@
  *  Sidex Chat Service — WebSocket client for sidex-server with full workspace context
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '@sidex/base/common/cancellation.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
-import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
+import { URI } from '@sidex/base/common/uri.js';
+import { isCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { isCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
-import { LocalToolExecutor, ILocalToolRequest, LOCAL_TOOLS_SUPPORTED } from './localToolExecutor.js';
-import {
-	SubagentRegistry,
-	SubagentType,
-	SUBAGENT_CONFIGS,
-	getAllowedTools,
-	buildSubagentPrompt
-} from './subagentTypes.js';
-import { IExplorerService } from '../../files/browser/files.js';
-import { resolveServerEndpoint, serverWsUrl, SERVER_RESTARTED_EVENT } from './localServer.js';
+import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
 import { IUpdateService } from '@sidex/platform/update/common/update.js';
+import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
+import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
+import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
+import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
+import { progressToChunks, routeToParticipant } from './participantBridge.js';
+import {
+	buildSubagentPrompt,
+	getAllowedTools,
+	SUBAGENT_CONFIGS,
+	SubagentRegistry,
+	SubagentType
+} from './subagentTypes.js';
 
 export interface IWorkspaceContext {
 	activeFile: string | null;
@@ -317,6 +322,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		return this._availableModels;
 	}
 
+	private _participantCancellation: CancellationTokenSource | undefined;
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -325,7 +332,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IProductService private readonly productService: IProductService,
 		@IUpdateService private readonly updateService: IUpdateService,
-		@IRecentEditTracker private readonly recentEditTracker: IRecentEditTracker
+		@IRecentEditTracker private readonly recentEditTracker: IRecentEditTracker,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 		SidexChatService.INSTANCE = this;
@@ -632,6 +640,13 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	sendMessage(text: string): void {
+		const route = routeToParticipant(text, this.chatAgentService.getAgents());
+		if (route) {
+			this._enqueueUserMessage(text);
+			this._setStreaming(true);
+			void this._sendToParticipant(route.agent.id, route.command, route.message);
+			return;
+		}
 		this._enqueueUserMessage(text);
 
 		if (!this._ws || this._connectionState !== 'connected') {
@@ -658,6 +673,46 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 
 		this._setStreaming(true);
 		void this._sendWithContext(text);
+	}
+
+	/** Runs a turn against an extension chat participant and streams its progress into the chat. */
+	private async _sendToParticipant(agentId: string, command: string | undefined, message: string): Promise<void> {
+		const cts = new CancellationTokenSource();
+		this._participantCancellation = cts;
+		try {
+			const result = await this.chatAgentService.invokeAgent(
+				agentId,
+				{
+					sessionResource: URI.from({ scheme: 'sidex-chat', path: `/${this._sessionId ?? 'session'}` }),
+					requestId: `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+					agentId,
+					command,
+					message,
+					variables: { variables: [] },
+					location: ChatAgentLocation.Chat
+				},
+				parts => {
+					for (const chunk of progressToChunks(parts as never)) {
+						this._handleChunk(chunk as IStreamChunk);
+					}
+				},
+				[],
+				cts.token
+			);
+			if (result.errorDetails) {
+				this._handleChunk({ type: 'error', error: result.errorDetails.message } as IStreamChunk);
+				return;
+			}
+		} catch (e) {
+			this._handleChunk({ type: 'error', error: e instanceof Error ? e.message : String(e) } as IStreamChunk);
+			return;
+		} finally {
+			cts.dispose();
+			if (this._participantCancellation === cts) {
+				this._participantCancellation = undefined;
+			}
+		}
+		this._handleChunk({ type: 'done' } as IStreamChunk);
 	}
 
 	/** Show the user's turn immediately, even if the socket is down. */
@@ -1194,6 +1249,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	stopStreaming(): void {
+		this._participantCancellation?.cancel();
 		this._currentAssistantMessage = null;
 		this._setStreaming(false);
 	}
