@@ -1,0 +1,17 @@
+import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const src = resolve(import.meta.dir, '../../../..');
+const read = (relative: string) => readFileSync(resolve(src, relative), 'utf8');
+
+describe('GitHub sign-in command wiring', () => {
+	it('is imported by the workbench and creates a github session', () => {
+		expect(read('workbench.common.main.ts')).toContain(
+			"import './contrib/chat/browser/chatGitHubSignIn.contribution.js';"
+		);
+		const action = read('contrib/chat/browser/chatGitHubSignIn.contribution.ts');
+		expect(action).toContain("id: 'sidex.chat.signInToGitHub'");
+		expect(action).toContain('createSession(COPILOT_GITHUB_PROVIDER_ID');
+	});
+});
