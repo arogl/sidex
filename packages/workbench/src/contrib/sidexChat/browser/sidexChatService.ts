@@ -709,6 +709,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				[],
 				cts.token
 			);
+			console.info(`[sidex-chat] participant '${agentId}' finished: ${JSON.stringify(result)}`);
 			if (result.errorDetails) {
 				this._handleChunk({ type: 'error', error: result.errorDetails.message } as IStreamChunk);
 				return;
