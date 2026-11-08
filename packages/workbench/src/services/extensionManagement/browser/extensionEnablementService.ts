@@ -3,35 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '@sidex/base/nls.js';
-import { Event, Emitter } from '@sidex/base/common/event.js';
+import { equals } from '@sidex/base/common/arrays.js';
+import { Delayer } from '@sidex/base/common/async.js';
+import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable, toDisposable } from '@sidex/base/common/lifecycle.js';
+import { isString } from '@sidex/base/common/types.js';
+import { localize } from '@sidex/base/nls.js';
+import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
+import { StorageManager } from '@sidex/platform/extensionManagement/common/extensionEnablementService.js';
 import {
-	IExtensionManagementService,
-	IExtensionIdentifier,
-	IGlobalExtensionEnablementService,
-	ENABLED_EXTENSIONS_STORAGE_PATH,
 	DISABLED_EXTENSIONS_STORAGE_PATH,
-	InstallOperation,
-	IAllowedExtensionsService
+	ENABLED_EXTENSIONS_STORAGE_PATH,
+	IAllowedExtensionsService,
+	IExtensionIdentifier,
+	IExtensionManagementService,
+	IGlobalExtensionEnablementService,
+	InstallOperation
 } from '@sidex/platform/extensionManagement/common/extensionManagement.js';
-import {
-	IWorkbenchExtensionEnablementService,
-	EnablementState,
-	IExtensionManagementServerService,
-	IWorkbenchExtensionManagementService,
-	IExtensionManagementServer,
-	ExtensionInstallLocation
-} from '../common/extensionManagement.js';
 import {
 	areSameExtensions,
 	BetterMergeId,
 	getExtensionDependencies,
 	isMalicious
 } from '@sidex/platform/extensionManagement/common/extensionManagementUtil.js';
-import { IWorkspaceContextService, WorkbenchState } from '@sidex/platform/workspace/common/workspace.js';
-import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import {
 	ExtensionType,
 	IExtension,
@@ -39,33 +33,40 @@ import {
 	isLanguagePackExtension,
 	isResolverExtension
 } from '@sidex/platform/extensions/common/extensions.js';
-import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
-import { StorageManager } from '@sidex/platform/extensionManagement/common/extensionEnablementService.js';
-import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions.js';
-import {
-	IUserDataSyncAccountService,
-	IUserDataSyncEnablementService
-} from '@sidex/platform/userDataSync/common/nullUserDataSync.js';
-import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
+import { ILogService } from '@sidex/platform/log/common/log.js';
 import {
 	INotificationService,
 	NotificationPriority,
 	Severity
 } from '@sidex/platform/notification/common/notification.js';
-import { IHostService } from '../../host/browser/host.js';
-import { IExtensionBisectService } from './extensionBisect.js';
+import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
+import {
+	IUserDataSyncAccountService,
+	IUserDataSyncEnablementService
+} from '@sidex/platform/userDataSync/common/nullUserDataSync.js';
+import { isVirtualWorkspace } from '@sidex/platform/workspace/common/virtualWorkspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '@sidex/platform/workspace/common/workspace.js';
 import {
 	IWorkspaceTrustManagementService,
 	IWorkspaceTrustRequestService
 } from '@sidex/platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
-import { isVirtualWorkspace } from '@sidex/platform/workspace/common/virtualWorkspace.js';
-import { ILogService } from '@sidex/platform/log/common/log.js';
-import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
-import { equals } from '@sidex/base/common/arrays.js';
-import { isString } from '@sidex/base/common/types.js';
-import { Delayer } from '@sidex/base/common/async.js';
+import { WebWorkerExtHostConfigValue, webWorkerExtHostConfig } from '../../extensions/common/extensions.js';
+import { IHostService } from '../../host/browser/host.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import {
+	EnablementState,
+	ExtensionInstallLocation,
+	IExtensionManagementServer,
+	IExtensionManagementServerService,
+	IWorkbenchExtensionEnablementService,
+	IWorkbenchExtensionManagementService
+} from '../common/extensionManagement.js';
+import { IExtensionBisectService } from './extensionBisect.js';
+import { isDisabledByExtensionKind } from './extensionKindSupport.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -616,43 +617,18 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
-		if (
-			this.extensionManagementServerService.remoteExtensionManagementServer ||
-			this.extensionManagementServerService.webExtensionManagementServer
-		) {
-			const installLocation = this.extensionManagementServerService.getExtensionInstallLocation(extension);
-			for (const extensionKind of this.extensionManifestPropertiesService.getExtensionKind(extension.manifest)) {
-				if (extensionKind === 'ui') {
-					if (installLocation === ExtensionInstallLocation.Local) {
-						return false;
-					}
-				}
-				if (extensionKind === 'workspace') {
-					if (installLocation === ExtensionInstallLocation.Remote) {
-						return false;
-					}
-				}
-				if (extensionKind === 'web') {
-					if (this.extensionManagementServerService.webExtensionManagementServer /* web */) {
-						if (
-							installLocation === ExtensionInstallLocation.Web ||
-							installLocation === ExtensionInstallLocation.Remote
-						) {
-							return false;
-						}
-					} else if (installLocation === ExtensionInstallLocation.Local) {
-						const enableLocalWebWorker =
-							this.configurationService.getValue<WebWorkerExtHostConfigValue>(webWorkerExtHostConfig);
-						if (enableLocalWebWorker === true || enableLocalWebWorker === 'auto') {
-							// Web extensions are enabled on all configurations
-							return false;
-						}
-					}
-				}
-			}
-			return true;
-		}
-		return false;
+		const enableLocalWebWorker =
+			this.configurationService.getValue<WebWorkerExtHostConfigValue>(webWorkerExtHostConfig);
+		return isDisabledByExtensionKind(this.extensionManifestPropertiesService.getExtensionKind(extension.manifest), {
+			hasRemoteOrWebServer: !!(
+				this.extensionManagementServerService.remoteExtensionManagementServer ||
+				this.extensionManagementServerService.webExtensionManagementServer
+			),
+			hasWebServer: !!this.extensionManagementServerService.webExtensionManagementServer,
+			installLocation: this.extensionManagementServerService.getExtensionInstallLocation(extension),
+			localWebWorkerEnabled: enableLocalWebWorker === true || enableLocalWebWorker === 'auto',
+			runsOnLocalExtensionHost: (globalThis as { __SIDEX_TAURI__?: boolean }).__SIDEX_TAURI__ === true
+		});
 	}
 
 	private _isDisabledByWorkspaceTrust(extension: IExtension, workspaceType: WorkspaceType): boolean {
