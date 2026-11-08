@@ -12,6 +12,8 @@ const result = spawnSync(
 		'--target',
 		'nodejs',
 		'--no-pack',
+		// The fixture only feeds the parity test; skipping wasm-opt avoids downloading binaryen in CI.
+		'--no-opt',
 		'--out-dir',
 		outDir,
 		'--out-name',
