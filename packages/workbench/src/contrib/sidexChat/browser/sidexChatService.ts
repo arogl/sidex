@@ -647,6 +647,16 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			void this._sendToParticipant(route.agent.id, route.command, route.message);
 			return;
 		}
+		if (text.trimStart().startsWith('@')) {
+			console.warn(
+				`[sidex-chat] '${text.trimStart().split(/\s/)[0]}' matches no chat participant; registered: ${
+					this.chatAgentService
+						.getAgents()
+						.map(a => `${a.name} (${a.id})`)
+						.join(', ') || 'none'
+				}`
+			);
+		}
 		this._enqueueUserMessage(text);
 
 		if (!this._ws || this._connectionState !== 'connected') {

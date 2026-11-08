@@ -10,6 +10,7 @@
 export interface IParticipantRef {
 	readonly id: string;
 	readonly name: string;
+	readonly isDefault?: boolean;
 	readonly slashCommands?: readonly { readonly name: string }[];
 }
 
@@ -28,6 +29,12 @@ export interface IProgressPart {
 
 export type BridgeChunk = { type: 'text' | 'notice' | 'error'; content: string };
 
+const DEFAULT_AGENT_ALIASES = new Set(['copilot', 'github', 'githubcopilot', 'github.copilot']);
+
+function normalize(value: string): string {
+	return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 /**
  * Matches a leading `@name` (and an optional `/command`) against the registered participants.
  * Returns undefined when the text is not addressed to a participant, so the normal SideX flow runs.
@@ -41,7 +48,11 @@ export function routeToParticipant<T extends IParticipantRef>(
 		return undefined;
 	}
 	const mention = match[1].toLowerCase();
-	const agent = agents.find(a => a.name.toLowerCase() === mention || a.id.toLowerCase() === mention);
+	// Copilot's default participant is named "GitHubCopilot", so also accept the short aliases users type.
+	const agent =
+		agents.find(a => a.name.toLowerCase() === mention || a.id.toLowerCase() === mention) ??
+		agents.find(a => normalize(a.name) === normalize(mention)) ??
+		(DEFAULT_AGENT_ALIASES.has(mention) ? agents.find(a => a.isDefault) : undefined);
 	if (!agent) {
 		return undefined;
 	}
