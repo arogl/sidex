@@ -8,6 +8,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
+import { ChatAgentService, IChatAgentService } from '../common/participants/chatAgents.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { LanguageModelsConfigurationService } from './languageModelsConfigurationService.js';
@@ -19,6 +20,7 @@ registerSingleton(ILanguageModelsService, LanguageModelsService, InstantiationTy
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 
 // A reduced tools service (no chat UI yet); the real one replaces it when the chat workbench is ported.
+registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LeanLanguageModelToolsService, InstantiationType.Delayed);
 
 // Reads `languageModelTools` and `languageModelToolSets` from extension manifests and registers them with the
