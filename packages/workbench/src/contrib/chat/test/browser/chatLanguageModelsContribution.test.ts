@@ -22,7 +22,7 @@ describe('chat language models wiring', () => {
 		expect(read('workbench.common.main.ts')).toContain('./contrib/chat/browser/chat.languageModels.contribution.js');
 	});
 
-	it('imports the MainThreadLanguageModels customer', () => {
-		expect(read('api/browser/extensionHost.contribution.ts')).toContain("import './mainThreadLanguageModels.js';");
+	it.each(['mainThreadLanguageModels', 'mainThreadLanguageModelTools'])('imports the %s customer', customer => {
+		expect(read('api/browser/extensionHost.contribution.ts')).toContain(`import './${customer}.js';`);
 	});
 });
