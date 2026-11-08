@@ -19,6 +19,8 @@ import './mainThreadLocalization.js';
 import './mainThreadBulkEdits.js';
 import './mainThreadLanguageModels.js';
 import './mainThreadLanguageModelTools.js';
+import './mainThreadChatStatus.js';
+import './mainThreadChatInputNotification.js';
 import './mainThreadCodeInsets.js';
 import './mainThreadCLICommands.js';
 import './mainThreadClipboard.js';
