@@ -4161,6 +4161,47 @@ export interface ExtHostLanguageModelToolsShape {
 	): Promise<IPreparedToolInvocation | undefined>;
 }
 
+export type ChatStatusItemDto = {
+	id: string;
+	title: string | { label: string; link: string; helpText?: string };
+	description: string;
+	detail: string | undefined;
+	tooltip: string | undefined;
+};
+
+export interface MainThreadChatStatusShape {
+	$setEntry(id: string, entry: ChatStatusItemDto): void;
+	$disposeEntry(id: string): void;
+}
+
+export const enum ChatInputNotificationSeverityDto {
+	Info = 0,
+	Warning = 1,
+	Error = 2
+}
+
+export type ChatInputNotificationActionDto = {
+	label: string;
+	commandId: string;
+	commandArgs?: unknown[];
+};
+
+export type ChatInputNotificationDto = {
+	id: string;
+	severity: ChatInputNotificationSeverityDto;
+	message: string;
+	description: string | undefined;
+	actions: ChatInputNotificationActionDto[];
+	dismissible: boolean;
+	autoDismissOnMessage: boolean;
+	sessionTypes: readonly string[] | undefined;
+};
+
+export interface MainThreadChatInputNotificationShape {
+	$setNotification(notification: ChatInputNotificationDto): void;
+	$disposeNotification(id: string): void;
+}
+
 export const MainContext = {
 	MainThreadAuthentication: createProxyIdentifier<MainThreadAuthenticationShape>('MainThreadAuthentication'),
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
@@ -4252,9 +4293,11 @@ export const MainContext = {
 	MainThreadMcp: createProxyIdentifier<unknown>('MainThreadMcp'),
 	MainThreadAiRelatedInformation: createProxyIdentifier<unknown>('MainThreadAiRelatedInformation'),
 	MainThreadAiEmbeddingVector: createProxyIdentifier<unknown>('MainThreadAiEmbeddingVector'),
-	MainThreadChatStatus: createProxyIdentifier<unknown>('MainThreadChatStatus'),
+	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadChatQuota: createProxyIdentifier<unknown>('MainThreadChatQuota'),
-	MainThreadChatInputNotification: createProxyIdentifier<unknown>('MainThreadChatInputNotification'),
+	MainThreadChatInputNotification: createProxyIdentifier<MainThreadChatInputNotificationShape>(
+		'MainThreadChatInputNotification'
+	),
 	MainThreadAiSettingsSearch: createProxyIdentifier<unknown>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
 	MainThreadChatSessions: createProxyIdentifier<unknown>('MainThreadChatSessions'),
