@@ -15,13 +15,23 @@ import { IUpdateService } from '@sidex/platform/update/common/update.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IChatRequestVariableEntry, toFileVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
+import {
+	IChatAgentHistoryEntry,
+	IChatAgentRequest,
+	IChatAgentService
+} from '../../chat/common/participants/chatAgents.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
-import { pickFallbackParticipant, progressToChunks, routeToParticipant } from './participantBridge.js';
+import {
+	buildParticipantHistory,
+	pickFallbackParticipant,
+	progressToChunks,
+	routeToParticipant
+} from './participantBridge.js';
 import {
 	buildSubagentPrompt,
 	getAllowedTools,
@@ -695,28 +705,54 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		void this._sendWithContext(text);
 	}
 
+	/** The active editor's file, with its selection when there is one, as participant context. */
+	private _activeEditorVariables(): IChatRequestVariableEntry[] {
+		const uri = this.editorService.activeEditor?.resource;
+		if (!uri) {
+			return [];
+		}
+		const control = this.editorService.activeTextEditorControl;
+		if (control && isCodeEditor(control) && control.hasModel()) {
+			const selection = control.getSelection();
+			if (selection && !selection.isEmpty()) {
+				return [toFileVariableEntry(uri, selection)];
+			}
+		}
+		return [toFileVariableEntry(uri)];
+	}
+
 	/** Runs a turn against an extension chat participant and streams its progress into the chat. */
 	private async _sendToParticipant(agentId: string, command: string | undefined, message: string): Promise<void> {
 		const cts = new CancellationTokenSource();
 		this._participantCancellation = cts;
 		try {
+			const sessionResource = URI.from({ scheme: 'sidex-chat', path: `/${this._sessionId ?? 'session'}` });
+			const toRequest = (text: string, requestId: string): IChatAgentRequest => ({
+				sessionResource,
+				requestId,
+				agentId,
+				command: undefined,
+				message: text,
+				variables: { variables: [] },
+				location: ChatAgentLocation.Chat
+			});
+			// The current user message is already in the list; everything before it is history.
+			const history = buildParticipantHistory(this._messages.slice(0, -1), (text, index) =>
+				toRequest(text, `sidex-history-${index}`)
+			) as unknown as IChatAgentHistoryEntry[];
 			const result = await this.chatAgentService.invokeAgent(
 				agentId,
 				{
-					sessionResource: URI.from({ scheme: 'sidex-chat', path: `/${this._sessionId ?? 'session'}` }),
-					requestId: `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-					agentId,
+					...toRequest(message, `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
 					command,
-					message,
-					variables: { variables: [] },
-					location: ChatAgentLocation.Chat
+					variables: { variables: this._activeEditorVariables() }
 				},
 				parts => {
 					for (const chunk of progressToChunks(parts as never)) {
 						this._handleChunk(chunk as IStreamChunk);
 					}
 				},
-				[],
+				history,
 				cts.token
 			);
 			console.info(`[sidex-chat] participant '${agentId}' finished: ${JSON.stringify(result)}`);

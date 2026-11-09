@@ -104,3 +104,39 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 export function pickFallbackParticipant<T extends IParticipantRef>(agents: readonly T[]): T | undefined {
 	return agents.find(a => a.isDefault);
 }
+
+export interface IHistoryMessage {
+	readonly role: 'user' | 'assistant' | 'system';
+	readonly content: string;
+}
+
+export interface IParticipantHistoryEntry<TRequest> {
+	readonly request: TRequest;
+	readonly response: readonly { readonly kind: 'markdownContent'; readonly content: { readonly value: string } }[];
+	readonly result: Record<string, never>;
+}
+
+/**
+ * Pairs each user message with the assistant reply that follows it, which is the history shape
+ * participants expect. A user message with no reply (a failed or cancelled turn) is left out, and
+ * system messages never reach the participant.
+ */
+export function buildParticipantHistory<TRequest>(
+	messages: readonly IHistoryMessage[],
+	makeRequest: (message: string, index: number) => TRequest
+): IParticipantHistoryEntry<TRequest>[] {
+	const entries: IParticipantHistoryEntry<TRequest>[] = [];
+	for (let i = 0; i < messages.length - 1; i++) {
+		const user = messages[i];
+		const reply = messages[i + 1];
+		if (user.role === 'user' && reply.role === 'assistant' && reply.content) {
+			entries.push({
+				request: makeRequest(user.content, entries.length),
+				response: [{ kind: 'markdownContent', content: { value: reply.content } }],
+				result: {}
+			});
+			i++;
+		}
+	}
+	return entries;
+}

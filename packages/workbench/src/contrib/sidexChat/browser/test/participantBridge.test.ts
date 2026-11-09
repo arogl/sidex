@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { pickFallbackParticipant, progressToChunks, routeToParticipant } from '../participantBridge.js';
+import {
+	buildParticipantHistory,
+	pickFallbackParticipant,
+	progressToChunks,
+	routeToParticipant
+} from '../participantBridge.js';
 
 const agents = [
 	{ id: 'github.copilot.default', name: 'copilot', slashCommands: [{ name: 'explain' }] },
@@ -69,5 +74,38 @@ describe('pickFallbackParticipant', () => {
 		];
 		expect(pickFallbackParticipant(list)?.id).toBe('b');
 		expect(pickFallbackParticipant([{ id: 'a', name: 'a' }])).toBeUndefined();
+	});
+});
+
+describe('buildParticipantHistory', () => {
+	const make = (message: string, index: number) => ({ message, index });
+	it('pairs user messages with the assistant reply that follows', () => {
+		const history = buildParticipantHistory(
+			[
+				{ role: 'user', content: 'hi' },
+				{ role: 'assistant', content: 'hello' },
+				{ role: 'user', content: 'and?' },
+				{ role: 'assistant', content: 'more' }
+			],
+			make
+		);
+		expect(history.map(h => h.request)).toEqual([
+			{ message: 'hi', index: 0 },
+			{ message: 'and?', index: 1 }
+		]);
+		expect(history[0].response[0].content.value).toBe('hello');
+	});
+	it('drops unanswered turns and system messages', () => {
+		const history = buildParticipantHistory(
+			[
+				{ role: 'system', content: 's' },
+				{ role: 'user', content: 'failed' },
+				{ role: 'user', content: 'again' },
+				{ role: 'assistant', content: 'ok' }
+			],
+			make
+		);
+		expect(history).toHaveLength(1);
+		expect(history[0].request.message).toBe('again');
 	});
 });
