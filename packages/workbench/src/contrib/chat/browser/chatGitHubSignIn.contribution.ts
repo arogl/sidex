@@ -5,6 +5,7 @@
 
 import { localize, localize2 } from '@sidex/base/nls.js';
 import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions.js';
+import { CommandsRegistry } from '@sidex/platform/commands/common/commands.js';
 import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { INotificationService } from '@sidex/platform/notification/common/notification.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -45,4 +46,14 @@ registerAction2(
 			}
 		}
 	}
+);
+
+/**
+ * The GitHub Authentication extension asks the workbench for code-exchange proxy endpoints before it
+ * exchanges the OAuth code, and fails the whole sign-in when the command does not exist. SideX is a
+ * desktop app that can reach github.com directly, so it has no proxy endpoints to offer.
+ */
+CommandsRegistry.registerCommand(
+	'workbench.getCodeExchangeProxyEndpoints',
+	(): Record<string, string> | undefined => undefined
 );

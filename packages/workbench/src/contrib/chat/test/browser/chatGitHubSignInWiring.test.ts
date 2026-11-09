@@ -14,4 +14,10 @@ describe('GitHub sign-in command wiring', () => {
 		expect(action).toContain("id: 'sidex.chat.signInToGitHub'");
 		expect(action).toContain('createSession(COPILOT_GITHUB_PROVIDER_ID');
 	});
+
+	it('registers the command the GitHub Authentication extension requires', () => {
+		expect(read('contrib/chat/browser/chatGitHubSignIn.contribution.ts')).toMatch(
+			/registerCommand\(\s*'workbench\.getCodeExchangeProxyEndpoints'/
+		);
+	});
 });
