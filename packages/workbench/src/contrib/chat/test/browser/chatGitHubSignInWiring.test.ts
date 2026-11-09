@@ -20,4 +20,13 @@ describe('GitHub sign-in command wiring', () => {
 			/registerCommand\(\s*'workbench\.getCodeExchangeProxyEndpoints'/
 		);
 	});
+
+	it('registers the account policy command and signs in with the scopes Copilot reads', () => {
+		expect(read('contrib/chat/browser/chatGitHubSignIn.contribution.ts')).toMatch(
+			/registerCommand\(\s*'_workbench\.whenAccountPolicySettled'/
+		);
+		expect(read('contrib/chat/common/copilotSignIn.ts')).toContain(
+			"COPILOT_GITHUB_SCOPES: readonly string[] = ['user:email']"
+		);
+	});
 });
