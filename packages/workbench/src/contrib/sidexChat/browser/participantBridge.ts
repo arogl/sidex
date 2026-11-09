@@ -96,3 +96,11 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 	}
 	return chunks;
 }
+
+/**
+ * Picks the participant that answers a message with no @mention when the local SideX server is
+ * unavailable: the default participant (Copilot's), if one is registered.
+ */
+export function pickFallbackParticipant<T extends IParticipantRef>(agents: readonly T[]): T | undefined {
+	return agents.find(a => a.isDefault);
+}

@@ -21,7 +21,7 @@ import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
-import { progressToChunks, routeToParticipant } from './participantBridge.js';
+import { pickFallbackParticipant, progressToChunks, routeToParticipant } from './participantBridge.js';
 import {
 	buildSubagentPrompt,
 	getAllowedTools,
@@ -646,6 +646,16 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			this._setStreaming(true);
 			void this._sendToParticipant(route.agent.id, route.command, route.message);
 			return;
+		}
+		if (this._connectionState !== 'connected') {
+			// The local server is not reachable; answer with the default participant (Copilot) when there is one.
+			const fallback = pickFallbackParticipant(this.chatAgentService.getAgents());
+			if (fallback) {
+				this._enqueueUserMessage(text);
+				this._setStreaming(true);
+				void this._sendToParticipant(fallback.id, undefined, text);
+				return;
+			}
 		}
 		if (text.trimStart().startsWith('@')) {
 			console.warn(

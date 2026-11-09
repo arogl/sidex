@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { progressToChunks, routeToParticipant } from '../participantBridge.js';
+import { pickFallbackParticipant, progressToChunks, routeToParticipant } from '../participantBridge.js';
 
 const agents = [
 	{ id: 'github.copilot.default', name: 'copilot', slashCommands: [{ name: 'explain' }] },
@@ -58,5 +58,16 @@ describe('default participant aliases', () => {
 	});
 	it('does not alias when there is no default participant', () => {
 		expect(routeToParticipant('@copilot hello', [{ id: 'x', name: 'x' }])).toBeUndefined();
+	});
+});
+
+describe('pickFallbackParticipant', () => {
+	it('returns the default participant, or undefined when there is none', () => {
+		const list = [
+			{ id: 'a', name: 'a' },
+			{ id: 'b', name: 'b', isDefault: true }
+		];
+		expect(pickFallbackParticipant(list)?.id).toBe('b');
+		expect(pickFallbackParticipant([{ id: 'a', name: 'a' }])).toBeUndefined();
 	});
 });
