@@ -29,4 +29,10 @@ describe('GitHub sign-in command wiring', () => {
 			"COPILOT_GITHUB_SCOPES: readonly string[] = ['user:email']"
 		);
 	});
+
+	it('grants Copilot access to the account it signs in', () => {
+		const action = read('contrib/chat/browser/chatGitHubSignIn.contribution.ts');
+		expect(action).toContain('updateAllowedExtensions(');
+		expect(read('contrib/chat/common/copilotSignIn.ts')).toContain("id: 'github.copilot-chat'");
+	});
 });
