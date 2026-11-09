@@ -6,5 +6,9 @@
 /** The authentication provider Copilot Chat reads its GitHub session from. */
 export const COPILOT_GITHUB_PROVIDER_ID = 'github';
 
-/** The scopes Copilot Chat requests for its full-featured session. */
-export const COPILOT_GITHUB_SCOPES: readonly string[] = ['read:user', 'user:email', 'repo', 'workflow'];
+/**
+ * The scopes Copilot Chat reads its session with. The GitHub Authentication extension only returns a
+ * session whose scopes match the request exactly, and Copilot asks for `user:email`, so a session
+ * created with a broader scope set is invisible to it ("GitHub login failed").
+ */
+export const COPILOT_GITHUB_SCOPES: readonly string[] = ['user:email'];

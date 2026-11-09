@@ -57,3 +57,9 @@ CommandsRegistry.registerCommand(
 	'workbench.getCodeExchangeProxyEndpoints',
 	(): Record<string, string> | undefined => undefined
 );
+
+/**
+ * Copilot Chat waits on this command before it reads account-policy settings. SideX has no account
+ * policies, so there is nothing to settle and it resolves immediately.
+ */
+CommandsRegistry.registerCommand('_workbench.whenAccountPolicySettled', (): Promise<void> => Promise.resolve());
