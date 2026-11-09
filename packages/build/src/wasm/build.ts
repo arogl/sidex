@@ -30,6 +30,9 @@ if (!hasWasmPack || !hasTarget) {
 }
 
 const outDir = resolve(repoRoot, 'apps/workbench/public/wasm/tfidf');
+// wasm-pack downloads binaryen to run wasm-opt, and that download can fail on CI runners.
+// SIDEX_WASM_NO_OPT=1 skips the optimization step; release builds leave it unset.
+const noOpt = process.env.SIDEX_WASM_NO_OPT === '1';
 const result = spawnSync(
 	'wasm-pack',
 	[
@@ -38,6 +41,7 @@ const result = spawnSync(
 		'--target',
 		'web',
 		'--no-pack',
+		...(noOpt ? ['--no-opt'] : []),
 		'--out-dir',
 		outDir,
 		'--out-name',
