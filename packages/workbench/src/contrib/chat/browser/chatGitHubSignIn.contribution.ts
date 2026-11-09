@@ -8,8 +8,9 @@ import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions
 import { CommandsRegistry } from '@sidex/platform/commands/common/commands.js';
 import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { INotificationService } from '@sidex/platform/notification/common/notification.js';
+import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { COPILOT_GITHUB_PROVIDER_ID, COPILOT_GITHUB_SCOPES } from '../common/copilotSignIn.js';
+import { COPILOT_AUTH_EXTENSIONS, COPILOT_GITHUB_PROVIDER_ID, COPILOT_GITHUB_SCOPES } from '../common/copilotSignIn.js';
 
 /**
  * SideX has no Accounts menu yet, so this is the way to give extensions (Copilot Chat) a GitHub session.
@@ -27,11 +28,19 @@ registerAction2(
 
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const authenticationService = accessor.get(IAuthenticationService);
+			const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 			const notificationService = accessor.get(INotificationService);
 			try {
 				const session = await authenticationService.createSession(COPILOT_GITHUB_PROVIDER_ID, [
 					...COPILOT_GITHUB_SCOPES
 				]);
+				// With no Accounts menu there is nowhere to approve an extension's access later, so a silent
+				// getSession from Copilot would return nothing. Grant access when the user signs in.
+				authenticationAccessService.updateAllowedExtensions(
+					COPILOT_GITHUB_PROVIDER_ID,
+					session.account.label,
+					COPILOT_AUTH_EXTENSIONS.map(extension => ({ ...extension, allowed: true }))
+				);
 				notificationService.info(
 					localize('sidex.chat.signedIn', "Signed in to GitHub as '{0}'.", session.account.label)
 				);

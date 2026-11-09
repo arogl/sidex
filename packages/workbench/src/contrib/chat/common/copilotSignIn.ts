@@ -12,3 +12,9 @@ export const COPILOT_GITHUB_PROVIDER_ID = 'github';
  * created with a broader scope set is invisible to it ("GitHub login failed").
  */
 export const COPILOT_GITHUB_SCOPES: readonly string[] = ['user:email'];
+
+/** The extensions that read the Copilot GitHub session; they must be allowed to use the account. */
+export const COPILOT_AUTH_EXTENSIONS: readonly { readonly id: string; readonly name: string }[] = [
+	{ id: 'github.copilot-chat', name: 'GitHub Copilot Chat' },
+	{ id: 'github.copilot', name: 'GitHub Copilot' }
+];
