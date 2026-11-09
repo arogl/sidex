@@ -360,6 +360,22 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				});
 			}
 		}
+		// Everything the provider returned, selectable or not, so a short picker list can be diagnosed.
+		console.info(
+			'[sidex-chat] Copilot models:',
+			JSON.stringify(
+				this.languageModelsService
+					.getLanguageModelIds()
+					.map(id => ({ id, meta: this.languageModelsService.lookupLanguageModel(id) }))
+					.filter(m => m.meta?.vendor === COPILOT_VENDOR_ID)
+					.map(m => ({
+						id: m.id,
+						name: m.meta?.name,
+						selectable: m.meta?.isUserSelectable,
+						hidden: this.languageModelsService.isModelHidden(m.id)
+					}))
+			)
+		);
 		this._participantModels = models;
 		this._availableModels = mergePickerModels(this._serverModels, this._participantModels);
 		this._onDidChangeModels.fire(this._availableModels);
