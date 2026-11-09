@@ -140,3 +140,31 @@ export function buildParticipantHistory<TRequest>(
 	}
 	return entries;
 }
+
+const PARTICIPANT_MODEL_PREFIX = 'participant:';
+
+export interface IPickerModel {
+	readonly id: string;
+	readonly name: string;
+	readonly provider: string;
+	readonly contextWindow?: number;
+}
+
+/** The picker id for a model the chat participant provides (for example Copilot's). */
+export function toParticipantModelId(identifier: string): string {
+	return PARTICIPANT_MODEL_PREFIX + identifier;
+}
+
+/** The language model identifier behind a picker id, or undefined for a server model. */
+export function parseParticipantModelId(pickerId: string): string | undefined {
+	return pickerId.startsWith(PARTICIPANT_MODEL_PREFIX) ? pickerId.slice(PARTICIPANT_MODEL_PREFIX.length) : undefined;
+}
+
+/** Server models first, then the participant's, without repeating an id. */
+export function mergePickerModels(
+	serverModels: readonly IPickerModel[],
+	participantModels: readonly IPickerModel[]
+): IPickerModel[] {
+	const seen = new Set(serverModels.map(m => m.id));
+	return [...serverModels, ...participantModels.filter(m => !seen.has(m.id))];
+}
