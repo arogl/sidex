@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import {
 	buildParticipantHistory,
+	mergePickerModels,
+	parseParticipantModelId,
 	pickFallbackParticipant,
 	progressToChunks,
-	routeToParticipant
+	routeToParticipant,
+	toParticipantModelId
 } from '../participantBridge.js';
 
 const agents = [
@@ -107,5 +110,24 @@ describe('buildParticipantHistory', () => {
 		);
 		expect(history).toHaveLength(1);
 		expect(history[0].request.message).toBe('again');
+	});
+});
+
+describe('participant models in the picker', () => {
+	it('round-trips a participant model id and ignores server ids', () => {
+		const id = toParticipantModelId('copilot/gpt-4.1');
+		expect(id).toBe('participant:copilot/gpt-4.1');
+		expect(parseParticipantModelId(id)).toBe('copilot/gpt-4.1');
+		expect(parseParticipantModelId('claude-sonnet-4.6')).toBeUndefined();
+	});
+	it('lists server models first and does not repeat an id', () => {
+		const merged = mergePickerModels(
+			[{ id: 'a', name: 'A', provider: 'x' }],
+			[
+				{ id: 'participant:b', name: 'B', provider: 'copilot' },
+				{ id: 'a', name: 'dup', provider: 'copilot' }
+			]
+		);
+		expect(merged.map(m => m.id)).toEqual(['a', 'participant:b']);
 	});
 });

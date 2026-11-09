@@ -17,6 +17,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import {
 	IChatAgentHistoryEntry,
 	IChatAgentRequest,
@@ -28,9 +29,12 @@ import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './lo
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
 import {
 	buildParticipantHistory,
+	mergePickerModels,
+	parseParticipantModelId,
 	pickFallbackParticipant,
 	progressToChunks,
-	routeToParticipant
+	routeToParticipant,
+	toParticipantModelId
 } from './participantBridge.js';
 import {
 	buildSubagentPrompt,
@@ -333,6 +337,33 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	private _participantCancellation: CancellationTokenSource | undefined;
+	private _serverModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
+	private _participantModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
+
+	/** Adds the chat participant's (Copilot's) models to the picker once they resolve. */
+	private async _refreshParticipantModels(): Promise<void> {
+		try {
+			await this.languageModelsService.selectLanguageModels({ vendor: COPILOT_VENDOR_ID });
+		} catch (error) {
+			console.warn('[sidex-chat] could not resolve Copilot models', error);
+			return;
+		}
+		const models: typeof this._participantModels = [];
+		for (const identifier of this.languageModelsService.getLanguageModelIds()) {
+			const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+			if (metadata && metadata.vendor === COPILOT_VENDOR_ID && metadata.isUserSelectable !== false) {
+				models.push({
+					id: toParticipantModelId(identifier),
+					name: `${metadata.name} (Copilot)`,
+					provider: 'copilot',
+					contextWindow: metadata.maxInputTokens || undefined
+				});
+			}
+		}
+		this._participantModels = models;
+		this._availableModels = mergePickerModels(this._serverModels, this._participantModels);
+		this._onDidChangeModels.fire(this._availableModels);
+	}
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -343,10 +374,13 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IProductService private readonly productService: IProductService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IRecentEditTracker private readonly recentEditTracker: IRecentEditTracker,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
 	) {
 		super();
 		SidexChatService.INSTANCE = this;
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._refreshParticipantModels()));
+		void this._refreshParticipantModels();
 		// Restore saved model or use default immediately
 		try {
 			const saved = localStorage.getItem(SidexChatService.MODEL_STORAGE_KEY);
@@ -657,6 +691,17 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			void this._sendToParticipant(route.agent.id, route.command, route.message);
 			return;
 		}
+		const participantModel = parseParticipantModelId(this._serverModel);
+		if (participantModel !== undefined) {
+			// A Copilot model is selected, so the default participant answers regardless of the server.
+			const defaultAgent = pickFallbackParticipant(this.chatAgentService.getAgents());
+			if (defaultAgent) {
+				this._enqueueUserMessage(text);
+				this._setStreaming(true);
+				void this._sendToParticipant(defaultAgent.id, undefined, text, participantModel);
+				return;
+			}
+		}
 		if (this._connectionState !== 'connected') {
 			// The local server is not reachable; answer with the default participant (Copilot) when there is one.
 			const fallback = pickFallbackParticipant(this.chatAgentService.getAgents());
@@ -722,7 +767,12 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	/** Runs a turn against an extension chat participant and streams its progress into the chat. */
-	private async _sendToParticipant(agentId: string, command: string | undefined, message: string): Promise<void> {
+	private async _sendToParticipant(
+		agentId: string,
+		command: string | undefined,
+		message: string,
+		userSelectedModelId?: string
+	): Promise<void> {
 		const cts = new CancellationTokenSource();
 		this._participantCancellation = cts;
 		try {
@@ -745,6 +795,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				{
 					...toRequest(message, `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
 					command,
+					userSelectedModelId,
 					variables: { variables: this._activeEditorVariables() }
 				},
 				parts => {
@@ -2527,7 +2578,8 @@ ${prompt}`,
 			// Codex, Ollama, …). Do not filter it down to a hardcoded ID
 			// allowlist — that hides new snapshots the moment a provider
 			// ships them. Custom IDs the user typed are already merged above.
-			this._availableModels = models;
+			this._serverModels = models;
+			this._availableModels = mergePickerModels(this._serverModels, this._participantModels);
 			this._onDidChangeModels.fire(this._availableModels);
 
 			// Keep the user's pick when it is still in the live list. Anthropic
@@ -2535,7 +2587,9 @@ ${prompt}`,
 			// connected Claude login ends up on a model the current window has
 			// already exhausted.
 			const effective = this._availableModels;
-			const stillOffered = effective.some(m => m.id === this._serverModel);
+			// A participant model may not have loaded yet, so never reset a saved pick of one.
+			const stillOffered =
+				effective.some(m => m.id === this._serverModel) || parseParticipantModelId(this._serverModel) !== undefined;
 			if (!stillOffered && effective.length > 0) {
 				const preferred =
 					effective.find(m => /sonnet/i.test(m.id)) || effective.find(m => /haiku/i.test(m.id)) || effective[0];
