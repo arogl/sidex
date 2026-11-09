@@ -122,6 +122,9 @@ jobs:
           bun test packages/build/test/tfidf-parity.test.ts
 
       - name: Build the production artifact and assert it exists
+        env:
+          # This step only checks that the build produces the files; wasm-pack's binaryen download fails on runners.
+          SIDEX_WASM_NO_OPT: '1'
         run: |
           bun run build:wasm
           test -f apps/workbench/public/wasm/tfidf/sidex_tfidf_wasm.js
