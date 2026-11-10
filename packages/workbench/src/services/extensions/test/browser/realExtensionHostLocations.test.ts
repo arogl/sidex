@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { URI } from '@sidex/base/common/uri.js';
-import { withFileLocations } from '../../browser/realExtensionHostLocations.js';
+import { toFileStorageHome, withFileLocations } from '../../browser/realExtensionHostLocations.js';
 
 function ext(location: string): never {
 	return { identifier: { value: 'x.y' }, extensionLocation: URI.parse(location) } as never;
@@ -28,5 +28,18 @@ describe('withFileLocations', () => {
 		const out = withFileLocations([local, other], '/repo/extensions');
 		expect(out[0]).toBe(local);
 		expect(out[1]).toBe(other);
+	});
+});
+
+describe('toFileStorageHome', () => {
+	it('maps a user-data URI under the real user-data directory', () => {
+		const home = toFileStorageHome(URI.parse('vscode-userdata:/User/globalStorage'), '/home/a/.config/SideX/UserData');
+		expect(home.scheme).toBe('file');
+		expect(home.path).toBe('/home/a/.config/SideX/UserData/User/globalStorage');
+	});
+
+	it('leaves other schemes alone', () => {
+		const file = URI.file('/x/y');
+		expect(toFileStorageHome(file, '/data')).toBe(file);
 	});
 });
