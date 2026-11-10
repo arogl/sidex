@@ -23,6 +23,8 @@ import {
 	IChatAgentRequest,
 	IChatAgentService
 } from '../../chat/common/participants/chatAgents.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
+import { IToolActivityService } from '../../chat/common/tools/toolActivityService.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
@@ -391,12 +393,41 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IRecentEditTracker private readonly recentEditTracker: IRecentEditTracker,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IToolActivityService toolActivityService: IToolActivityService
 	) {
 		super();
 		SidexChatService.INSTANCE = this;
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._refreshParticipantModels()));
 		void this._refreshParticipantModels();
+		// Tools the participant runs show up in the chat as tool calls with their results.
+		this._register(
+			toolActivityService.onDidStart(activity => {
+				if (this._participantCancellation) {
+					this._handleChunk({
+						type: 'tool_call',
+						tool_calls: [
+							{
+								id: activity.callId,
+								function: { name: activity.displayName, arguments: JSON.stringify(activity.parameters) }
+							}
+						]
+					});
+				}
+			})
+		);
+		this._register(
+			toolActivityService.onDidFinish(activity => {
+				if (this._participantCancellation) {
+					this._handleChunk({
+						type: 'tool_result',
+						tool_call_id: activity.callId,
+						content: activity.isError ? `Error: ${activity.output}` : activity.output
+					});
+				}
+			})
+		);
 		// Restore saved model or use default immediately
 		try {
 			const saved = localStorage.getItem(SidexChatService.MODEL_STORAGE_KEY);
@@ -700,7 +731,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	sendMessage(text: string): void {
-		const route = routeToParticipant(text, this.chatAgentService.getAgents());
+		const route = routeToParticipant(text, this.chatAgentService.getAgents(), this._participantMode());
 		if (route) {
 			this._enqueueUserMessage(text);
 			this._setStreaming(true);
@@ -710,7 +741,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		const participantModel = parseParticipantModelId(this._serverModel);
 		if (participantModel !== undefined) {
 			// A Copilot model is selected, so the default participant answers regardless of the server.
-			const defaultAgent = pickFallbackParticipant(this.chatAgentService.getAgents());
+			const defaultAgent = pickFallbackParticipant(this.chatAgentService.getAgents(), this._participantMode());
 			if (defaultAgent) {
 				this._enqueueUserMessage(text);
 				this._setStreaming(true);
@@ -720,7 +751,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		}
 		if (this._connectionState !== 'connected') {
 			// The local server is not reachable; answer with the default participant (Copilot) when there is one.
-			const fallback = pickFallbackParticipant(this.chatAgentService.getAgents());
+			const fallback = pickFallbackParticipant(this.chatAgentService.getAgents(), this._participantMode());
 			if (fallback) {
 				this._enqueueUserMessage(text);
 				this._setStreaming(true);
@@ -764,6 +795,23 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 
 		this._setStreaming(true);
 		void this._sendWithContext(text);
+	}
+
+	/** Which chat mode a participant turn runs in; Plan has no participant mode, so it behaves as Ask. */
+	private _participantMode(): 'agent' | 'ask' {
+		return this._currentMode === 'agent' ? 'agent' : 'ask';
+	}
+
+	/** In Agent mode every available tool is enabled for the participant. */
+	private _userSelectedTools(): Record<string, boolean> | undefined {
+		if (this._participantMode() !== 'agent') {
+			return undefined;
+		}
+		const tools: Record<string, boolean> = {};
+		for (const tool of this.toolsService.getTools(undefined)) {
+			tools[tool.id] = true;
+		}
+		return tools;
 	}
 
 	/** The active editor's file, with its selection when there is one, as participant context. */
@@ -812,6 +860,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					...toRequest(message, `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
 					command,
 					userSelectedModelId,
+					userSelectedTools: this._userSelectedTools(),
 					variables: { variables: this._activeEditorVariables() }
 				},
 				parts => {

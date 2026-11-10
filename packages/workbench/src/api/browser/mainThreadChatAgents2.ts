@@ -49,6 +49,13 @@ interface IChatParticipantContribution {
  */
 const UNSUPPORTED_PROGRESS_KINDS = new Set(['externalEdits', 'beginToolInvocation', 'updateToolInvocation', 'usage']);
 
+/** Manifest `modes` values map to chat modes; participants that declare none serve Ask, as in VS Code. */
+function toChatModes(modes: string[] | undefined): ChatModeKind[] {
+	const known = new Set<string>(Object.values(ChatModeKind));
+	const mapped = (modes ?? []).filter(m => known.has(m)) as ChatModeKind[];
+	return mapped.length > 0 ? mapped : [ChatModeKind.Ask];
+}
+
 function unsupported(method: string): Error {
 	return new Error(`MainThreadChatAgents2.${method} is not supported in SideX yet`);
 }
@@ -160,7 +167,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			})),
 			disambiguation: contribution?.disambiguation ?? [],
 			locations: [ChatAgentLocation.Chat],
-			modes: [ChatModeKind.Ask, ChatModeKind.Agent, ChatModeKind.Edit]
+			modes: toChatModes(contribution?.modes)
 		};
 
 		const disposable = this._chatAgentService.registerDynamicAgent(data, impl);
