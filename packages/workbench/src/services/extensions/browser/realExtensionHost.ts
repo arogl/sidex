@@ -33,7 +33,7 @@ import {
 	type IExtensionHost,
 	type IExtensionInspectInfo
 } from '../common/extensions.js';
-import { withFileLocations } from './realExtensionHostLocations.js';
+import { toFileStorageHome, withFileLocations } from './realExtensionHostLocations.js';
 import { RpcTrafficTracer } from './rpcTrafficTracer.js';
 
 export interface IRealExtensionHostInitData {
@@ -199,6 +199,7 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 		const snapshot = extensions.toSnapshot();
 		const allExtensions = withFileLocations(snapshot.allExtensions, builtinExtensionsDir);
 		const workspace = this._contextService.getWorkspace();
+		const userDataDir = await invoke<string>('get_user_data_dir');
 		const appRoot = await invoke<string>('ext_host_real_app_root', {
 			productJson: JSON.stringify(this._productService)
 		});
@@ -218,8 +219,11 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
-				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
-				workspaceStorageHome: this._environmentService.workspaceStorageHome
+				globalStorageHome: toFileStorageHome(
+					this._userDataProfilesService.defaultProfile.globalStorageHome,
+					userDataDir
+				),
+				workspaceStorageHome: toFileStorageHome(this._environmentService.workspaceStorageHome, userDataDir)
 			},
 			workspace:
 				this._contextService.getWorkbenchState() === WorkbenchState.EMPTY
