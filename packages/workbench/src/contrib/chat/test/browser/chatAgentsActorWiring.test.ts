@@ -24,6 +24,19 @@ describe('chat agents actor wiring', () => {
 	it('rejects unsupported APIs explicitly instead of ignoring them', () => {
 		const actor = read('api/browser/mainThreadChatAgents2.ts');
 		expect(actor).toContain('is not supported in SideX yet');
-		expect(actor).toContain("reject(unsupported('$provideCustomAgents'))");
+		expect(actor).toContain("reject(unsupported('$transferActiveChatSession'))");
+	});
+});
+
+describe('customization queries', () => {
+	it('answers instruction, skill, agent, command, hook and plugin queries with empty lists', () => {
+		const actor = readFileSync(resolve(import.meta.dir, '../../../../api/browser/mainThreadChatAgents2.ts'), 'utf8');
+		for (const name of ['CustomAgents', 'Instructions', 'Skills', 'SlashCommands', 'Hooks', 'Plugins']) {
+			expect(actor).toMatch(
+				new RegExp(
+					`\\$provide${name}\\(_token: CancellationToken\\): Promise<never\\[\\]> \\{\\s*return Promise\\.resolve<never\\[\\]>\\(\\[\\]\\);`
+				)
+			);
+		}
 	});
 });

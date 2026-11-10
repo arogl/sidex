@@ -254,22 +254,24 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$transferActiveChatSession(_toWorkspace: UriComponents): Promise<void> {
 		return Promise.reject(unsupported('$transferActiveChatSession'));
 	}
-	$provideCustomAgents(_token: CancellationToken): Promise<never> {
-		return Promise.reject(unsupported('$provideCustomAgents'));
+	// SideX has no prompts service, so there are no custom agents, instructions, skills, slash commands,
+	// hooks or plugins to report; an empty list is the true answer and lets Copilot build its prompt.
+	$provideCustomAgents(_token: CancellationToken): Promise<never[]> {
+		return Promise.resolve<never[]>([]);
 	}
-	$provideInstructions(_token: CancellationToken): Promise<never> {
-		return Promise.reject(unsupported('$provideInstructions'));
+	$provideInstructions(_token: CancellationToken): Promise<never[]> {
+		return Promise.resolve<never[]>([]);
 	}
-	$provideSkills(_token: CancellationToken): Promise<never> {
-		return Promise.reject(unsupported('$provideSkills'));
+	$provideSkills(_token: CancellationToken): Promise<never[]> {
+		return Promise.resolve<never[]>([]);
 	}
-	$provideSlashCommands(_token: CancellationToken): Promise<never> {
-		return Promise.reject(unsupported('$provideSlashCommands'));
+	$provideSlashCommands(_token: CancellationToken): Promise<never[]> {
+		return Promise.resolve<never[]>([]);
 	}
-	$provideHooks(_token: CancellationToken): Promise<never> {
-		return Promise.reject(unsupported('$provideHooks'));
+	$provideHooks(_token: CancellationToken): Promise<never[]> {
+		return Promise.resolve<never[]>([]);
 	}
-	$providePlugins(_token: CancellationToken): Promise<never> {
-		return Promise.reject(unsupported('$providePlugins'));
+	$providePlugins(_token: CancellationToken): Promise<never[]> {
+		return Promise.resolve<never[]>([]);
 	}
 }
