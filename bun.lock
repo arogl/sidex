@@ -33,6 +33,7 @@
         "@types/bun": "1.4.4",
         "@types/katex": "^0.16.8",
         "@types/trusted-types": "^2.0.7",
+        "@vscode/ripgrep-universal": "1.18.0",
         "@webgpu/types": "^0.1.74",
         "@xterm/headless": "^6.0.0",
         "jschardet": "^3.1.4",
@@ -412,6 +413,8 @@
     "@vscode/codicons": ["@vscode/codicons@0.0.46-46", "", {}, "sha512-5P6z/falKoU3upoWeCcgjMV7HYJ1dQE0F6cXViLKIRe+l4JvVjQXmL0LetwUjVRV0eh7yXfpgIoDrdY2VadNoQ=="],
 
     "@vscode/iconv-lite-umd": ["@vscode/iconv-lite-umd@0.7.1", "", {}, "sha512-tK6k0DXFHW7q5+GGuGZO+phpAqpxO4WXl+BLc/8/uOk3RsM2ssAL3CQUQDb1TGfwltjsauhN6S4ghYZzs4sPFw=="],
+
+    "@vscode/ripgrep-universal": ["@vscode/ripgrep-universal@1.18.0", "", {}, "sha512-kgrAVy1L/v/8erAjo+I720ifTf7o4rvYUwgsuEu97XAEBtPT9sk3HhcSgFpxMydvNmwdJtXo9/AVee7JjocTrg=="],
 
     "@vscode/tree-sitter-wasm": ["@vscode/tree-sitter-wasm@0.3.1", "", {}, "sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ=="],
 
