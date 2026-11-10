@@ -12,6 +12,7 @@ import { RunOnceScheduler } from '@sidex/base/common/async.js';
 import { CancellationToken } from '@sidex/base/common/cancellation.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
 import { arrayEqualsC } from '@sidex/base/common/equals.js';
+import { CancellationError } from '@sidex/base/common/errors.js';
 import { Emitter } from '@sidex/base/common/event.js';
 import { Iterable } from '@sidex/base/common/iterator.js';
 import {
@@ -36,6 +37,7 @@ import { URI } from '@sidex/base/common/uri.js';
 import { localize } from '@sidex/base/nls.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
+import { IDialogService } from '@sidex/platform/dialogs/common/dialogs.js';
 import * as JSONContributionRegistry from '@sidex/platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { observableConfigValue } from '@sidex/platform/observable/common/platformObservableUtils.js';
@@ -71,6 +73,8 @@ import {
 	toolMatchesModel,
 	VSCodeToolReference
 } from '../../common/tools/languageModelToolsService.js';
+import { IToolActivityService, summarizeToolOutput } from '../../common/tools/toolActivityService.js';
+import { describeToolConfirmation } from '../../common/tools/toolConfirmation.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(
 	JSONContributionRegistry.Extensions.JSONContribution
@@ -110,7 +114,9 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IToolActivityService private readonly _toolActivityService: IToolActivityService
 	) {
 		super();
 
@@ -380,7 +386,54 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 			throw new Error(`Tool ${dto.toolId} does not have an implementation registered.`);
 		}
 
-		const result = await entry.impl.invoke(dto, countTokens, { report() {} }, token);
+		// Tools ask for confirmation through prepareToolInvocation (shell commands, edits). Nothing runs
+		// until the user allows it; denying cancels the call, which the extension treats as declined.
+		const prepared = await entry.impl.prepareToolInvocation?.(
+			{
+				parameters: dto.parameters,
+				toolCallId: dto.callId,
+				chatRequestId: dto.chatRequestId,
+				chatSessionResource: dto.context?.sessionResource,
+				chatInteractionId: dto.chatInteractionId
+			},
+			token
+		);
+		const prompt = describeToolConfirmation(prepared?.confirmationMessages);
+		if (prompt) {
+			const { confirmed } = await this._dialogService.confirm({
+				type: 'warning',
+				message: prompt.message,
+				detail: prompt.detail,
+				primaryButton: localize('sidex.tools.allow', 'Allow'),
+				cancelButton: localize('sidex.tools.deny', 'Deny')
+			});
+			if (!confirmed) {
+				throw new CancellationError();
+			}
+		}
+
+		this._toolActivityService.start({
+			callId: dto.callId,
+			toolId: dto.toolId,
+			displayName: entry.data.displayName,
+			parameters: dto.parameters
+		});
+		let result: IToolResult;
+		try {
+			result = await entry.impl.invoke(dto, countTokens, { report() {} }, token);
+		} catch (error) {
+			this._toolActivityService.finish({
+				callId: dto.callId,
+				output: error instanceof Error ? error.message : String(error),
+				isError: true
+			});
+			throw error;
+		}
+		this._toolActivityService.finish({
+			callId: dto.callId,
+			output: summarizeToolOutput(result.content),
+			isError: false
+		});
 		this._onDidInvokeTool.fire({
 			toolId: dto.toolId,
 			sessionResource: dto.context?.sessionResource,

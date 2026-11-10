@@ -11,6 +11,7 @@ export interface IParticipantRef {
 	readonly id: string;
 	readonly name: string;
 	readonly isDefault?: boolean;
+	readonly modes?: readonly string[];
 	readonly slashCommands?: readonly { readonly name: string }[];
 }
 
@@ -41,7 +42,8 @@ function normalize(value: string): string {
  */
 export function routeToParticipant<T extends IParticipantRef>(
 	text: string,
-	agents: readonly T[]
+	agents: readonly T[],
+	mode?: string
 ): IParticipantRoute<T> | undefined {
 	const match = /^\s*@([^\s]+)\s*([\s\S]*)$/.exec(text);
 	if (!match) {
@@ -52,7 +54,7 @@ export function routeToParticipant<T extends IParticipantRef>(
 	const agent =
 		agents.find(a => a.name.toLowerCase() === mention || a.id.toLowerCase() === mention) ??
 		agents.find(a => normalize(a.name) === normalize(mention)) ??
-		(DEFAULT_AGENT_ALIASES.has(mention) ? agents.find(a => a.isDefault) : undefined);
+		(DEFAULT_AGENT_ALIASES.has(mention) ? pickFallbackParticipant(agents, mode) : undefined);
 	if (!agent) {
 		return undefined;
 	}
@@ -101,8 +103,8 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
  * Picks the participant that answers a message with no @mention when the local SideX server is
  * unavailable: the default participant (Copilot's), if one is registered.
  */
-export function pickFallbackParticipant<T extends IParticipantRef>(agents: readonly T[]): T | undefined {
-	return agents.find(a => a.isDefault);
+export function pickFallbackParticipant<T extends IParticipantRef>(agents: readonly T[], mode?: string): T | undefined {
+	return (mode ? agents.find(a => a.isDefault && a.modes?.includes(mode)) : undefined) ?? agents.find(a => a.isDefault);
 }
 
 export interface IHistoryMessage {

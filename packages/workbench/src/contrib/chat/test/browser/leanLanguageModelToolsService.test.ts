@@ -21,12 +21,31 @@ const extensionService = {
 };
 const logService = { trace() {}, debug() {}, info() {}, warn() {}, error() {} };
 
-function createService() {
+const activity = {
+	started: [] as string[],
+	finished: [] as { callId: string; output: string; isError: boolean }[],
+	start(a: { callId: string }) {
+		this.started.push(a.callId);
+	},
+	finish(a: { callId: string; output: string; isError: boolean }) {
+		this.finished.push(a);
+	}
+};
+
+function createService(confirmed = true, prompts: { message: string }[] = []) {
+	const dialogService = {
+		confirm: async (prompt: { message: string }) => {
+			prompts.push(prompt);
+			return { confirmed };
+		}
+	};
 	return new LeanLanguageModelToolsService(
 		extensionService as never,
 		contextKeyService as never,
 		logService as never,
-		configurationService as never
+		configurationService as never,
+		dialogService as never,
+		activity as never
 	);
 }
 
@@ -89,5 +108,60 @@ describe('LeanLanguageModelToolsService', () => {
 	it('does not track streaming tool calls', () => {
 		const service = createService();
 		expect(service.beginToolCall({} as never)).toBeUndefined();
+	});
+
+	it('runs a tool that asks for confirmation only after the user allows it', async () => {
+		const prompts: { message: string }[] = [];
+		const service = createService(true, prompts);
+		service.registerTool(toolData, {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'done' }] }),
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Run it?', message: 'ls' } })
+		});
+		const result = await service.invokeTool(
+			{ callId: 'ok', toolId: 'test_tool', parameters: {}, context: undefined },
+			async () => 0,
+			CancellationToken.None
+		);
+		expect(prompts.map(p => p.message)).toEqual(['Run it?']);
+		expect(result.content).toHaveLength(1);
+		expect(activity.finished.at(-1)).toEqual({ callId: 'ok', output: 'done', isError: false });
+	});
+
+	it('does not run a tool the user denies', async () => {
+		let ran = false;
+		const service = createService(false);
+		service.registerTool(toolData, {
+			invoke: async () => {
+				ran = true;
+				return { content: [] };
+			},
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Run it?' } })
+		});
+		await expect(
+			service.invokeTool(
+				{ callId: 'no', toolId: 'test_tool', parameters: {}, context: undefined },
+				async () => 0,
+				CancellationToken.None
+			)
+		).rejects.toThrow();
+		expect(ran).toBe(false);
+		expect(activity.started).not.toContain('no');
+	});
+
+	it('reports a failing tool as an error result and rethrows', async () => {
+		const service = createService();
+		service.registerTool(toolData, {
+			invoke: async () => {
+				throw new Error('boom');
+			}
+		});
+		await expect(
+			service.invokeTool(
+				{ callId: 'bad', toolId: 'test_tool', parameters: {}, context: undefined },
+				async () => 0,
+				CancellationToken.None
+			)
+		).rejects.toThrow('boom');
+		expect(activity.finished.at(-1)).toEqual({ callId: 'bad', output: 'boom', isError: true });
 	});
 });
