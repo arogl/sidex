@@ -131,3 +131,14 @@ describe('participant models in the picker', () => {
 		expect(merged.map(m => m.id)).toEqual(['a', 'participant:b']);
 	});
 });
+
+describe('pickFallbackParticipant agent id heuristic', () => {
+	test('agent mode prefers an agent-named participant over the ask default', () => {
+		const agents = [
+			{ id: 'github.copilot.default', name: 'GitHubCopilot', isDefault: true, modes: ['ask'] },
+			{ id: 'github.copilot.editsAgent', name: 'agent', isDefault: false, modes: ['ask'] }
+		];
+		expect(pickFallbackParticipant(agents, 'agent')?.id).toBe('github.copilot.editsAgent');
+		expect(pickFallbackParticipant(agents, 'ask')?.id).toBe('github.copilot.default');
+	});
+});

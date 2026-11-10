@@ -731,6 +731,11 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	sendMessage(text: string): void {
+		console.info(
+			`[sidex-chat] mode=${this._currentMode}; participants: ${JSON.stringify(
+				this.chatAgentService.getAgents().map(a => ({ id: a.id, isDefault: a.isDefault, modes: a.modes }))
+			)}`
+		);
 		const route = routeToParticipant(text, this.chatAgentService.getAgents(), this._participantMode());
 		if (route) {
 			this._enqueueUserMessage(text);
