@@ -36,3 +36,14 @@ describe('GitHub sign-in command wiring', () => {
 		expect(read('contrib/chat/common/copilotSignIn.ts')).toContain("id: 'github.copilot-chat'");
 	});
 });
+
+describe('chat configuration wiring', () => {
+	it('registers chat.agent.enabled with a true default and is imported by the workbench', () => {
+		expect(read('workbench.common.main.ts')).toContain(
+			"import './contrib/chat/browser/chatConfiguration.contribution.js';"
+		);
+		const config = read('contrib/chat/browser/chatConfiguration.contribution.ts');
+		expect(config).toContain('[ChatConfiguration.AgentEnabled]');
+		expect(config).toMatch(/default:\s*true/);
+	});
+});

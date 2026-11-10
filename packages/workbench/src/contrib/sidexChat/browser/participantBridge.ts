@@ -104,7 +104,14 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
  * unavailable: the default participant (Copilot's), if one is registered.
  */
 export function pickFallbackParticipant<T extends IParticipantRef>(agents: readonly T[], mode?: string): T | undefined {
-	return (mode ? agents.find(a => a.isDefault && a.modes?.includes(mode)) : undefined) ?? agents.find(a => a.isDefault);
+	const byMode = mode ? agents.find(a => a.isDefault && a.modes?.includes(mode)) : undefined;
+	if (byMode) {
+		return byMode;
+	}
+	// Copilot declares its agent-mode participant without a usable `modes` entry here, so in Agent mode
+	// prefer a participant whose id says it is the agent one before settling for the Ask default.
+	const byId = mode === 'agent' ? agents.find(a => /(^|[.\-_])(edits)?agent$/i.test(a.id)) : undefined;
+	return byId ?? agents.find(a => a.isDefault);
 }
 
 export interface IHistoryMessage {

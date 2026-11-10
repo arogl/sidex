@@ -216,6 +216,7 @@ import './contrib/search/browser/searchView.js';
 // Sidex Chat
 import './contrib/sidexChat/browser/sidexChat.contribution.js';
 import './contrib/chat/browser/chat.languageModels.contribution.js';
+import './contrib/chat/browser/chatConfiguration.contribution.js';
 import './contrib/chat/browser/chatGitHubSignIn.contribution.js';
 
 // Sidex Complete
