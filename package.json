@@ -71,6 +71,7 @@
     "@types/bun": "1.4.4",
     "@types/katex": "^0.16.8",
     "@types/trusted-types": "^2.0.7",
+    "@vscode/ripgrep-universal": "1.18.0",
     "@webgpu/types": "^0.1.74",
     "@xterm/headless": "^6.0.0",
     "jschardet": "^3.1.4",
