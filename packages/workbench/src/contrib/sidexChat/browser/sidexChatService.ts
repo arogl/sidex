@@ -32,11 +32,14 @@ import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './l
 import {
 	buildParticipantHistory,
 	mergePickerModels,
+	PARTICIPANT_SETTLE_MS,
+	PARTICIPANT_WAIT_MS,
 	parseParticipantModelId,
 	pickFallbackParticipant,
 	progressToChunks,
 	routeToParticipant,
-	toParticipantModelId
+	toParticipantModelId,
+	waitForCondition
 } from './participantBridge.js';
 import {
 	buildSubagentPrompt,
@@ -736,12 +739,35 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		this._setStreaming(false);
 	}
 
-	sendMessage(text: string): void {
+	sendMessage(text: string, waitedForParticipants = false): void {
 		console.info(
 			`[sidex-chat] mode=${this._currentMode}; participants: ${JSON.stringify(
 				this.chatAgentService.getAgents().map(a => ({ id: a.id, isDefault: a.isDefault, modes: a.modes }))
 			)}`
 		);
+		if (
+			!waitedForParticipants &&
+			this._connectionState !== 'connected' &&
+			this.chatAgentService.getAgents().length === 0
+		) {
+			// Extensions are still starting, so Copilot has not registered yet. Hold the message instead of
+			// failing against the local server, which is not running either.
+			this._enqueueUserMessage(text);
+			this._setStreaming(true);
+			void waitForCondition(
+				() => this.chatAgentService.getAgents().length > 0 || !this._isStreaming,
+				listener => this.chatAgentService.onDidChangeAgents(listener),
+				PARTICIPANT_WAIT_MS
+			)
+				// Participants register in a burst; give the rest a moment so the right one (Agent vs Ask) is picked.
+				.then(() => new Promise<void>(resolve => setTimeout(resolve, PARTICIPANT_SETTLE_MS)))
+				.then(() => {
+					if (this._isStreaming) {
+						this.sendMessage(text, true);
+					}
+				});
+			return;
+		}
 		const route = routeToParticipant(text, this.chatAgentService.getAgents(), this._participantMode());
 		if (route) {
 			this._enqueueUserMessage(text);
