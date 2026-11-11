@@ -18,6 +18,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';
 import {
 	IChatAgentHistoryEntry,
 	IChatAgentRequest,
@@ -855,7 +856,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		const cts = new CancellationTokenSource();
 		this._participantCancellation = cts;
 		try {
-			const sessionResource = URI.from({ scheme: 'sidex-chat', path: `/${this._sessionId ?? 'session'}` });
+			// The same local-session URI VS Code uses. Copilot builds its debug-log and transcript file names from
+			// the resource, and a bespoke `sidex-chat:/...` string became the folder name `sidex-chat:` (invalid on Windows).
+			const sessionResource = LocalChatSessionUri.forSession(this._sessionId ?? 'session');
 			const toRequest = (text: string, requestId: string): IChatAgentRequest => ({
 				sessionResource,
 				requestId,
