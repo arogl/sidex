@@ -177,3 +177,40 @@ export function mergePickerModels(
 	const seen = new Set(serverModels.map(m => m.id));
 	return [...serverModels, ...participantModels.filter(m => !seen.has(m.id))];
 }
+
+/** How long a message waits for Copilot (or another participant) to finish registering at startup. */
+export const PARTICIPANT_WAIT_MS = 30_000;
+
+/** Extra time after the first participant appears, so the rest of Copilot's participants are registered. */
+export const PARTICIPANT_SETTLE_MS = 1_500;
+
+/**
+ * Resolves true as soon as `check` passes (now, or after `subscribe` fires), or false after `timeoutMs`.
+ * Used to hold a message sent while extensions are still starting.
+ */
+export function waitForCondition(
+	check: () => boolean,
+	subscribe: (listener: () => void) => { dispose(): void },
+	timeoutMs: number
+): Promise<boolean> {
+	if (check()) {
+		return Promise.resolve(true);
+	}
+	return new Promise(resolve => {
+		let done = false;
+		const finish = (result: boolean) => {
+			if (!done) {
+				done = true;
+				clearTimeout(timer);
+				subscription.dispose();
+				resolve(result);
+			}
+		};
+		const subscription = subscribe(() => {
+			if (check()) {
+				finish(true);
+			}
+		});
+		const timer = setTimeout(() => finish(false), timeoutMs);
+	});
+}
