@@ -417,7 +417,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 						tool_calls: [
 							{
 								id: activity.callId,
-								function: { name: activity.displayName, arguments: JSON.stringify(activity.parameters) }
+								function: { name: activity.toolId, arguments: JSON.stringify(activity.parameters) }
 							}
 						]
 					});

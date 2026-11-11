@@ -1,9 +1,10 @@
-import { Component, DOM } from '../base.js';
-import { IToolCallInfo } from '../../sidexChatService.js';
-import { InlineDiffView, DiffCallbacks } from '../diff/inlineDiffView.js';
-import { DiffHunk } from '../diff/diffAlgorithm.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
+import { IToolCallInfo } from '../../sidexChatService.js';
+import { Component, DOM } from '../base.js';
+import { DiffHunk } from '../diff/diffAlgorithm.js';
+import { DiffCallbacks, InlineDiffView } from '../diff/inlineDiffView.js';
+import { describeToolCall, humanizeToolName } from './toolCallLabels.js';
 
 const EDIT_TOOLS = new Set([
 	'edit_file',
@@ -170,7 +171,7 @@ export class ToolCallItem extends Component {
 		if (descFn) {
 			return descFn(args);
 		}
-		return tc.name.replace(/_/g, ' ');
+		return describeToolCall(tc.name, args) ?? humanizeToolName(tc.name);
 	}
 
 	private _renderDiff(editInfo: FileEditInfo): void {
