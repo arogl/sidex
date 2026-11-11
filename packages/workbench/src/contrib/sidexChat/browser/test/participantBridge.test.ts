@@ -8,7 +8,8 @@ import {
 	pickFallbackParticipant,
 	progressToChunks,
 	routeToParticipant,
-	toParticipantModelId
+	toParticipantModelId,
+	waitForCondition
 } from '../participantBridge.js';
 
 const agents = [
@@ -150,5 +151,49 @@ describe('participant session resource', () => {
 		const service = readFileSync(resolve(import.meta.dir, '../sidexChatService.ts'), 'utf8');
 		expect(service).toContain('LocalChatSessionUri.forSession(');
 		expect(service).not.toContain("scheme: 'sidex-chat'");
+	});
+});
+
+describe('waitForCondition', () => {
+	it('resolves true at once when the condition already holds', async () => {
+		let subscribed = false;
+		const result = await waitForCondition(
+			() => true,
+			() => {
+				subscribed = true;
+				return { dispose() {} };
+			},
+			50
+		);
+		expect(result).toBe(true);
+		expect(subscribed).toBe(false);
+	});
+
+	it('resolves true when the event fires and the condition then holds, and stops listening', async () => {
+		let ready = false;
+		let fire: () => void = () => {};
+		let disposed = false;
+		const pending = waitForCondition(
+			() => ready,
+			listener => {
+				fire = listener;
+				return { dispose: () => (disposed = true) };
+			},
+			1000
+		);
+		fire(); // not ready yet: keeps waiting
+		ready = true;
+		fire();
+		expect(await pending).toBe(true);
+		expect(disposed).toBe(true);
+	});
+
+	it('resolves false after the timeout', async () => {
+		const result = await waitForCondition(
+			() => false,
+			() => ({ dispose() {} }),
+			10
+		);
+		expect(result).toBe(false);
 	});
 });
