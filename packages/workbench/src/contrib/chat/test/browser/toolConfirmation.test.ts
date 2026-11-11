@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { summarizeToolOutput } from '../../common/tools/toolActivityService.js';
-import { describeToolConfirmation } from '../../common/tools/toolConfirmation.js';
+import { approvalScope, describeToolConfirmation } from '../../common/tools/toolConfirmation.js';
 
 describe('describeToolConfirmation', () => {
 	it('returns nothing when the tool asked for no confirmation', () => {
@@ -33,5 +33,28 @@ describe('summarizeToolOutput', () => {
 		const out = summarizeToolOutput([{ kind: 'text', value: 'x'.repeat(5000) }]);
 		expect(out.endsWith('(truncated)')).toBe(true);
 		expect(out.length).toBeLessThan(4100);
+	});
+});
+
+describe('approvalScope', () => {
+	it('remembers other tools by tool', () => {
+		expect(approvalScope('copilot_readFile', 'Read File', {})).toEqual({
+			key: 'copilot_readFile',
+			description: 'Read File'
+		});
+	});
+
+	it('remembers a terminal command by program and subcommand', () => {
+		expect(approvalScope('run_in_terminal', 'Run in Terminal', { command: 'git log --oneline -5' })).toEqual({
+			key: 'run_in_terminal:git log',
+			description: '"git log" commands'
+		});
+		expect(approvalScope('run_in_terminal', 'Run in Terminal', { command: 'ls -la' })?.key).toBe('run_in_terminal:ls');
+	});
+
+	it('does not remember chained, redirected or substituted commands', () => {
+		for (const command of ['git log; rm -rf x', 'a && b', 'cat x | sh', 'echo hi > f', 'echo $(whoami)', 'a\nb', '']) {
+			expect(approvalScope('run_in_terminal', 'Run in Terminal', { command })).toBeUndefined();
+		}
 	});
 });

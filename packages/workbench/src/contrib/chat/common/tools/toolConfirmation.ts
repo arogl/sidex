@@ -33,3 +33,39 @@ export function describeToolConfirmation(
 	const detail = [text(confirmation?.message), text(confirmation?.disclaimer)].filter(Boolean).join('\n\n');
 	return { message: title, detail: detail || undefined };
 }
+
+export interface IApprovalScope {
+	/** What a remembered "don't ask again" covers. */
+	readonly key: string;
+	/** What the user is agreeing to, in words. */
+	readonly description: string;
+}
+
+const SHELL_CONTROL = /[;&|<>`$(){}\r\n]/;
+
+/**
+ * What an approval can be remembered for, or undefined when it must be asked every time.
+ * A shell command is remembered by its program and subcommand (`git log`), and never when it chains or
+ * redirects (`git log; rm -rf x`), because then the first words say nothing about what runs.
+ * Every other tool is remembered by the tool.
+ */
+export function approvalScope(
+	toolId: string,
+	displayName: string,
+	parameters: Record<string, unknown>
+): IApprovalScope | undefined {
+	if (toolId !== 'run_in_terminal') {
+		return { key: toolId, description: displayName };
+	}
+	const command = typeof parameters.command === 'string' ? parameters.command.trim() : '';
+	if (!command || SHELL_CONTROL.test(command)) {
+		return undefined;
+	}
+	const [program, next] = command.split(/\s+/);
+	if (!program || /^["']/.test(program)) {
+		return undefined;
+	}
+	const subcommand = next && /^[A-Za-z][\w-]*$/.test(next) ? ` ${next}` : '';
+	const scope = `${program}${subcommand}`.toLowerCase();
+	return { key: `${toolId}:${scope}`, description: `"${program}${subcommand}" commands` };
+}
