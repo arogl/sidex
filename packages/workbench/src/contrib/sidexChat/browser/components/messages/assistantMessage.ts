@@ -1,14 +1,15 @@
-import { Component, DOM, $ } from '../base.js';
-import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
+import { Emitter, Event } from '@sidex/base/common/event.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
-import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
-import { renderMarkdown } from '../markdownRenderer.js';
-import { Collapsible } from '../collapsible/collapsible.js';
-import { ToolCallItem, FileEditInfo } from '../tools/toolCallItem.js';
-import { ThinkingBlock } from './thinkingBlock.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
+import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
+import { $, Component, DOM } from '../base.js';
+import { Collapsible } from '../collapsible/collapsible.js';
+import { renderMarkdown } from '../markdownRenderer.js';
+import { FileEditInfo, ToolCallItem } from '../tools/toolCallItem.js';
+import { buildActivityLabel } from '../tools/toolCallLabels.js';
+import { ThinkingBlock } from './thinkingBlock.js';
 
 const EDIT_TOOL_NAMES = new Set([
 	'edit_file',
@@ -75,7 +76,7 @@ export class AssistantMessage extends Component {
 
 			// Non-edit tools: show Cursor-style descriptive collapsible
 			if (nonEditCalls.length > 0) {
-				const label = buildActivityLabel(nonEditCalls);
+				const label = buildActivityLabel(nonEditCalls.map(tc => tc.name));
 				const activitySection = new Collapsible(label);
 				activitySection.appendTo(this.element);
 				this._register(activitySection);
@@ -275,69 +276,4 @@ function stripLineNumbers(output: string): string {
 		return output;
 	}
 	return lines.map(line => line.replace(prefix, '')).join('\n');
-}
-
-const READ_TOOL_SET = new Set([
-	'read_file',
-	'batch_read',
-	'grep',
-	'glob',
-	'search_files',
-	'lsp_hover',
-	'lsp_definition',
-	'lsp_references'
-]);
-const SEARCH_TOOL_SET = new Set(['grep', 'glob', 'search_files', 'context_search', 'web_search']);
-const SHELL_TOOL_SET = new Set(['shell', 'run_background']);
-
-function buildActivityLabel(toolCalls: IToolCallInfo[]): string {
-	let readCount = 0;
-	let searchCount = 0;
-	let shellCount = 0;
-	const readFiles = new Set<string>();
-
-	for (const tc of toolCalls) {
-		if (READ_TOOL_SET.has(tc.name)) {
-			readCount++;
-			try {
-				const args = JSON.parse(tc.input || '{}');
-				if (args.path) {
-					const name = args.path.split('/').pop() || args.path;
-					readFiles.add(name);
-				}
-			} catch {
-				/* */
-			}
-		}
-		if (SEARCH_TOOL_SET.has(tc.name)) {
-			searchCount++;
-		}
-		if (SHELL_TOOL_SET.has(tc.name)) {
-			shellCount++;
-		}
-	}
-
-	if (readCount > 0 && searchCount === 0 && shellCount === 0) {
-		const fileCount = readFiles.size || readCount;
-		return `Explored ${fileCount} file${fileCount > 1 ? 's' : ''}`;
-	}
-	if (searchCount > 0 && readCount === 0 && shellCount === 0) {
-		return `${searchCount} search${searchCount > 1 ? 'es' : ''}`;
-	}
-	if (shellCount > 0 && readCount === 0 && searchCount === 0) {
-		return `Ran ${shellCount} command${shellCount > 1 ? 's' : ''}`;
-	}
-
-	// Mixed activities
-	const parts: string[] = [];
-	if (readCount > 0) {
-		parts.push(`${readFiles.size || readCount} file${readFiles.size > 1 ? 's' : ''}`);
-	}
-	if (searchCount > 0) {
-		parts.push(`${searchCount} search${searchCount > 1 ? 'es' : ''}`);
-	}
-	if (shellCount > 0) {
-		parts.push(`${shellCount} command${shellCount > 1 ? 's' : ''}`);
-	}
-	return `Explored ${parts.join(', ')}`;
 }
