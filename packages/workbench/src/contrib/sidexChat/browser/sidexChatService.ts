@@ -404,6 +404,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		// Tools the participant runs show up in the chat as tool calls with their results.
 		this._register(
 			toolActivityService.onDidStart(activity => {
+				console.info(
+					`[sidex-chat] tool start: ${activity.toolId} (${activity.displayName}) ${JSON.stringify(activity.parameters).slice(0, 300)}`
+				);
 				if (this._participantCancellation) {
 					this._handleChunk({
 						type: 'tool_call',
@@ -419,6 +422,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		);
 		this._register(
 			toolActivityService.onDidFinish(activity => {
+				console.info(
+					`[sidex-chat] tool ${activity.isError ? 'failed' : 'finished'}: ${activity.callId} ${activity.output.slice(0, 500)}`
+				);
 				if (this._participantCancellation) {
 					this._handleChunk({
 						type: 'tool_result',
@@ -816,6 +822,10 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		for (const tool of this.toolsService.getTools(undefined)) {
 			tools[tool.id] = true;
 		}
+		const ids = Object.keys(tools);
+		console.info(
+			`[sidex-chat] offering ${ids.length} tools; terminal/shell: ${JSON.stringify(ids.filter(id => /terminal|shell|run/i.test(id)))}`
+		);
 		return tools;
 	}
 
@@ -876,7 +886,14 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				history,
 				cts.token
 			);
-			console.info(`[sidex-chat] participant '${agentId}' finished: ${JSON.stringify(result)}`);
+			// The full result carries the rendered prompt (attachments included), so log only what helps diagnose a turn.
+			console.info(
+				`[sidex-chat] participant '${agentId}' finished: ${JSON.stringify({
+					timings: result.timings,
+					errorDetails: result.errorDetails,
+					metadataKeys: Object.keys(result.metadata ?? {})
+				})}`
+			);
 			if (result.errorDetails) {
 				this._handleChunk({ type: 'error', error: result.errorDetails.message } as IStreamChunk);
 				return;
