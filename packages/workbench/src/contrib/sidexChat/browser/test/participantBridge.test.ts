@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
 	buildParticipantHistory,
 	mergePickerModels,
@@ -141,6 +143,14 @@ describe('pickFallbackParticipant agent id heuristic', () => {
 		];
 		expect(pickFallbackParticipant(agents, 'agent')?.id).toBe('github.copilot.editsAgent');
 		expect(pickFallbackParticipant(agents, 'ask')?.id).toBe('github.copilot.default');
+	});
+});
+
+describe('participant session resource', () => {
+	it('uses the VS Code local chat session URI, not a bespoke scheme', () => {
+		const service = readFileSync(resolve(import.meta.dir, '../sidexChatService.ts'), 'utf8');
+		expect(service).toContain('LocalChatSessionUri.forSession(');
+		expect(service).not.toContain("scheme: 'sidex-chat'");
 	});
 });
 
