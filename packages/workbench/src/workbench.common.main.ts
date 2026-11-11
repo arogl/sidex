@@ -218,6 +218,7 @@ import './contrib/sidexChat/browser/sidexChat.contribution.js';
 import './contrib/chat/browser/chat.languageModels.contribution.js';
 import './contrib/chat/browser/chatConfiguration.contribution.js';
 import './contrib/chat/browser/tools/runInTerminalTool.contribution.js';
+import './contrib/chat/browser/tools/todoListTool.contribution.js';
 import './contrib/chat/browser/chatGitHubSignIn.contribution.js';
 
 // Sidex Complete
