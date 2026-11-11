@@ -74,7 +74,7 @@ import {
 	VSCodeToolReference
 } from '../../common/tools/languageModelToolsService.js';
 import { IToolActivityService, summarizeToolOutput } from '../../common/tools/toolActivityService.js';
-import { describeToolConfirmation } from '../../common/tools/toolConfirmation.js';
+import { approvalScope, describeToolConfirmation } from '../../common/tools/toolConfirmation.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(
 	JSONContributionRegistry.Extensions.JSONContribution
@@ -106,6 +106,8 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 		new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750)
 	);
 	private readonly _tools = new Map<string, IToolEntry>();
+	/** Approvals the user chose to remember; kept for the session only. */
+	private readonly _approvals = new Set<string>();
 	private readonly _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
 	private readonly _isAgentModeEnabled: IObservable<boolean>;
@@ -399,16 +401,26 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 			token
 		);
 		const prompt = describeToolConfirmation(prepared?.confirmationMessages);
-		if (prompt) {
-			const { confirmed } = await this._dialogService.confirm({
+		const scope = prompt ? approvalScope(dto.toolId, entry.data.displayName, dto.parameters) : undefined;
+		if (prompt && !(scope && this._approvals.has(scope.key))) {
+			const { confirmed, checkboxChecked } = await this._dialogService.confirm({
 				type: 'warning',
 				message: prompt.message,
 				detail: prompt.detail,
 				primaryButton: localize('sidex.tools.allow', 'Allow'),
-				cancelButton: localize('sidex.tools.deny', 'Deny')
+				cancelButton: localize('sidex.tools.deny', 'Deny'),
+				checkbox: scope
+					? {
+							label: localize('sidex.tools.remember', "Don't ask again for {0} in this session", scope.description),
+							checked: false
+						}
+					: undefined
 			});
 			if (!confirmed) {
 				throw new CancellationError();
+			}
+			if (scope && checkboxChecked) {
+				this._approvals.add(scope.key);
 			}
 		}
 

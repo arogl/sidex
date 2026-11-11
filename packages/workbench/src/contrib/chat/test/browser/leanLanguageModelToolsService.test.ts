@@ -32,11 +32,11 @@ const activity = {
 	}
 };
 
-function createService(confirmed = true, prompts: { message: string }[] = []) {
+function createService(confirmed = true, prompts: { message: string }[] = [], checkboxChecked = false) {
 	const dialogService = {
 		confirm: async (prompt: { message: string }) => {
 			prompts.push(prompt);
-			return { confirmed };
+			return { confirmed, checkboxChecked };
 		}
 	};
 	return new LeanLanguageModelToolsService(
@@ -125,6 +125,40 @@ describe('LeanLanguageModelToolsService', () => {
 		expect(prompts.map(p => p.message)).toEqual(['Run it?']);
 		expect(result.content).toHaveLength(1);
 		expect(activity.finished.at(-1)).toEqual({ callId: 'ok', output: 'done', isError: false });
+	});
+
+	it('stops asking for a tool once the user chose to remember it', async () => {
+		const prompts: { message: string }[] = [];
+		const service = createService(true, prompts, true);
+		service.registerTool(toolData, {
+			invoke: async () => ({ content: [] }),
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Run it?', message: 'ls' } })
+		});
+		for (const callId of ['r1', 'r2', 'r3']) {
+			await service.invokeTool(
+				{ callId, toolId: 'test_tool', parameters: {}, context: undefined },
+				async () => 0,
+				CancellationToken.None
+			);
+		}
+		expect(prompts).toHaveLength(1);
+	});
+
+	it('keeps asking when the user did not tick the box', async () => {
+		const prompts: { message: string }[] = [];
+		const service = createService(true, prompts, false);
+		service.registerTool(toolData, {
+			invoke: async () => ({ content: [] }),
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Run it?', message: 'ls' } })
+		});
+		for (const callId of ['k1', 'k2']) {
+			await service.invokeTool(
+				{ callId, toolId: 'test_tool', parameters: {}, context: undefined },
+				async () => 0,
+				CancellationToken.None
+			);
+		}
+		expect(prompts).toHaveLength(2);
 	});
 
 	it('does not run a tool the user denies', async () => {
