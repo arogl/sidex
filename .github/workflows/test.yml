@@ -63,8 +63,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - id: changes
+        name: Detect Rust changes
+        uses: ./.github/actions/detect-changes
+        with:
+          pattern: '^(\.github/workflows/test\.yml|crates/|apps/desktop/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.cargo/|\.vscode-version$)'
+
       - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
+        if: steps.changes.outputs.changed == 'true' && runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -75,18 +81,25 @@ jobs:
             libssl-dev
 
       - name: Install Rust stable
+        if: steps.changes.outputs.changed == 'true'
         uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           toolchain: stable
 
       - name: Rust cache
+        if: steps.changes.outputs.changed == 'true'
         uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: ". -> target"
           key: test-${{ matrix.os }}
 
       - name: Run tests
+        if: steps.changes.outputs.changed == 'true'
         run: cargo test --workspace --no-fail-fast
+
+      - name: Skip
+        if: steps.changes.outputs.changed != 'true'
+        run: echo "No Rust-affecting changes in this pull request; nothing to do."
 
   wasm-tfidf:
     name: wasm tfidf (build + parity)
