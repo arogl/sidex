@@ -40,8 +40,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - id: changes
+        name: Detect Rust changes
+        uses: ./.github/actions/detect-changes
+        with:
+          pattern: '^(\.github/workflows/build\.yml|crates/|apps/desktop/|Cargo\.toml$|Cargo\.lock$|rust-toolchain\.toml$|\.cargo/|\.vscode-version$)'
+
       - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
+        if: steps.changes.outputs.changed == 'true' && runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -52,16 +58,23 @@ jobs:
             libssl-dev
 
       - name: Install Rust stable
+        if: steps.changes.outputs.changed == 'true'
         uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Rust cache
+        if: steps.changes.outputs.changed == 'true'
         uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: "./apps/desktop -> target"
           key: check-${{ matrix.target }}
 
       - name: Cargo check
+        if: steps.changes.outputs.changed == 'true'
         run: cargo check --manifest-path apps/desktop/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Skip
+        if: steps.changes.outputs.changed != 'true'
+        run: echo "No Rust-affecting changes in this pull request; nothing to do."

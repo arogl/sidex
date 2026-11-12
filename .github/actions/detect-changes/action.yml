@@ -1,0 +1,38 @@
+name: Detect changed paths
+description: >-
+  Reports whether a pull request changes any file matching a pattern. Jobs use it to skip their steps (not the
+  job itself) so that required matrix checks still report under their real names. Fails open: when the changed
+  files cannot be determined, or the event is not a pull request, the result is true.
+
+inputs:
+  pattern:
+    description: Extended regular expression matched against each changed path (relative to the repo root).
+    required: true
+
+outputs:
+  changed:
+    description: "'true' when a changed file matches, or when this could not be determined; otherwise 'false'."
+    value: ${{ steps.filter.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    - id: filter
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PATTERN: ${{ inputs.pattern }}
+      run: |
+        changed=true  # fail open: any error below leaves the work running
+        if [ -n "$BASE_SHA" ] && git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+          if files=$(git diff --name-only "$BASE_SHA" HEAD); then
+            # Editing this action must also run the jobs that use it.
+            if printf '%s\n' "$files" | grep -qE -e "$PATTERN" -e '^\.github/actions/detect-changes/'; then
+              changed=true
+            else
+              changed=false
+            fi
+          fi
+        fi
+        echo "changed=$changed" >> "$GITHUB_OUTPUT"
+        echo "Matching changes: $changed"
