@@ -3,13 +3,15 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
 	buildParticipantHistory,
+	inlineReferenceLabel,
 	mergePickerModels,
 	parseParticipantModelId,
 	pickFallbackParticipant,
 	progressToChunks,
 	routeToParticipant,
 	toParticipantModelId,
-	waitForCondition
+	waitForCondition,
+	withParagraphBreak
 } from '../participantBridge.js';
 
 const agents = [
@@ -211,5 +213,51 @@ describe('waitForCondition', () => {
 			10
 		);
 		expect(result).toBe(false);
+	});
+});
+
+describe('inline references', () => {
+	it('keep the file name in the sentence instead of being reported as unsupported', () => {
+		expect(
+			progressToChunks([
+				{ kind: 'markdownContent', content: { value: 'Created ' } },
+				{ kind: 'inlineReference', inlineReference: { path: 'e:\\Git\\app\\text.txt' } },
+				{ kind: 'markdownContent', content: { value: ' in the workspace root.' } }
+			])
+		).toEqual([
+			{ type: 'text', content: 'Created ' },
+			{ type: 'text', content: '`text.txt`' },
+			{ type: 'text', content: ' in the workspace root.' }
+		]);
+	});
+	it('prefers the given name, then a symbol or location', () => {
+		expect(inlineReferenceLabel({ path: '/a/b.ts' }, 'Pretty')).toBe('Pretty');
+		expect(inlineReferenceLabel({ name: 'doThing', location: { uri: { path: '/a/b.ts' } } }, undefined)).toBe(
+			'doThing'
+		);
+		expect(inlineReferenceLabel({ uri: { path: '/a/b.ts' }, range: {} }, undefined)).toBe('b.ts');
+		expect(inlineReferenceLabel(undefined, undefined)).toBe('');
+	});
+	it('adds nothing when there is no usable name', () => {
+		expect(progressToChunks([{ kind: 'inlineReference', inlineReference: {} }])).toEqual([]);
+	});
+});
+
+describe('withParagraphBreak', () => {
+	it('starts a new paragraph for text that follows a tool call', () => {
+		expect(withParagraphBreak('I will remove the file.', '## Done', true)).toBe('\n\n## Done');
+	});
+	it('leaves other text alone', () => {
+		expect(withParagraphBreak('I will', ' remove', false)).toBe(' remove');
+		expect(withParagraphBreak('', 'First', true)).toBe('First');
+		expect(withParagraphBreak('Done.\n', 'Next', true)).toBe('Next');
+		expect(withParagraphBreak('Done.', '\nNext', true)).toBe('\nNext');
+	});
+});
+
+describe('streaming text body', () => {
+	it('is updated in place, not appended again for every chunk', () => {
+		const view = readFileSync(resolve(import.meta.dir, '../sidexChatView.ts'), 'utf8');
+		expect(view).toContain("querySelector('.markdown-root, .sc-assistant-body')");
 	});
 });

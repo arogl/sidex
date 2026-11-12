@@ -93,6 +93,14 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 				}
 				break;
 			}
+			case 'inlineReference': {
+				// A file or symbol mentioned inside the text; without this the name would be missing from the sentence.
+				const label = inlineReferenceLabel(part['inlineReference'], part['name']);
+				if (label) {
+					chunks.push({ type: 'text', content: `\`${label}\`` });
+				}
+				break;
+			}
 			case 'progressMessage': {
 				// transient status text; SideX has no slot for it yet
 				break;
@@ -225,4 +233,36 @@ export function waitForCondition(
 		});
 		const timer = setTimeout(() => finish(false), timeoutMs);
 	});
+}
+
+function lastSegment(path: unknown): string {
+	return typeof path === 'string' ? (path.split(/[\\/]/).filter(Boolean).pop() ?? '') : '';
+}
+
+/** The name to show for an inline reference: its own name, else the file name of its URI, location or symbol. */
+export function inlineReferenceLabel(reference: unknown, name: unknown): string {
+	if (typeof name === 'string' && name) {
+		return name;
+	}
+	const ref = reference as
+		| { path?: unknown; uri?: { path?: unknown }; name?: unknown; location?: { uri?: { path?: unknown } } }
+		| undefined;
+	if (!ref) {
+		return '';
+	}
+	if (typeof ref.name === 'string' && ref.name) {
+		return ref.name;
+	}
+	return lastSegment(ref.path) || lastSegment(ref.uri?.path) || lastSegment(ref.location?.uri?.path);
+}
+
+/**
+ * Text that arrives after a tool call starts its own paragraph; without this a heading such as `## Done`
+ * is glued to the sentence before the call and renders as plain text.
+ */
+export function withParagraphBreak(existing: string, next: string, followsToolCall: boolean): string {
+	if (!followsToolCall || !next || !existing || /\s$/.test(existing) || /^\s/.test(next)) {
+		return next;
+	}
+	return `\n\n${next}`;
 }

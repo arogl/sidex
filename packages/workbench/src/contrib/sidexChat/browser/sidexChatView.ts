@@ -3,37 +3,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sidexChatView.css';
-import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import * as DOM from '@sidex/base/browser/dom.js';
-import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
-import { IContextMenuService } from '@sidex/platform/contextview/browser/contextView.js';
-import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
-import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
-import { IViewDescriptorService } from '../../../common/views.js';
-import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
-import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
-import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
-import { ISidexChatService, IChatMessage } from './sidexChatService.js';
 import { DisposableStore } from '@sidex/base/common/lifecycle.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ICommandService } from '@sidex/platform/commands/common/commands.js';
-import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
-import { ChatHeader } from './components/toolbar/chatHeader.js';
+import { ICommandService } from '@sidex/platform/commands/common/commands.js';
+import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
+import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '@sidex/platform/contextview/browser/contextView.js';
+import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
+import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
+import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
+import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { AccountPanel } from './account/accountPanel.js';
+import { IAccountService } from './account/accountService.js';
 import { ChatInput } from './components/input/chatInput.js';
-import { UserMessage } from './components/messages/userMessage.js';
-import { AssistantMessage } from './components/messages/assistantMessage.js';
 import { renderMarkdown } from './components/markdownRenderer.js';
-import { PermissionRequestDialog, PermissionRequestData } from './components/messages/permissionRequest.js';
+import { AssistantMessage } from './components/messages/assistantMessage.js';
+import { PermissionRequestData, PermissionRequestDialog } from './components/messages/permissionRequest.js';
 import { QuestionDialog } from './components/messages/questionDialog.js';
 import { SubagentCard, SubagentInfo } from './components/messages/subagentCard.js';
-import { SidexOrchestrator, OrchestrationView, StreamConsumer } from './orchestrator/index.js';
-import { IAccountService } from './account/accountService.js';
-import { AccountPanel } from './account/accountPanel.js';
+import { UserMessage } from './components/messages/userMessage.js';
+import { ChatHeader } from './components/toolbar/chatHeader.js';
 import { serverWsUrl } from './localServer.js';
+import { OrchestrationView, SidexOrchestrator, StreamConsumer } from './orchestrator/index.js';
+import { IChatMessage, ISidexChatService } from './sidexChatService.js';
 
 const $ = DOM.$;
 
@@ -728,7 +728,9 @@ export class SidexChatViewPane extends ViewPane {
 	}
 
 	private _updateAssistantBody(comp: AssistantMessage, msg: IChatMessage): void {
-		const bodyEl = comp.element.querySelector('.markdown-root') as HTMLElement | null;
+		// The body is created on the first update when the message began with a tool call, so look for that
+		// one too, otherwise every streamed update would add another copy of the text.
+		const bodyEl = comp.element.querySelector('.markdown-root, .sc-assistant-body') as HTMLElement | null;
 		if (bodyEl) {
 			const rendered = renderMarkdown(msg.content);
 			if (bodyEl.innerHTML !== rendered) {
