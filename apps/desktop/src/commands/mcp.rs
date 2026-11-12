@@ -8,6 +8,20 @@ use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+/// `initialize` and `tools/list` wait on the server starting up, which includes a first-run package download
+/// for servers launched with `npx` or `uvx`.
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
+/// A tool call can legitimately run for a while (a build, a query, a page load).
+const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// How long to wait for the response to a request, by method.
+fn response_timeout(method: &str) -> Duration {
+    match method {
+        "initialize" | "tools/list" => STARTUP_TIMEOUT,
+        "tools/call" => TOOL_CALL_TIMEOUT,
+        _ => DEFAULT_TIMEOUT,
+    }
+}
 const CONFIG_FILENAME: &str = "mcp-servers.json";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -304,7 +318,7 @@ impl McpConnection {
                 )
             })?;
 
-        let response = self.read_response(id).await?;
+        let response = self.read_response(id, response_timeout(method)).await?;
 
         if let Some(ref err) = response.error {
             return Err(format!(
@@ -362,11 +376,15 @@ impl McpConnection {
         Ok(())
     }
 
-    async fn read_response(&mut self, expected_id: u64) -> Result<JsonRpcResponse, String> {
+    async fn read_response(
+        &mut self,
+        expected_id: u64,
+        wait: Duration,
+    ) -> Result<JsonRpcResponse, String> {
         let reader = Arc::clone(&self.reader);
         let server_name = self.config.name.clone();
 
-        let result = timeout(DEFAULT_TIMEOUT, async {
+        let result = timeout(wait, async {
             let mut reader_guard = reader.lock().await;
             let mut line = String::new();
 
@@ -687,4 +705,18 @@ pub async fn mcp_remove_server(
 pub async fn mcp_reload_config(state: State<'_, McpState>) -> Result<Vec<McpServerStatus>, String> {
     state.load_config().await?;
     mcp_list_servers(state).await
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    use super::*;
+
+    #[test]
+    fn startup_and_tool_calls_wait_longer_than_other_requests() {
+        assert_eq!(response_timeout("initialize"), STARTUP_TIMEOUT);
+        assert_eq!(response_timeout("tools/list"), STARTUP_TIMEOUT);
+        assert_eq!(response_timeout("tools/call"), TOOL_CALL_TIMEOUT);
+        assert_eq!(response_timeout("ping"), DEFAULT_TIMEOUT);
+        assert!(STARTUP_TIMEOUT > DEFAULT_TIMEOUT && TOOL_CALL_TIMEOUT > STARTUP_TIMEOUT);
+    }
 }
