@@ -97,6 +97,10 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 				// transient status text; SideX has no slot for it yet
 				break;
 			}
+			case 'textEdit':
+			case 'workspaceEdit':
+				// applied to the files by the edit applier, see participantEditOps
+				break;
 			default:
 				chunks.push({
 					type: 'notice',

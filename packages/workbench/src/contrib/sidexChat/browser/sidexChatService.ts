@@ -7,7 +7,9 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { isCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
+import { IBulkEditService } from '@sidex/editor/browser/services/bulkEditService.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
+import { IFileService } from '@sidex/platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
 import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
@@ -15,6 +17,7 @@ import { IUpdateService } from '@sidex/platform/update/common/update.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../chat/common/languageModels.js';
@@ -42,6 +45,8 @@ import {
 	toParticipantModelId,
 	waitForCondition
 } from './participantBridge.js';
+import { ParticipantEditApplier } from './participantEditApplier.js';
+import { extractEditOps } from './participantEditOps.js';
 import {
 	buildSubagentPrompt,
 	getAllowedTools,
@@ -343,6 +348,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	private _participantCancellation: CancellationTokenSource | undefined;
+	private readonly _editApplier: ParticipantEditApplier;
 	private _serverModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
 	private _participantModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
 
@@ -399,9 +405,15 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IToolActivityService toolActivityService: IToolActivityService
+		@IToolActivityService toolActivityService: IToolActivityService,
+		@IBulkEditService bulkEditService: IBulkEditService,
+		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
+		this._editApplier = new ParticipantEditApplier(bulkEditService, fileService, textFileService, (message, isError) =>
+			this._handleChunk({ type: isError ? 'error' : 'notice', content: message } as IStreamChunk)
+		);
 		SidexChatService.INSTANCE = this;
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._refreshParticipantModels()));
 		void this._refreshParticipantModels();
@@ -909,6 +921,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					variables: { variables: this._activeEditorVariables() }
 				},
 				parts => {
+					this._editApplier.enqueue(extractEditOps(parts as never));
 					for (const chunk of progressToChunks(parts as never)) {
 						// The thinking block stays open until something other than thinking arrives.
 						if (thinking && chunk.type !== 'thinking') {
@@ -925,6 +938,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			if (thinking) {
 				this._handleChunk({ type: 'thinking_done' } as IStreamChunk);
 			}
+			// Edits arrive as progress; wait until they are on disk before the turn is reported as finished.
+			await this._editApplier.flush();
 			// The full result carries the rendered prompt (attachments included), so log only what helps diagnose a turn.
 			console.info(
 				`[sidex-chat] participant '${agentId}' finished: ${JSON.stringify({

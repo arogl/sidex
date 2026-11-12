@@ -64,10 +64,13 @@ describe('progressToChunks', () => {
 			{ type: 'thinking', content: 'ab' }
 		]);
 	});
+	it('leaves file edits to the edit applier instead of reporting them as unsupported', () => {
+		expect(progressToChunks([{ kind: 'textEdit' }, { kind: 'workspaceEdit' }])).toEqual([]);
+	});
 	it('reports unsupported kinds instead of dropping them', () => {
-		const [c] = progressToChunks([{ kind: 'textEdit' }]);
+		const [c] = progressToChunks([{ kind: 'codeCitation' }]);
 		expect(c.type).toBe('notice');
-		expect(c.content).toContain('textEdit');
+		expect(c.content).toContain('codeCitation');
 	});
 });
 
