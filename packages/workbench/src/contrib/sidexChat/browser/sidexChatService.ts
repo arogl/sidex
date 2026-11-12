@@ -43,7 +43,8 @@ import {
 	progressToChunks,
 	routeToParticipant,
 	toParticipantModelId,
-	waitForCondition
+	waitForCondition,
+	withParagraphBreak
 } from './participantBridge.js';
 import { ParticipantEditApplier } from './participantEditApplier.js';
 import { extractEditOps } from './participantEditOps.js';
@@ -348,6 +349,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	private _participantCancellation: CancellationTokenSource | undefined;
+	/** Set by a tool call, so the text that comes after it starts a new paragraph. */
+	private _textFollowsToolCall = false;
 	private readonly _editApplier: ParticipantEditApplier;
 	private _serverModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
 	private _participantModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
@@ -2184,11 +2187,17 @@ ${prompt}`,
 					};
 					this._messages.push(this._currentAssistantMessage);
 				}
-				this._currentAssistantMessage.content += chunk.content || '';
+				this._currentAssistantMessage.content += withParagraphBreak(
+					this._currentAssistantMessage.content,
+					chunk.content || '',
+					this._textFollowsToolCall
+				);
+				this._textFollowsToolCall = false;
 				this._onDidChangeMessages.fire(this._messages);
 				break;
 
 			case 'tool_call':
+				this._textFollowsToolCall = true;
 				if (!this._currentAssistantMessage) {
 					this._currentAssistantMessage = {
 						role: 'assistant',
@@ -2282,6 +2291,7 @@ ${prompt}`,
 				break;
 
 			case 'done':
+				this._textFollowsToolCall = false;
 				if (this._currentAssistantMessage) {
 					this._persistAssistantMessage(this._currentAssistantMessage);
 				}
