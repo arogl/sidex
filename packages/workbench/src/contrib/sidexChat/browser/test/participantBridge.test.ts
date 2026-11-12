@@ -261,3 +261,17 @@ describe('streaming text body', () => {
 		expect(view).toContain("querySelector('.markdown-root, .sc-assistant-body')");
 	});
 });
+
+describe('informational progress', () => {
+	it('does not report which model Auto picked as unsupported', () => {
+		expect(progressToChunks([{ kind: 'autoModeResolution' }])).toEqual([]);
+	});
+});
+
+describe('local server unavailable', () => {
+	it('is reported when a message cannot be answered, not when chat starts', () => {
+		const service = readFileSync(resolve(import.meta.dir, '../sidexChatService.ts'), 'utf8');
+		expect(service).not.toMatch(/if \(this\._reconnectAttempts === 0\) \{[^}]*type: 'error'/);
+		expect(service).toContain('this._serverUnavailableReason ??');
+	});
+});

@@ -349,6 +349,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	private _participantCancellation: CancellationTokenSource | undefined;
+	/** Why the local server could not be started, shown only when a message has no other way to be answered. */
+	private _serverUnavailableReason: string | undefined;
 	/** Set by a tool call, so the text that comes after it starts a new paragraph. */
 	private _textFollowsToolCall = false;
 	private readonly _editApplier: ParticipantEditApplier;
@@ -672,11 +674,13 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		void resolveServerEndpoint().then(ep => {
 			if (!ep.running || ep.port <= 0) {
 				this._setConnectionState('disconnected');
+				// Not an error yet: Copilot's participant can answer without the local server. The reason is
+				// kept and shown only when a message cannot be answered by either.
+				this._serverUnavailableReason =
+					ep.error?.trim() ||
+					'The local AI server is not running. Chat cannot send until sidex-server is built and the app is restarted.';
 				if (this._reconnectAttempts === 0) {
-					const why =
-						ep.error?.trim() ||
-						'The local AI server is not running. Chat cannot send until sidex-server is built and the app is restarted.';
-					this._onDidReceiveChunk.fire({ type: 'error', content: why } as IStreamChunk);
+					console.warn(`[sidex-chat] ${this._serverUnavailableReason}`);
 				}
 				this._scheduleReconnect();
 				return;
@@ -695,6 +699,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			this._ws = new WebSocket(url);
 
 			this._ws.onopen = () => {
+				this._serverUnavailableReason = undefined;
 				this._reconnectAttempts = 0;
 				this._setConnectionState('connected');
 				this._fetchServerInfo();
@@ -839,7 +844,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					this._setStreaming(false);
 					this._onDidReceiveChunk.fire({
 						type: 'error',
-						content: 'Unable to reach the server. Please check your connection and try again.'
+						content:
+							this._serverUnavailableReason ?? 'Unable to reach the server. Please check your connection and try again.'
 					} as IStreamChunk);
 				}
 			}, 5000);
