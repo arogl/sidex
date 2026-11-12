@@ -160,6 +160,7 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 	}
 
 	private async _connect(server: IMcpStdioServer): Promise<boolean> {
+		const started = Date.now();
 		try {
 			// The desktop store rejects a name it already has, so replace the entry first.
 			const { command, args } = stdioInvocation(server, isWindows);
@@ -170,7 +171,10 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 			await invoke('mcp_connect', { serverName: server.name });
 			return true;
 		} catch (e) {
-			console.error(`${LOG} could not start '${server.name}': ${e instanceof Error ? e.message : String(e)}`);
+			const seconds = Math.round((Date.now() - started) / 1000);
+			console.error(
+				`${LOG} could not start '${server.name}' after ${seconds}s: ${e instanceof Error ? e.message : String(e)}`
+			);
 			return false;
 		}
 	}
