@@ -51,6 +51,19 @@ describe('progressToChunks', () => {
 			{ type: 'notice', content: 'careful' }
 		]);
 	});
+	it('shows thinking content as thinking, whether it is a string or a list', () => {
+		expect(
+			progressToChunks([
+				{ kind: 'thinking', value: 'hmm' },
+				{ kind: 'thinking', value: ['a', 'b'] },
+				{ kind: 'thinking', value: '' },
+				{ kind: 'thinking', metadata: { vscodeReasoningDone: true } }
+			])
+		).toEqual([
+			{ type: 'thinking', content: 'hmm' },
+			{ type: 'thinking', content: 'ab' }
+		]);
+	});
 	it('reports unsupported kinds instead of dropping them', () => {
 		const [c] = progressToChunks([{ kind: 'textEdit' }]);
 		expect(c.type).toBe('notice');

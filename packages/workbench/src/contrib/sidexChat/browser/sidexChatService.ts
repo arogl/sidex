@@ -898,6 +898,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			const history = buildParticipantHistory(this._messages.slice(0, -1), (text, index) =>
 				toRequest(text, `sidex-history-${index}`)
 			) as unknown as IChatAgentHistoryEntry[];
+			let thinking = false;
 			const result = await this.chatAgentService.invokeAgent(
 				agentId,
 				{
@@ -909,12 +910,21 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				},
 				parts => {
 					for (const chunk of progressToChunks(parts as never)) {
+						// The thinking block stays open until something other than thinking arrives.
+						if (thinking && chunk.type !== 'thinking') {
+							thinking = false;
+							this._handleChunk({ type: 'thinking_done' } as IStreamChunk);
+						}
+						thinking = thinking || chunk.type === 'thinking';
 						this._handleChunk(chunk as IStreamChunk);
 					}
 				},
 				history,
 				cts.token
 			);
+			if (thinking) {
+				this._handleChunk({ type: 'thinking_done' } as IStreamChunk);
+			}
 			// The full result carries the rendered prompt (attachments included), so log only what helps diagnose a turn.
 			console.info(
 				`[sidex-chat] participant '${agentId}' finished: ${JSON.stringify({

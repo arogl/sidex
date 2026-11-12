@@ -28,7 +28,7 @@ export interface IProgressPart {
 	readonly [key: string]: unknown;
 }
 
-export type BridgeChunk = { type: 'text' | 'notice' | 'error'; content: string };
+export type BridgeChunk = { type: 'text' | 'thinking' | 'notice' | 'error'; content: string };
 
 const DEFAULT_AGENT_ALIASES = new Set(['copilot', 'github', 'githubcopilot', 'github.copilot']);
 
@@ -83,6 +83,14 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 			case 'warning': {
 				const value = typeof part.content === 'string' ? part.content : part.content?.value;
 				chunks.push({ type: 'notice', content: value ?? 'The participant reported a warning.' });
+				break;
+			}
+			case 'thinking': {
+				// `value` is a string or a list of strings; a part with neither only carries metadata.
+				const value = Array.isArray(part['value']) ? part['value'].join('') : part['value'];
+				if (typeof value === 'string' && value) {
+					chunks.push({ type: 'thinking', content: value });
+				}
 				break;
 			}
 			case 'progressMessage': {
