@@ -1166,8 +1166,10 @@
 	opacity: 1;
 }
 
+/* !important: settingsEditor2.ts sets style.display = 'block' inline when there are results, which would
+   otherwise show the "N Settings Found" badge on top of what the user is typing. */
 .settings-editor .settings-sidebar-search .settings-count-widget {
-	display: none;
+	display: none !important;
 }
 
 /* ===== Sidebar Scope Tabs ===== */
