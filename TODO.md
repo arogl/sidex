@@ -52,7 +52,7 @@ Legend:
 - [ ] `confirmation` prompts and `command` buttons
 - [ ] `treeData`, `multiDiffData`, `codeCitation`, `task` and `warning` styling
 - [ ] `notebookEdit` and `externalEdits`
-- [~] File deletes in an agent's patch are performed and reported (permanent: see trash below)
+- [x] File deletes in an agent's patch are performed and reported (permanent: see trash below)
 - [ ] Trash or recycle bin support for the desktop file provider, so agent deletes are recoverable
 - [~] The error banner is titled "Something went wrong" unless the error is about reaching the model
 - [ ] Diff view and accept/reject for agent edits, with checkpoints and undo
