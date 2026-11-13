@@ -4,6 +4,7 @@ import { IToolCallInfo } from '../../sidexChatService.js';
 import { Component, DOM } from '../base.js';
 import { DiffHunk } from '../diff/diffAlgorithm.js';
 import { DiffCallbacks, InlineDiffView } from '../diff/inlineDiffView.js';
+import { todoChecklistFromCall, todoProgressLabel, todoStatusIcon } from './todoChecklist.js';
 import { describeToolCall, humanizeToolName } from './toolCallLabels.js';
 
 const EDIT_TOOLS = new Set([
@@ -127,7 +128,8 @@ export class ToolCallItem extends Component {
 
 			const summary = DOM.append(descRow, DOM.$('span.ui-shell-tool-call__summary'));
 			summary.style.cssText = 'font-size: 11px; color: var(--cursor-text-tertiary); margin-left: 4px;';
-			summary.textContent = tc.name;
+			const todos = todoChecklistFromCall(tc.name, tc.input);
+			summary.textContent = todos ? todoProgressLabel(todos) : tc.name;
 
 			const body = DOM.append(card, DOM.$('div.ui-tool-call-card__body'));
 			body.style.cssText =
@@ -149,7 +151,38 @@ export class ToolCallItem extends Component {
 			);
 			outputText.textContent = tc.output || '...';
 
-			let expanded = false;
+			if (todos) {
+				// A todo list is the point of the call, so show it as a checklist and open by default.
+				preview.remove();
+				body.style.whiteSpace = 'normal';
+				body.style.wordBreak = 'normal';
+				body.style.maxHeight = 'none';
+				body.style.fontFamily = 'inherit';
+				body.style.fontSize = '12px';
+				body.style.display = 'block';
+				hoverIcon.classList.replace('codicon-chevron-right', 'codicon-chevron-down');
+				for (const todo of todos) {
+					const row = DOM.append(body, DOM.$('div.sc-todo-item'));
+					row.dataset.status = todo.status;
+					row.style.cssText = 'display: flex; align-items: center; gap: 6px; padding: 2px 0;';
+					const mark = DOM.append(row, DOM.$(`span.codicon.${todoStatusIcon(todo.status)}`));
+					mark.setAttribute('aria-hidden', 'true');
+					mark.style.color =
+						todo.status === 'completed'
+							? 'var(--vscode-testing-iconPassed, #73c991)'
+							: todo.status === 'in-progress'
+								? 'var(--vscode-progressBar-background)'
+								: 'var(--cursor-icon-secondary)';
+					const label = DOM.append(row, DOM.$('span.sc-todo-title'));
+					label.textContent = todo.title;
+					label.style.cssText =
+						todo.status === 'completed'
+							? 'color: var(--cursor-text-tertiary); text-decoration: line-through;'
+							: 'color: var(--cursor-text-primary);';
+				}
+			}
+
+			let expanded = todos !== undefined;
 			this.on(header, 'click', () => {
 				expanded = !expanded;
 				body.style.display = expanded ? 'block' : 'none';
