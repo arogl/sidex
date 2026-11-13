@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '@sidex/base/common/cancellation.js';
-import { Disposable } from '@sidex/base/common/lifecycle.js';
-import { isWindows } from '@sidex/base/common/platform.js';
+import { Disposable, MutableDisposable } from '@sidex/base/common/lifecycle.js';
+import { isMacintosh, isWindows, OperatingSystem } from '@sidex/base/common/platform.js';
 import { localize } from '@sidex/base/nls.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { invoke } from '@tauri-apps/api/core';
@@ -14,6 +14,7 @@ import {
 	registerWorkbenchContribution2,
 	WorkbenchPhase
 } from '../../../../common/contributions.js';
+import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
 import {
 	ILanguageModelToolsService,
 	IToolData,
@@ -29,7 +30,8 @@ import {
 	resolveTimeout,
 	runInTerminalInputSchema,
 	runInTerminalModelDescription,
-	shellInvocation
+	shellInvocationFor,
+	shellKind
 } from '../../common/tools/runInTerminalTool.js';
 
 /**
@@ -40,17 +42,45 @@ import {
 class RunInTerminalToolContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sidex.runInTerminalTool';
 
+	private readonly _registration = this._register(new MutableDisposable());
+	private _shellPath: string | undefined;
+
 	constructor(
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ITerminalProfileResolverService private readonly _profileResolver: ITerminalProfileResolverService
 	) {
 		super();
+		this._registerTool();
+		void this._useDefaultTerminalShell();
+	}
+
+	/**
+	 * Copilot tells the model which shell the user has from the default terminal profile, so the command is run
+	 * in that shell. Without this a bash command written for Git Bash was handed to PowerShell and failed.
+	 */
+	private async _useDefaultTerminalShell(): Promise<void> {
+		try {
+			const os = isWindows ? OperatingSystem.Windows : isMacintosh ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+			const profile = await this._profileResolver.getDefaultProfile({ remoteAuthority: undefined, os });
+			const path = profile?.path;
+			console.info(`[sidex-chat] run_in_terminal default terminal shell: ${path ?? 'none'}`);
+			if (path && shellKind(path)) {
+				this._shellPath = path;
+				this._registerTool();
+			}
+		} catch (e) {
+			console.warn('[sidex-chat] could not resolve the default terminal shell; using the platform default', e);
+		}
+	}
+
+	private _registerTool(): void {
 		const data: IToolData = {
 			id: RUN_IN_TERMINAL_TOOL_ID,
 			toolReferenceName: 'runInTerminal',
 			displayName: localize('sidex.runInTerminal.displayName', 'Run in Terminal'),
 			userDescription: localize('sidex.runInTerminal.userDescription', 'Run a command in the terminal'),
-			modelDescription: runInTerminalModelDescription(isWindows),
+			modelDescription: runInTerminalModelDescription(isWindows, this._shellPath),
 			source: ToolDataSource.Internal,
 			inputSchema: runInTerminalInputSchema()
 		};
@@ -67,7 +97,7 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 			},
 			invoke: (invocation, _countTokens, _progress, token) => this._run(invocation, token)
 		};
-		this._register(toolsService.registerTool(data, impl));
+		this._registration.value = this._toolsService.registerTool(data, impl);
 	}
 
 	private async _run(invocation: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
@@ -77,7 +107,7 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 		}
 		const timeoutMs = resolveTimeout(invocation.parameters.timeout);
 		const folder = this.workspaceContextService.getWorkspace().folders[0]?.uri;
-		const { program, args } = shellInvocation(command, isWindows);
+		const { program, args } = shellInvocationFor(this._shellPath, command, isWindows);
 		const result = await invoke<IExecResult>('exec', {
 			command: program,
 			args,

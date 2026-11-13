@@ -6,7 +6,11 @@ import {
 	RUN_IN_TERMINAL_TIMEOUT_MS,
 	resolveTimeout,
 	runInTerminalInputSchema,
-	shellInvocation
+	runInTerminalModelDescription,
+	shellInvocation,
+	shellInvocationFor,
+	shellKind,
+	shellLabel
 } from '../../common/tools/runInTerminalTool.js';
 
 const read = (path: string) => readFileSync(resolve(import.meta.dir, '../../../..', path), 'utf8');
@@ -18,6 +22,48 @@ describe('shellInvocation', () => {
 			args: ['-NoProfile', '-NonInteractive', '-Command', 'git log']
 		});
 		expect(shellInvocation('git log', false)).toEqual({ program: '/bin/sh', args: ['-c', 'git log'] });
+	});
+});
+
+describe('default terminal shell', () => {
+	const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+	const pwsh = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+
+	it('classifies shells by program name', () => {
+		expect(shellKind(gitBash)).toBe('posix');
+		expect(shellKind('/usr/bin/zsh')).toBe('posix');
+		expect(shellKind(pwsh)).toBe('powershell');
+		expect(shellKind('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')).toBe('powershell');
+		expect(shellKind('C:\\Windows\\System32\\cmd.exe')).toBe('cmd');
+		expect(shellKind('C:\\Windows\\System32\\wsl.exe')).toBeUndefined();
+		expect(shellKind(undefined)).toBeUndefined();
+	});
+
+	it('runs a bash command in Git Bash with -c', () => {
+		expect(shellInvocationFor(gitBash, 'rm -f a.txt', true)).toEqual({
+			program: gitBash,
+			args: ['-c', 'rm -f a.txt']
+		});
+	});
+
+	it('keeps the PowerShell flags and uses /d /s /c for cmd', () => {
+		expect(shellInvocationFor(pwsh, 'ls', true).args).toEqual(['-NoProfile', '-NonInteractive', '-Command', 'ls']);
+		expect(shellInvocationFor('cmd.exe', 'dir', true).args).toEqual(['/d', '/s', '/c', 'dir']);
+	});
+
+	it('falls back to the platform default for an unknown or missing shell', () => {
+		expect(shellInvocationFor(undefined, 'ls', true)).toEqual(shellInvocation('ls', true));
+		expect(shellInvocationFor('wsl.exe', 'ls', false)).toEqual(shellInvocation('ls', false));
+	});
+
+	it('names the shell the model must write for', () => {
+		expect(shellLabel(gitBash)).toBe('Git Bash (bash.exe)');
+		expect(runInTerminalModelDescription(true, gitBash)).toContain('Git Bash (bash.exe)');
+		expect(runInTerminalModelDescription(true, gitBash)).toContain('POSIX syntax');
+		expect(runInTerminalModelDescription(true, gitBash)).not.toContain('PowerShell syntax');
+		expect(runInTerminalModelDescription(true, pwsh)).toContain('PowerShell syntax');
+		expect(runInTerminalModelDescription(true)).toContain('PowerShell (powershell.exe)');
+		expect(runInTerminalModelDescription(false)).toContain('/bin/sh');
 	});
 });
 

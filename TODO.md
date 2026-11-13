@@ -27,6 +27,7 @@ Legend:
 - [x] Allow/Deny confirmation before a tool runs
 - [x] "Don't ask again in this session" for a tool (approvals last for one session only)
 - [x] `run_in_terminal`
+- [~] `run_in_terminal` runs in the default terminal profile's shell (Git Bash, PowerShell, cmd) and tells the model which one
 - [x] `manage_todo_list` is offered and called (the model often only reads the list)
 - [ ] Remember approvals across sessions
 - [ ] Tool picker (choose which tools the model is offered)
