@@ -39,6 +39,7 @@ Legend:
 ## What the chat shows
 
 - [x] Tool calls appear as rows with readable labels (command, file, search, todo)
+- [~] A todo list the model writes shows as a checklist (done, in progress, not started) with a done/total count
 - [x] Streamed reply text updates in place and starts a new paragraph after a tool call
 - [x] `inlineReference` shown as the file or symbol name in code style
 - [x] `thinking` content shown in the thinking block
