@@ -27,7 +27,7 @@ export class ParticipantEditApplier {
 		private readonly _fileService: IFileService,
 		private readonly _textFileService: ITextFileService,
 		/** Reports a line the user should see: what was changed, or what could not be. */
-		private readonly _report: (message: string, isError: boolean) => void
+		private readonly _report: (message: string, failed: boolean) => void
 	) {}
 
 	enqueue(ops: readonly ParticipantEditOp[]): void {
@@ -58,11 +58,10 @@ export class ParticipantEditApplier {
 	private async _applyFileOp(op: { oldResource?: URI; newResource?: URI }): Promise<void> {
 		const kind = describeFileOp(op);
 		if (kind === 'delete') {
-			// There is no undo for this yet, so a delete is reported and left to the user.
-			this._report(
-				`The participant asked to delete ${basename(op.oldResource!)}; SideX does not delete files for it yet.`,
-				true
-			);
+			// Files only: a non-recursive delete of a folder with content fails and is reported. The desktop file
+			// provider has no trash, so this removes the file for good; the bulk edit keeps the content for an undo.
+			await this._bulkEditService.apply([new ResourceFileEdit(op.oldResource, undefined, { recursive: false })]);
+			this._report(`Deleted ${basename(op.oldResource!)}`, false);
 			return;
 		}
 		await this._bulkEditService.apply([new ResourceFileEdit(op.oldResource, op.newResource, { ignoreIfExists: true })]);

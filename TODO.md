@@ -20,7 +20,7 @@ Legend:
 - [x] Copilot's customization queries (agents, instructions, skills, hooks, plugins) answer with empty lists
 - [ ] Prompt file provider registration (`$registerPromptFileProvider` still rejects)
 - [ ] Copilot CLI and cloud-agent sessions (the CLI native addon is missing)
-- [ ] sidex-server banner "Unable to reach model" when the local server binary is not built
+- [x] The "Unable to reach model" banner for a missing local server appears only when a message cannot be answered (Copilot answers without it)
 
 ## Tools
 
@@ -38,10 +38,11 @@ Legend:
 ## What the chat shows
 
 - [x] Tool calls appear as rows with readable labels (command, file, search, todo)
-- [~] Streamed reply text updates in place and starts a new paragraph after a tool call
-- [~] `inlineReference` shown as the file or symbol name in code style
-- [~] `thinking` content shown in the thinking block
-- [~] File edits from Copilot's edit tools are applied and saved (including new files)
+- [x] Streamed reply text updates in place and starts a new paragraph after a tool call
+- [x] `inlineReference` shown as the file or symbol name in code style
+- [x] `thinking` content shown in the thinking block
+- [x] `autoModeResolution` (which model Auto picked) no longer raises a notice
+- [x] File edits from Copilot's edit tools are applied and saved (including new files)
 - [ ] Inline references open the file when clicked
 - [ ] Live todo checklist that stays visible while the agent works
 - [ ] `progressMessage` status lines ("Searching...")
@@ -50,7 +51,9 @@ Legend:
 - [ ] `confirmation` prompts and `command` buttons
 - [ ] `treeData`, `multiDiffData`, `codeCitation`, `task` and `warning` styling
 - [ ] `notebookEdit` and `externalEdits`
-- [ ] File deletes requested by an agent (reported today, not performed)
+- [~] File deletes in an agent's patch are performed and reported (permanent: see trash below)
+- [ ] Trash or recycle bin support for the desktop file provider, so agent deletes are recoverable
+- [~] The error banner is titled "Something went wrong" unless the error is about reaching the model
 - [ ] Diff view and accept/reject for agent edits, with checkpoints and undo
 
 ## Chat input and history
@@ -64,8 +67,8 @@ Legend:
 
 ## MCP
 
-- [~] stdio servers from the user and workspace `mcp.json`, offered as chat tools with approval
-- [~] Desktop MCP client waits long enough for a first `npx` download and for slow tool calls
+- [x] stdio servers from the user and workspace `mcp.json`, offered as chat tools with approval
+- [x] Desktop MCP client waits long enough for a first `npx` download and for slow tool calls
 - [ ] `http` and `sse` servers
 - [ ] MCP servers provided by extensions
 - [ ] `inputs` variables and OAuth in `mcp.json`
