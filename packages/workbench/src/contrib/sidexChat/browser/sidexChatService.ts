@@ -416,8 +416,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
-		this._editApplier = new ParticipantEditApplier(bulkEditService, fileService, textFileService, (message, isError) =>
-			this._handleChunk({ type: isError ? 'error' : 'notice', content: message } as IStreamChunk)
+		// A file edit that fails is shown as a notice, not an error chunk: an error chunk ends the turn.
+		this._editApplier = new ParticipantEditApplier(bulkEditService, fileService, textFileService, message =>
+			this._handleChunk({ type: 'notice', content: message } as IStreamChunk)
 		);
 		SidexChatService.INSTANCE = this;
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._refreshParticipantModels()));

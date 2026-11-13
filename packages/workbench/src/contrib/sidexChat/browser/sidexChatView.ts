@@ -31,6 +31,7 @@ import { QuestionDialog } from './components/messages/questionDialog.js';
 import { SubagentCard, SubagentInfo } from './components/messages/subagentCard.js';
 import { UserMessage } from './components/messages/userMessage.js';
 import { ChatHeader } from './components/toolbar/chatHeader.js';
+import { errorBannerTitle } from './errorBannerTitle.js';
 import { serverWsUrl } from './localServer.js';
 import { OrchestrationView, SidexOrchestrator, StreamConsumer } from './orchestrator/index.js';
 import { IChatMessage, ISidexChatService } from './sidexChatService.js';
@@ -909,12 +910,7 @@ export class SidexChatViewPane extends ViewPane {
 		row1.appendChild(icon);
 		const title = document.createElement('span');
 		title.className = 'sc-error-banner-title';
-		title.textContent =
-			text.includes('usage cap') || text.includes('Anthropic returned 429')
-				? 'Claude usage limit'
-				: text.includes('Anthropic blocked') || text.includes('Anthropic refused')
-					? 'Anthropic blocked this login'
-					: 'Unable to reach model';
+		title.textContent = errorBannerTitle(text);
 		row1.appendChild(title);
 		banner.appendChild(row1);
 
