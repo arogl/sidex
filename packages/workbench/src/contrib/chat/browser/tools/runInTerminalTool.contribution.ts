@@ -97,6 +97,9 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 			},
 			invoke: (invocation, _countTokens, _progress, token) => this._run(invocation, token)
 		};
+		// Release the first registration before making the second: the service refuses a tool id that is already
+		// registered, and assigning the new value directly would register it before the old one is disposed.
+		this._registration.clear();
 		this._registration.value = this._toolsService.registerTool(data, impl);
 	}
 
