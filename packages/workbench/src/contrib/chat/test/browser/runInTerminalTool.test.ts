@@ -61,6 +61,9 @@ describe('default terminal shell', () => {
 		expect(shellLabel(gitBash)).toBe('Git Bash (bash.exe)');
 		expect(runInTerminalModelDescription(true, gitBash)).toContain('Git Bash (bash.exe)');
 		expect(runInTerminalModelDescription(true, gitBash)).toContain('POSIX syntax');
+		expect(runInTerminalModelDescription(true, gitBash)).toContain('`/e/z/f.txt`');
+		expect(runInTerminalModelDescription(true, gitBash)).not.toContain('forward slashes');
+		expect(runInTerminalModelDescription(true, pwsh)).toContain('relative');
 		expect(runInTerminalModelDescription(true, gitBash)).not.toContain('PowerShell syntax');
 		expect(runInTerminalModelDescription(true, pwsh)).toContain('PowerShell syntax');
 		expect(runInTerminalModelDescription(true)).toContain('PowerShell (powershell.exe)');
