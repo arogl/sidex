@@ -30,7 +30,7 @@ Legend:
 - [~] `run_in_terminal` runs in the default terminal profile's shell (Git Bash, PowerShell, cmd) and tells the model which one
 - [~] The default terminal profile setting lists the detected shells (Git Bash, PowerShell, Command Prompt), so one can be chosen
 - [x] `manage_todo_list` is offered and called (the model often only reads the list)
-- [~] The model writes a todo list instead of only reading it (an empty read now says how to create one; unconfirmed that this changes the model)
+- [x] The model writes a todo list instead of only reading it (an empty read says how to create one; confirmed in one four-step run, model behaviour can vary)
 - [ ] Remember approvals across sessions
 - [ ] Tool picker (choose which tools the model is offered)
 - [ ] Terminal output and kill tools
@@ -41,8 +41,8 @@ Legend:
 ## What the chat shows
 
 - [x] Tool calls appear as rows with readable labels (command, file, search, todo)
-- [~] Tool calls made after the first appear in the chat while the turn is still streaming, not only the ones that existed when the message was first drawn
-- [~] A todo list the model writes shows as a checklist (done, in progress, not started) with a done/total count
+- [x] Tool calls made after the first appear in the chat while the turn is still streaming, not only the ones that existed when the message was first drawn
+- [x] A todo list the model writes shows as a checklist (done, in progress, not started) with a done/total count
 - [x] Streamed reply text updates in place and starts a new paragraph after a tool call
 - [x] `inlineReference` shown as the file or symbol name in code style
 - [x] `thinking` content shown in the thinking block
