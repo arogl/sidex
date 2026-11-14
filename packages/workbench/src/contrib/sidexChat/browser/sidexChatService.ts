@@ -70,6 +70,8 @@ export interface IChatMessage {
 	role: 'user' | 'assistant' | 'system';
 	content: string;
 	thinkingContent?: string;
+	/** A transient status such as "Searching the workspace", shown while the turn runs and cleared when it ends. */
+	progressMessage?: string;
 	toolCalls?: IToolCallInfo[];
 	timestamp: number;
 	checkpointLabel?: string;
@@ -100,6 +102,7 @@ export interface IStreamChunk {
 		| 'notice'
 		| 'thinking'
 		| 'thinking_done'
+		| 'progress'
 		| 'permission_request'
 		| 'turn_complete'
 		| 'subagent_spawned'
@@ -934,7 +937,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					this._editApplier.enqueue(extractEditOps(parts as never));
 					for (const chunk of progressToChunks(parts as never)) {
 						// The thinking block stays open until something other than thinking arrives.
-						if (thinking && chunk.type !== 'thinking') {
+						if (thinking && chunk.type !== 'thinking' && chunk.type !== 'progress' && chunk.type !== 'usage') {
 							thinking = false;
 							this._handleChunk({ type: 'thinking_done' } as IStreamChunk);
 						}
@@ -2194,6 +2197,7 @@ ${prompt}`,
 					};
 					this._messages.push(this._currentAssistantMessage);
 				}
+				this._currentAssistantMessage.progressMessage = undefined;
 				this._currentAssistantMessage.content += withParagraphBreak(
 					this._currentAssistantMessage.content,
 					chunk.content || '',
@@ -2346,6 +2350,20 @@ ${prompt}`,
 				}
 				this._onDidChangeMessages.fire(this._messages);
 				break;
+			case 'progress': {
+				if (!this._currentAssistantMessage) {
+					this._currentAssistantMessage = {
+						role: 'assistant',
+						content: '',
+						toolCalls: [],
+						timestamp: Date.now()
+					};
+					this._messages.push(this._currentAssistantMessage);
+				}
+				this._currentAssistantMessage.progressMessage = chunk.content;
+				this._onDidChangeMessages.fire(this._messages);
+				break;
+			}
 			case 'brief':
 			case 'tick':
 			case 'notice':
@@ -2411,6 +2429,19 @@ ${prompt}`,
 	}
 
 	private _setStreaming(streaming: boolean): void {
+		if (!streaming) {
+			// A status line is only for while the turn runs; do not leave it on a finished or saved message.
+			let cleared = false;
+			for (const message of this._messages) {
+				if (message.progressMessage !== undefined) {
+					message.progressMessage = undefined;
+					cleared = true;
+				}
+			}
+			if (cleared) {
+				this._onDidChangeMessages.fire(this._messages);
+			}
+		}
 		if (this._isStreaming !== streaming) {
 			this._isStreaming = streaming;
 			this._onDidChangeStreaming.fire(streaming);

@@ -718,6 +718,7 @@ export class SidexChatViewPane extends ViewPane {
 		if (lastMsg.role === 'assistant' && this._currentAssistantComp) {
 			this._updateAssistantBody(this._currentAssistantComp, lastMsg);
 			this._currentAssistantComp.syncToolCalls(lastMsg);
+			this._currentAssistantComp.updateProgress(lastMsg);
 		}
 
 		// Render reverted messages dimmed + redo link
