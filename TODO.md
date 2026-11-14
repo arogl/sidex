@@ -27,8 +27,8 @@ Legend:
 - [x] Allow/Deny confirmation before a tool runs
 - [x] "Don't ask again in this session" for a tool (approvals last for one session only)
 - [x] `run_in_terminal`
-- [~] `run_in_terminal` runs in the default terminal profile's shell (Git Bash, PowerShell, cmd) and tells the model which one
-- [~] The default terminal profile setting lists the detected shells (Git Bash, PowerShell, Command Prompt), so one can be chosen
+- [x] `run_in_terminal` runs in the default terminal profile's shell (Git Bash, PowerShell, cmd) and tells the model which one
+- [x] The default terminal profile setting lists the detected shells (Git Bash, PowerShell, Command Prompt), so one can be chosen
 - [x] `manage_todo_list` is offered and called (the model often only reads the list)
 - [x] The model writes a todo list instead of only reading it (an empty read says how to create one; confirmed in one four-step run, model behaviour can vary)
 - [ ] Remember approvals across sessions

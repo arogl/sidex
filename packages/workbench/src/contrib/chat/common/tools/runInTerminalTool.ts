@@ -136,11 +136,12 @@ export function runInTerminalModelDescription(isWindows: boolean, shellPath?: st
 			: kind === 'cmd'
 				? 'The shell is Command Prompt: use cmd syntax (del, dir, if exist), not bash or PowerShell syntax.'
 				: isWindows
-					? 'The shell is a bash shell on Windows: use POSIX syntax and forward slashes in paths.'
+					? 'The shell is a bash shell on Windows: use POSIX syntax. Write a drive path in POSIX form, so `e:\\z\\f.txt` is `/e/z/f.txt`; a backslash is an escape character here and a drive letter like `e:/` is not reliable.'
 					: '';
 	return [
 		`Run a shell command in ${shell} in the workspace folder and return its output and exit code.`,
 		syntax,
+		'Commands run in the workspace folder, so prefer paths relative to it, which work the same in every shell.',
 		'Each call starts a fresh shell, so state such as `cd` or environment variables does not carry over; chain steps in one command instead.',
 		'The command must finish by itself: it cannot read input and it is stopped after a timeout (120 seconds by default).',
 		'Do not start servers, watchers or anything that keeps running. Use this for one-shot commands such as builds, tests and git queries.',
