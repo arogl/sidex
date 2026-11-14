@@ -28,7 +28,42 @@ export interface IProgressPart {
 	readonly [key: string]: unknown;
 }
 
-export type BridgeChunk = { type: 'text' | 'thinking' | 'notice' | 'error'; content: string };
+export type BridgeChunk =
+	| { type: 'text' | 'thinking' | 'notice' | 'error' | 'progress'; content: string }
+	| { type: 'usage'; tokens_used: { prompt_tokens: number; completion_tokens?: number; total_tokens?: number } };
+
+/**
+ * One line for a transient status such as "Searching the workspace": markdown links keep their text, whitespace
+ * is collapsed and it is cut short. Empty when there is nothing to show.
+ */
+export function progressMessageText(content: unknown): string {
+	const raw = typeof content === 'string' ? content : ((content as { value?: unknown } | undefined)?.value ?? '');
+	const text = (typeof raw === 'string' ? raw : '')
+		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+		.replace(/\s+/g, ' ')
+		.trim();
+	return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+}
+
+/** The token counts of a `usage` part, which drive the context ring; undefined when there is no prompt size. */
+export function usageChunk(part: IProgressPart): BridgeChunk | undefined {
+	const prompt = part['promptTokens'];
+	if (typeof prompt !== 'number' || !Number.isFinite(prompt) || prompt <= 0) {
+		return undefined;
+	}
+	const completion = part['completionTokens'];
+	const completionTokens = typeof completion === 'number' && Number.isFinite(completion) ? completion : undefined;
+	return {
+		type: 'usage',
+		tokens_used: {
+			prompt_tokens: prompt,
+			...(completionTokens !== undefined && {
+				completion_tokens: completionTokens,
+				total_tokens: prompt + completionTokens
+			})
+		}
+	};
+}
 
 const DEFAULT_AGENT_ALIASES = new Set(['copilot', 'github', 'githubcopilot', 'github.copilot']);
 
@@ -102,7 +137,17 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 				break;
 			}
 			case 'progressMessage': {
-				// transient status text; SideX has no slot for it yet
+				const status = progressMessageText(part.content);
+				if (status) {
+					chunks.push({ type: 'progress', content: status });
+				}
+				break;
+			}
+			case 'usage': {
+				const usage = usageChunk(part);
+				if (usage) {
+					chunks.push(usage);
+				}
 				break;
 			}
 			case 'autoModeResolution':

@@ -27,11 +27,35 @@ export class AssistantMessage extends Component {
 	readonly onCopy: Event<string> = this._onCopy.event;
 	private _thinkingBlock: ThinkingBlock | null = null;
 
+	private _progressEl: HTMLElement | null = null;
 	private _toolSection: Collapsible | null = null;
 	private readonly _toolRows = new Map<string, { item: ToolCallItem; signature: string }>();
 
 	get thinkingBlock(): ThinkingBlock | null {
 		return this._thinkingBlock;
+	}
+
+	/** The transient status line ("Searching the workspace") at the end of the message while a turn runs. */
+	updateProgress(msg: IChatMessage): void {
+		const text = msg.progressMessage;
+		if (!text) {
+			this._progressEl?.remove();
+			this._progressEl = null;
+			return;
+		}
+		if (!this._progressEl) {
+			const el = document.createElement('div');
+			el.className = 'sc-progress-status';
+			el.setAttribute('role', 'status');
+			el.style.cssText =
+				'color: var(--cursor-text-tertiary); font-size: 12px; padding: 4px 0; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+			this._progressEl = el;
+		}
+		if (this._progressEl.textContent !== text) {
+			this._progressEl.textContent = text;
+		}
+		// The text body is created later than this line can be, so keep the line last.
+		this.element.appendChild(this._progressEl);
 	}
 
 	/**
@@ -172,6 +196,8 @@ export class AssistantMessage extends Component {
 				}, 1200);
 			});
 		}
+
+		this.updateProgress(msg);
 	}
 }
 

@@ -50,8 +50,8 @@ Legend:
 - [x] File edits from Copilot's edit tools are applied and saved (including new files)
 - [ ] Inline references open the file when clicked
 - [ ] Live todo checklist that stays visible while the agent works
-- [ ] `progressMessage` status lines ("Searching...")
-- [ ] `usage` (token and quota display)
+- [~] `progressMessage` status lines ("Searching...") show as one muted line at the end of the running message and clear when the turn ends
+- [~] `usage` drives the context ring in the chat input from the prompt size (token and quota text, credits and the per-category breakdown are not shown)
 - [ ] `beginToolInvocation` / `updateToolInvocation` (live "running" state for a tool)
 - [ ] `confirmation` prompts and `command` buttons
 - [ ] `treeData`, `multiDiffData`, `codeCitation`, `task` and `warning` styling

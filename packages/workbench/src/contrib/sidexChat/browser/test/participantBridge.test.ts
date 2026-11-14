@@ -7,6 +7,7 @@ import {
 	mergePickerModels,
 	parseParticipantModelId,
 	pickFallbackParticipant,
+	progressMessageText,
 	progressToChunks,
 	routeToParticipant,
 	toParticipantModelId,
@@ -273,5 +274,55 @@ describe('local server unavailable', () => {
 		const service = readFileSync(resolve(import.meta.dir, '../sidexChatService.ts'), 'utf8');
 		expect(service).not.toMatch(/if \(this\._reconnectAttempts === 0\) \{[^}]*type: 'error'/);
 		expect(service).toContain('this._serverUnavailableReason ??');
+	});
+});
+
+describe('progressMessage', () => {
+	it('becomes a progress chunk with one line of text', () => {
+		expect(progressToChunks([{ kind: 'progressMessage', content: { value: '  Searching  the\nworkspace ' } }])).toEqual(
+			[{ type: 'progress', content: 'Searching the workspace' }]
+		);
+		expect(progressToChunks([{ kind: 'progressMessage', content: 'Reading files' }])).toEqual([
+			{ type: 'progress', content: 'Reading files' }
+		]);
+	});
+
+	it('keeps the text of markdown links and drops empty messages', () => {
+		expect(progressMessageText({ value: 'Read [main.ts](file:///e/z/main.ts)' })).toBe('Read main.ts');
+		expect(progressToChunks([{ kind: 'progressMessage', content: { value: '   ' } }])).toEqual([]);
+		expect(progressToChunks([{ kind: 'progressMessage' }])).toEqual([]);
+	});
+
+	it('cuts a long message short', () => {
+		const text = progressMessageText('x'.repeat(500));
+		expect(text.length).toBe(160);
+		expect(text.endsWith('...')).toBe(true);
+	});
+
+	it('is shown while the turn runs and cleared when it ends', () => {
+		const service = readFileSync(resolve(import.meta.dir, '../sidexChatService.ts'), 'utf8');
+		expect(service).toContain('this._currentAssistantMessage.progressMessage = chunk.content;');
+		expect(service).toMatch(/_setStreaming\(streaming: boolean\): void \{\s+if \(!streaming\) \{/);
+		const view = readFileSync(resolve(import.meta.dir, '../sidexChatView.ts'), 'utf8');
+		expect(view).toContain('this._currentAssistantComp.updateProgress(lastMsg);');
+	});
+});
+
+describe('usage', () => {
+	it('feeds the prompt size to the context ring', () => {
+		expect(progressToChunks([{ kind: 'usage', promptTokens: 12000, completionTokens: 300 }])).toEqual([
+			{ type: 'usage', tokens_used: { prompt_tokens: 12000, completion_tokens: 300, total_tokens: 12300 } }
+		]);
+		expect(progressToChunks([{ kind: 'usage', promptTokens: 500 }])).toEqual([
+			{ type: 'usage', tokens_used: { prompt_tokens: 500 } }
+		]);
+	});
+
+	it('is ignored without a usable prompt size, and no longer dropped before it reaches the chat', () => {
+		expect(progressToChunks([{ kind: 'usage' }])).toEqual([]);
+		expect(progressToChunks([{ kind: 'usage', promptTokens: 0 }])).toEqual([]);
+		expect(progressToChunks([{ kind: 'usage', promptTokens: Number.NaN }])).toEqual([]);
+		const agents = readFileSync(resolve(import.meta.dir, '../../../../api/browser/mainThreadChatAgents2.ts'), 'utf8');
+		expect(agents).not.toMatch(/UNSUPPORTED_PROGRESS_KINDS = new Set\([^)]*'usage'/);
 	});
 });
