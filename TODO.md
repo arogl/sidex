@@ -40,6 +40,7 @@ Legend:
 ## What the chat shows
 
 - [x] Tool calls appear as rows with readable labels (command, file, search, todo)
+- [~] Tool calls made after the first appear in the chat while the turn is still streaming, not only the ones that existed when the message was first drawn
 - [~] A todo list the model writes shows as a checklist (done, in progress, not started) with a done/total count
 - [x] Streamed reply text updates in place and starts a new paragraph after a tool call
 - [x] `inlineReference` shown as the file or symbol name in code style
