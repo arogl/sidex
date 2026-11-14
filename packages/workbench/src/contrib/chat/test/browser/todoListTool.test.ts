@@ -5,6 +5,7 @@ import {
 	formatTodoList,
 	MANAGE_TODO_LIST_MODEL_DESCRIPTION,
 	manageTodoListInputSchema,
+	NO_TODO_LIST_MESSAGE,
 	parseTodoList,
 	runTodoOperation,
 	TodoListStore
@@ -26,7 +27,9 @@ describe('todo list tool', () => {
 		expect(runTodoOperation(store, 's1', { operation: 'read' })).toBe(
 			`# Todo List\n\n${formatTodoList(parseTodoList(todos).todos ?? [])}`
 		);
-		expect(runTodoOperation(store, 's2', { operation: 'read' })).toBe('No todo list found.');
+		expect(runTodoOperation(store, 's2', { operation: 'read' })).toBe(NO_TODO_LIST_MESSAGE);
+		expect(NO_TODO_LIST_MESSAGE).toStartWith('No todo list found.');
+		expect(NO_TODO_LIST_MESSAGE).toContain('todoList');
 	});
 
 	it('replaces the list on every write', () => {
