@@ -4,27 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from '@sidex/base/common/arrays.js';
-import * as objects from '@sidex/base/common/objects.js';
 import { AutoOpenBarrier } from '@sidex/base/common/async.js';
 import { throttle } from '@sidex/base/common/decorators.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '@sidex/base/common/lifecycle.js';
+import * as objects from '@sidex/base/common/objects.js';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from '@sidex/base/common/platform.js';
+import { hasKey, isString } from '@sidex/base/common/types.js';
 import { ConfigurationTarget, IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import {
-	ITerminalProfile,
 	IExtensionTerminalProfile,
-	TerminalSettingPrefix,
-	TerminalSettingId,
-	ITerminalProfileObject,
 	IShellLaunchConfig,
-	ITerminalExecutable
+	ITerminalExecutable,
+	ITerminalProfile,
+	ITerminalProfileObject,
+	TerminalSettingId,
+	TerminalSettingPrefix
 } from '@sidex/platform/terminal/common/terminal.js';
 import { registerTerminalDefaultProfileConfiguration } from '@sidex/platform/terminal/common/terminalPlatformConfiguration.js';
 import { terminalIconsEqual, terminalProfileArgsMatch } from '@sidex/platform/terminal/common/terminalProfiles.js';
-import { ITerminalInstanceService } from './terminal.js';
-import { refreshTerminalActions } from './terminalActions.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import {
 	IRegisterContributedProfileArgs,
 	ITerminalProfileProvider,
@@ -32,10 +34,8 @@ import {
 } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { ITerminalContributionService } from '../common/terminalExtensionPoints.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { hasKey, isString } from '@sidex/base/common/types.js';
+import { ITerminalInstanceService } from './terminal.js';
+import { refreshTerminalActions } from './terminalActions.js';
 
 /*
  * Links TerminalService with TerminalProfileResolverService
@@ -92,6 +92,10 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		// in web, we don't want to show the dropdown unless there's a web extension
 		// that contributes a profile
 		this._register(this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles()));
+		// The Tauri terminal backend registers after this service can already have run its first refresh. With no
+		// backend yet that refresh finds no profiles, and the default profile setting is then registered with
+		// "null" as its only choice and never updated, so detect the profiles again once a backend is there.
+		this._register(this._terminalInstanceService.onDidRegisterBackend(() => this.refreshAvailableProfiles()));
 
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(
 			this._contextKeyService
