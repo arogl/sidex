@@ -112,4 +112,14 @@ describe('run_in_terminal wiring', () => {
 			"import './contrib/chat/browser/tools/runInTerminalTool.contribution.js';"
 		);
 	});
+
+	it('releases the first registration before registering the tool again', () => {
+		// The tools service throws "already registered" for a tool id it still holds, so the update that names the
+		// default shell failed at startup until the old registration was cleared first.
+		const contribution = read('contrib/chat/browser/tools/runInTerminalTool.contribution.ts');
+		const clear = contribution.indexOf('this._registration.clear();');
+		const assign = contribution.indexOf('this._registration.value = ');
+		expect(clear).toBeGreaterThan(-1);
+		expect(clear).toBeLessThan(assign);
+	});
 });
