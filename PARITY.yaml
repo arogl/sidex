@@ -240,7 +240,7 @@ entries:
   - id: mcp
     area: MCP
     status: unwired
-    summary: VS Code 1.144 MCP registry, discovery and views; copied for the chat port, not imported by any entry file
+    summary: VS Code 1.144 MCP registry, discovery and views are copied but not imported by any entry file. Stdio servers from mcp.json do work through a SideX-native contribution (contrib/chat/browser/tools/mcpTools.contribution.ts) that registers each server tool with the tools service; http/sse, extension-provided servers, OAuth and an MCP view are not done (see TODO.md)
     signals:
       contrib: contrib/mcp
   - id: canvases
@@ -251,8 +251,8 @@ entries:
       contrib: contrib/canvases
   - id: ai-chat
     area: AI / Chat / Copilot
-    status: missing
-    summary: No chat contrib or chat/languageModel API at all
+    status: partial
+    summary: Copilot Chat runs through the real extension host (chat participants, language models, tools) and is driven from SideX's own chat view, contrib/sidexChat, since VS Code's contrib/chat UI is not wired. Agent edits, run_in_terminal, MCP stdio, todo list and thinking work; gaps are tracked in TODO.md
 
 # Intentional omissions the anti-rot checks should skip. Each needs a reason.
 # Populated from Task 6 Step 1: Null* stubs not covered by a row's stub_service,
