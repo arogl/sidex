@@ -55,6 +55,13 @@ export function manageTodoListInputSchema(): IJSONSchema {
 	};
 }
 
+/**
+ * What a read of an empty list returns. A bare "No todo list found." left the model with nothing to do next, and
+ * it carried on without ever writing a list, so say how to create one.
+ */
+export const NO_TODO_LIST_MESSAGE =
+	'No todo list found. Create one now by calling this tool with todoList set to the full array of items (each with a numeric id, a short title and a status of not-started, in-progress or completed), then update it as each item is done.';
+
 /** The todo lists of each chat session, in memory. */
 export class TodoListStore {
 	private readonly _lists = new Map<string, readonly ITodo[]>();
@@ -104,7 +111,7 @@ export function runTodoOperation(
 ): string {
 	if (parameters.operation === 'read') {
 		const todos = store.get(sessionKey);
-		return todos.length === 0 ? 'No todo list found.' : `# Todo List\n\n${formatTodoList(todos)}`;
+		return todos.length === 0 ? NO_TODO_LIST_MESSAGE : `# Todo List\n\n${formatTodoList(todos)}`;
 	}
 	const parsed = parseTodoList(parameters.todoList);
 	if ('error' in parsed) {

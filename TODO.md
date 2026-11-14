@@ -29,6 +29,7 @@ Legend:
 - [x] `run_in_terminal`
 - [~] `run_in_terminal` runs in the default terminal profile's shell (Git Bash, PowerShell, cmd) and tells the model which one
 - [x] `manage_todo_list` is offered and called (the model often only reads the list)
+- [~] The model writes a todo list instead of only reading it (an empty read now says how to create one; unconfirmed that this changes the model)
 - [ ] Remember approvals across sessions
 - [ ] Tool picker (choose which tools the model is offered)
 - [ ] Terminal output and kill tools
