@@ -447,12 +447,12 @@ impl TerminalGrid {
 
     #[allow(clippy::cast_possible_truncation)]
     pub fn next_tab_stop(&self, col: u16) -> u16 {
-        for i in (col as usize + 1)..self.tabs.len() {
-            if self.tabs[i] {
-                return i as u16;
-            }
-        }
-        self.cols.saturating_sub(1)
+        self.tabs
+            .iter()
+            .enumerate()
+            .skip(col as usize + 1)
+            .find(|&(_, &is_stop)| is_stop)
+            .map_or(self.cols.saturating_sub(1), |(i, _)| i as u16)
     }
 
     pub fn set_tab_stop(&mut self, col: u16) {
