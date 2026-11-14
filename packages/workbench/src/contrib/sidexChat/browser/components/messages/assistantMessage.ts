@@ -9,6 +9,7 @@ import { Collapsible } from '../collapsible/collapsible.js';
 import { renderMarkdown } from '../markdownRenderer.js';
 import { FileEditInfo, ToolCallItem } from '../tools/toolCallItem.js';
 import { buildActivityLabel } from '../tools/toolCallLabels.js';
+import { planToolRowSync, toolCallSignature } from '../tools/toolRowSync.js';
 import { ThinkingBlock } from './thinkingBlock.js';
 
 const EDIT_TOOL_NAMES = new Set([
@@ -26,8 +27,52 @@ export class AssistantMessage extends Component {
 	readonly onCopy: Event<string> = this._onCopy.event;
 	private _thinkingBlock: ThinkingBlock | null = null;
 
+	private _toolSection: Collapsible | null = null;
+	private readonly _toolRows = new Map<string, { item: ToolCallItem; signature: string }>();
+
 	get thinkingBlock(): ThinkingBlock | null {
 		return this._thinkingBlock;
+	}
+
+	/**
+	 * Draws the message's tool calls, and brings them up to date while the turn is still streaming. This used to
+	 * run once when the message was created, so a turn that began with a tool call showed only the calls that
+	 * existed at that moment and none of the later ones.
+	 */
+	syncToolCalls(msg: IChatMessage): void {
+		const calls = (msg.toolCalls ?? []).filter(tc => !EDIT_TOOL_NAMES.has(tc.name));
+		if (calls.length === 0) {
+			return;
+		}
+		if (!this._toolSection) {
+			const section = new Collapsible(buildActivityLabel(calls.map(tc => tc.name)));
+			const anchor = this.element.querySelector(':scope > .markdown-root, :scope > .sc-assistant-body');
+			if (anchor) {
+				this.element.insertBefore(section.element, anchor);
+			} else {
+				section.appendTo(this.element);
+			}
+			this._register(section);
+			this._toolSection = section;
+		}
+		const section = this._toolSection;
+		section.setLabel(buildActivityLabel(calls.map(tc => tc.name)));
+		const drawn = new Map([...this._toolRows].map(([id, row]) => [id, row.signature]));
+		for (const { call, action } of planToolRowSync(drawn, calls)) {
+			if (action === 'keep') {
+				continue;
+			}
+			const item = new ToolCallItem(call);
+			this._register(item);
+			const previous = this._toolRows.get(call.id);
+			if (previous) {
+				previous.item.element.replaceWith(item.element);
+				previous.item.dispose();
+			} else {
+				item.appendTo(section.body);
+			}
+			this._toolRows.set(call.id, { item, signature: toolCallSignature(call) });
+		}
 	}
 
 	constructor(
@@ -71,22 +116,10 @@ export class AssistantMessage extends Component {
 		const editInfoMap = hasTools ? buildEditInfoMap(allToolCalls) : new Map<string, FileEditInfo>();
 
 		if (hasTools) {
-			const nonEditCalls = msg.toolCalls!.filter(tc => !EDIT_TOOL_NAMES.has(tc.name));
 			const editCalls = msg.toolCalls!.filter(tc => EDIT_TOOL_NAMES.has(tc.name));
 
 			// Non-edit tools: show Cursor-style descriptive collapsible
-			if (nonEditCalls.length > 0) {
-				const label = buildActivityLabel(nonEditCalls.map(tc => tc.name));
-				const activitySection = new Collapsible(label);
-				activitySection.appendTo(this.element);
-				this._register(activitySection);
-
-				for (const tc of nonEditCalls) {
-					const item = new ToolCallItem(tc);
-					item.appendTo(activitySection.body);
-					this._register(item);
-				}
-			}
+			this.syncToolCalls(msg);
 
 			// Edit tool calls ALWAYS render with inline diffs
 			for (const tc of editCalls) {
