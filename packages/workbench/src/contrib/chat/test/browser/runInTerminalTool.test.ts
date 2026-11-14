@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
 	formatExecResult,
+	nextShellPath,
 	RUN_IN_TERMINAL_TIMEOUT_MS,
 	resolveTimeout,
 	runInTerminalInputSchema,
@@ -67,6 +68,26 @@ describe('default terminal shell', () => {
 	});
 });
 
+describe('nextShellPath', () => {
+	const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+	const pwsh = 'C:\\Users\\a\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe';
+
+	it('changes when the resolved profile changes to a shell it can drive', () => {
+		expect(nextShellPath(pwsh, gitBash)).toEqual({ shellPath: gitBash, changed: true });
+		expect(nextShellPath(undefined, pwsh)).toEqual({ shellPath: pwsh, changed: true });
+	});
+
+	it('does not change when the same shell is resolved again', () => {
+		expect(nextShellPath(gitBash, gitBash)).toEqual({ shellPath: gitBash, changed: false });
+		expect(nextShellPath(undefined, undefined)).toEqual({ shellPath: undefined, changed: false });
+	});
+
+	it('goes back to the platform default for a shell it cannot drive, and says so', () => {
+		expect(nextShellPath(gitBash, 'C:\\Windows\\System32\\wsl.exe')).toEqual({ shellPath: undefined, changed: true });
+		expect(nextShellPath(gitBash, undefined)).toEqual({ shellPath: undefined, changed: true });
+	});
+});
+
 describe('formatExecResult', () => {
 	it('returns output and the exit code', () => {
 		expect(formatExecResult({ stdout: 'hi\n', stderr: '', exit_code: 0, timed_out: false }, 1000)).toBe(
@@ -121,5 +142,13 @@ describe('run_in_terminal wiring', () => {
 		const assign = contribution.indexOf('this._registration.value = ');
 		expect(clear).toBeGreaterThan(-1);
 		expect(clear).toBeLessThan(assign);
+	});
+
+	it('resolves the shell again when the profiles or the default profile setting change', () => {
+		// The profile list is empty at startup, before the terminal backend registers, so one lookup at startup
+		// picked the system shell even when another profile had been chosen.
+		const contribution = read('contrib/chat/browser/tools/runInTerminalTool.contribution.ts');
+		expect(contribution).toContain('profileService.onDidChangeAvailableProfiles(');
+		expect(contribution).toContain("e.affectsConfiguration('terminal.integrated.defaultProfile')");
 	});
 });

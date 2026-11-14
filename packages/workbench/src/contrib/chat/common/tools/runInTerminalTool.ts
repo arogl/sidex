@@ -51,6 +51,19 @@ export function shellKind(shellPath: string | undefined): ShellKind | undefined 
 	}
 }
 
+/**
+ * The shell to run commands in after the default terminal profile is resolved again: the resolved path when this
+ * tool can drive that shell, otherwise none (the platform default). `changed` says whether the tool needs to be
+ * registered again with a new description.
+ */
+export function nextShellPath(
+	current: string | undefined,
+	resolved: string | undefined
+): { shellPath: string | undefined; changed: boolean } {
+	const shellPath = resolved && shellKind(resolved) ? resolved : undefined;
+	return { shellPath, changed: shellPath !== current };
+}
+
 /** A name for the shell the model is told about, such as "Git Bash (bash.exe)" or "PowerShell (pwsh.exe)". */
 export function shellLabel(shellPath: string): string {
 	const file = shellPath.split(/[\\/]/).pop() ?? shellPath;

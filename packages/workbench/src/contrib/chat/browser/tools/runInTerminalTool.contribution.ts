@@ -7,6 +7,7 @@ import { CancellationToken } from '@sidex/base/common/cancellation.js';
 import { Disposable, MutableDisposable } from '@sidex/base/common/lifecycle.js';
 import { isMacintosh, isWindows, OperatingSystem } from '@sidex/base/common/platform.js';
 import { localize } from '@sidex/base/nls.js';
+import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -14,7 +15,7 @@ import {
 	registerWorkbenchContribution2,
 	WorkbenchPhase
 } from '../../../../common/contributions.js';
-import { ITerminalProfileResolverService } from '../../../terminal/common/terminal.js';
+import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../terminal/common/terminal.js';
 import {
 	ILanguageModelToolsService,
 	IToolData,
@@ -26,12 +27,12 @@ import {
 import {
 	formatExecResult,
 	IExecResult,
+	nextShellPath,
 	RUN_IN_TERMINAL_TOOL_ID,
 	resolveTimeout,
 	runInTerminalInputSchema,
 	runInTerminalModelDescription,
-	shellInvocationFor,
-	shellKind
+	shellInvocationFor
 } from '../../common/tools/runInTerminalTool.js';
 
 /**
@@ -45,14 +46,29 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 	private readonly _registration = this._register(new MutableDisposable());
 	private _shellPath: string | undefined;
 
+	private _resolveGeneration = 0;
+
 	constructor(
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ITerminalProfileResolverService private readonly _profileResolver: ITerminalProfileResolverService
+		@ITerminalProfileResolverService private readonly _profileResolver: ITerminalProfileResolverService,
+		@ITerminalProfileService profileService: ITerminalProfileService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 		this._registerTool();
 		void this._useDefaultTerminalShell();
+		// The profile list is empty until the terminal backend registers, which is after this runs at startup, so
+		// resolving once picked the system shell even when another profile was chosen. Resolve again when the
+		// profiles change, and when the setting does, which also removes the need to restart.
+		this._register(profileService.onDidChangeAvailableProfiles(() => void this._useDefaultTerminalShell()));
+		this._register(
+			configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('terminal.integrated.defaultProfile')) {
+					void this._useDefaultTerminalShell();
+				}
+			})
+		);
 	}
 
 	/**
@@ -60,13 +76,20 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 	 * in that shell. Without this a bash command written for Git Bash was handed to PowerShell and failed.
 	 */
 	private async _useDefaultTerminalShell(): Promise<void> {
+		const generation = ++this._resolveGeneration;
 		try {
 			const os = isWindows ? OperatingSystem.Windows : isMacintosh ? OperatingSystem.Macintosh : OperatingSystem.Linux;
 			const profile = await this._profileResolver.getDefaultProfile({ remoteAuthority: undefined, os });
-			const path = profile?.path;
-			console.info(`[sidex-chat] run_in_terminal default terminal shell: ${path ?? 'none'}`);
-			if (path && shellKind(path)) {
-				this._shellPath = path;
+			if (generation !== this._resolveGeneration) {
+				return; // a newer lookup is under way
+			}
+			const resolved = profile?.path;
+			const { shellPath, changed } = nextShellPath(this._shellPath, resolved);
+			console.info(
+				`[sidex-chat] run_in_terminal default terminal shell: ${resolved ?? 'none'}${shellPath ? '' : ' (not supported, using the platform default)'}`
+			);
+			if (changed) {
+				this._shellPath = shellPath;
 				this._registerTool();
 			}
 		} catch (e) {
