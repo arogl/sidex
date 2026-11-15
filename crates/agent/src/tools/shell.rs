@@ -6,6 +6,9 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+/// How often a running command is checked for having finished.
+const POLL_INTERVAL: Duration = Duration::from_millis(20);
+
 pub fn run(args: &Args, ctx: &ToolContext) -> Result<String> {
     let command = get_str(args, "command");
     if command.is_empty() {
@@ -26,35 +29,27 @@ pub fn run(args: &Args, ctx: &ToolContext) -> Result<String> {
         .spawn()
         .map_err(|e| anyhow::anyhow!("failed to spawn: {e}"))?;
 
-    let pid = child.id();
     let timeout = Duration::from_secs(timeout_sec);
     let start = Instant::now();
 
-    // Spawn a watchdog thread that kills the process after timeout
-    let handle = thread::spawn(move || {
-        thread::sleep(timeout);
-        #[cfg(unix)]
-        unsafe {
-            libc::kill(pid as i32, libc::SIGKILL);
+    // Poll for the exit and kill the child ourselves when the time is up. `Child::kill` needs no unsafe code
+    // and, unlike signalling a saved pid from another thread, cannot hit an unrelated process that was given
+    // the same pid after this one exited.
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) if start.elapsed() >= timeout => {
+                let _ = child.kill();
+                let _ = child.wait();
+                bail!("command timed out after {timeout_sec}s and was killed");
+            }
+            Ok(None) => thread::sleep(POLL_INTERVAL),
+            Err(e) => break Err(e),
         }
-        #[cfg(not(unix))]
-        {
-            let _ = pid;
-        }
-    });
-
-    let status = child.wait();
-    let elapsed = start.elapsed();
-
-    // If we finished before timeout, the watchdog thread is harmless (process already exited)
-    drop(handle);
+    };
 
     match status {
         Ok(s) => {
-            if elapsed >= timeout {
-                bail!("command timed out after {timeout_sec}s and was killed");
-            }
-
             let mut result = String::new();
             if let Some(mut stdout) = child.stdout.take() {
                 let mut buf = String::new();
