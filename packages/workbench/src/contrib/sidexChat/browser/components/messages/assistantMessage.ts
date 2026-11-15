@@ -7,6 +7,8 @@ import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
 import { Collapsible } from '../collapsible/collapsible.js';
 import { renderMarkdown } from '../markdownRenderer.js';
+import { isChecklistWrite, latestChecklist } from '../tools/todoChecklist.js';
+import { TodoChecklistView } from '../tools/todoChecklistView.js';
 import { FileEditInfo, ToolCallItem } from '../tools/toolCallItem.js';
 import { buildActivityLabel } from '../tools/toolCallLabels.js';
 import { planToolRowSync, toolCallSignature } from '../tools/toolRowSync.js';
@@ -29,6 +31,7 @@ export class AssistantMessage extends Component {
 
 	private _progressEl: HTMLElement | null = null;
 	private _toolSection: Collapsible | null = null;
+	private _checklist: TodoChecklistView | null = null;
 	private readonly _toolRows = new Map<string, { item: ToolCallItem; signature: string }>();
 
 	get thinkingBlock(): ThinkingBlock | null {
@@ -64,7 +67,10 @@ export class AssistantMessage extends Component {
 	 * existed at that moment and none of the later ones.
 	 */
 	syncToolCalls(msg: IChatMessage): void {
-		const calls = (msg.toolCalls ?? []).filter(tc => !EDIT_TOOL_NAMES.has(tc.name));
+		const all = (msg.toolCalls ?? []).filter(tc => !EDIT_TOOL_NAMES.has(tc.name));
+		this._syncChecklist(all);
+		// The checklist is shown pinned above the group, so its writes are not rows in it.
+		const calls = all.filter(tc => !isChecklistWrite(tc));
 		if (calls.length === 0) {
 			return;
 		}
@@ -97,6 +103,28 @@ export class AssistantMessage extends Component {
 			}
 			this._toolRows.set(call.id, { item, signature: toolCallSignature(call) });
 		}
+	}
+
+	/** The latest checklist the agent wrote, kept above the tool group and brought up to date as the turn streams. */
+	private _syncChecklist(calls: readonly IToolCallInfo[]): void {
+		const todos = latestChecklist(calls);
+		if (!todos) {
+			return;
+		}
+		if (!this._checklist) {
+			const view = new TodoChecklistView();
+			this._register(view);
+			const before =
+				this._toolSection?.element ??
+				this.element.querySelector(':scope > .markdown-root, :scope > .sc-assistant-body');
+			if (before) {
+				this.element.insertBefore(view.element, before);
+			} else {
+				view.appendTo(this.element);
+			}
+			this._checklist = view;
+		}
+		this._checklist.update(todos);
 	}
 
 	constructor(
