@@ -8,7 +8,13 @@
 //! exports a type that implements it.
 
 use crate::exports::sidex::extension::extension_api::Guest as SidexExtension;
-use crate::sidex::extension::common_types::*;
+use crate::sidex::extension::common_types::{
+    CodeAction, CodeLens, ColorInfo, CommandDefinition, CompletionList, Diagnostic,
+    DocumentContext, DocumentHighlight, DocumentLink, DocumentSymbol, FileEvent, FoldingRange,
+    HoverResult, InlayHint, Location, NotebookCell, NotebookCellOutput, Position, Range,
+    RenameLocation, RenameResult, SelectionRange, SemanticTokens, SemanticTokensLegend,
+    SignatureHelpResult, TaskDefinition, TaskExecution, TestItem, TextEdit, TreeItem,
+};
 
 /// Implement this instead of [`SidexExtension`] to override only the hooks an
 /// extension uses. Export it with
@@ -343,7 +349,7 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn deactivate() {
-        T::deactivate()
+        T::deactivate();
     }
 
     fn get_name() -> String {
@@ -480,11 +486,11 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn on_file_event(a0: Vec<FileEvent>) {
-        T::on_file_event(a0)
+        T::on_file_event(a0);
     }
 
     fn on_configuration_changed(a0: String) {
-        T::on_configuration_changed(a0)
+        T::on_configuration_changed(a0);
     }
 
     fn get_tree_children(a0: String, a1: Option<String>) -> Vec<TreeItem> {
@@ -594,19 +600,19 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn on_document_opened(a0: DocumentContext) {
-        T::on_document_opened(a0)
+        T::on_document_opened(a0);
     }
 
     fn on_document_closed(a0: DocumentContext) {
-        T::on_document_closed(a0)
+        T::on_document_closed(a0);
     }
 
     fn on_document_changed(a0: DocumentContext, a1: Vec<TextEdit>) {
-        T::on_document_changed(a0, a1)
+        T::on_document_changed(a0, a1);
     }
 
     fn on_document_saved(a0: DocumentContext, a1: u32) {
-        T::on_document_saved(a0, a1)
+        T::on_document_saved(a0, a1);
     }
 
     fn on_document_will_save(a0: DocumentContext, a1: u32) -> Vec<TextEdit> {
@@ -614,23 +620,23 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn on_document_language_changed(a0: String, a1: String, a2: String) {
-        T::on_document_language_changed(a0, a1, a2)
+        T::on_document_language_changed(a0, a1, a2);
     }
 
     fn on_workspace_folders_changed(a0: Vec<String>, a1: Vec<String>) {
-        T::on_workspace_folders_changed(a0, a1)
+        T::on_workspace_folders_changed(a0, a1);
     }
 
     fn on_files_created(a0: Vec<String>) {
-        T::on_files_created(a0)
+        T::on_files_created(a0);
     }
 
     fn on_files_renamed(a0: Vec<String>, a1: Vec<String>) {
-        T::on_files_renamed(a0, a1)
+        T::on_files_renamed(a0, a1);
     }
 
     fn on_files_deleted(a0: Vec<String>) {
-        T::on_files_deleted(a0)
+        T::on_files_deleted(a0);
     }
 
     fn on_files_will_create(a0: Vec<String>) -> Option<Vec<(String, Vec<TextEdit>)>> {
@@ -649,23 +655,23 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn on_active_editor_changed(a0: Option<String>) {
-        T::on_active_editor_changed(a0)
+        T::on_active_editor_changed(a0);
     }
 
     fn on_visible_editors_changed(a0: Vec<String>) {
-        T::on_visible_editors_changed(a0)
+        T::on_visible_editors_changed(a0);
     }
 
     fn on_editor_selections_changed(a0: String, a1: Vec<Range>) {
-        T::on_editor_selections_changed(a0, a1)
+        T::on_editor_selections_changed(a0, a1);
     }
 
     fn on_editor_scroll_changed(a0: String, a1: Vec<Range>) {
-        T::on_editor_scroll_changed(a0, a1)
+        T::on_editor_scroll_changed(a0, a1);
     }
 
     fn on_editor_view_column_changed(a0: String, a1: u32) {
-        T::on_editor_view_column_changed(a0, a1)
+        T::on_editor_view_column_changed(a0, a1);
     }
 
     fn get_tree_item(a0: String, a1: String) -> Option<TreeItem> {
@@ -673,11 +679,11 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn on_tree_item_activated(a0: String, a1: String) {
-        T::on_tree_item_activated(a0, a1)
+        T::on_tree_item_activated(a0, a1);
     }
 
     fn on_tree_visibility_changed(a0: String, a1: bool) {
-        T::on_tree_visibility_changed(a0, a1)
+        T::on_tree_visibility_changed(a0, a1);
     }
 
     fn provide_tasks(a0: Option<String>) -> Vec<TaskExecution> {
@@ -689,19 +695,19 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn on_task_started(a0: TaskExecution) {
-        T::on_task_started(a0)
+        T::on_task_started(a0);
     }
 
     fn on_task_ended(a0: TaskExecution, a1: Option<i32>) {
-        T::on_task_ended(a0, a1)
+        T::on_task_ended(a0, a1);
     }
 
     fn on_task_process_started(a0: TaskExecution, a1: u32) {
-        T::on_task_process_started(a0, a1)
+        T::on_task_process_started(a0, a1);
     }
 
     fn on_task_process_ended(a0: TaskExecution, a1: Option<i32>) {
-        T::on_task_process_ended(a0, a1)
+        T::on_task_process_ended(a0, a1);
     }
 
     fn create_debug_adapter_descriptor(
@@ -713,15 +719,15 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn on_debug_session_started(a0: String, a1: String, a2: String) {
-        T::on_debug_session_started(a0, a1, a2)
+        T::on_debug_session_started(a0, a1, a2);
     }
 
     fn on_debug_session_stopped(a0: String) {
-        T::on_debug_session_stopped(a0)
+        T::on_debug_session_stopped(a0);
     }
 
     fn on_debug_breakpoints_changed(a0: Vec<String>, a1: Vec<String>, a2: Vec<String>) {
-        T::on_debug_breakpoints_changed(a0, a1, a2)
+        T::on_debug_breakpoints_changed(a0, a1, a2);
     }
 
     fn provide_notebook_serializer_deserialize(
@@ -754,7 +760,7 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn provide_notebook_kernel_interrupt(a0: String) {
-        T::provide_notebook_kernel_interrupt(a0)
+        T::provide_notebook_kernel_interrupt(a0);
     }
 
     fn provide_tests_resolve_children(a0: String, a1: Option<String>) -> Vec<TestItem> {
@@ -762,15 +768,15 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn provide_tests_run(a0: String, a1: String, a2: Vec<String>, a3: Vec<String>) {
-        T::provide_tests_run(a0, a1, a2, a3)
+        T::provide_tests_run(a0, a1, a2, a3);
     }
 
     fn provide_tests_debug(a0: String, a1: String, a2: Vec<String>, a3: Vec<String>) {
-        T::provide_tests_debug(a0, a1, a2, a3)
+        T::provide_tests_debug(a0, a1, a2, a3);
     }
 
     fn provide_tests_cancel_run(a0: String, a1: String) {
-        T::provide_tests_cancel_run(a0, a1)
+        T::provide_tests_cancel_run(a0, a1);
     }
 
     fn custom_editor_open(a0: String, a1: String, a2: u32) -> Result<String, String> {
@@ -794,25 +800,26 @@ impl<T: Extension> SidexExtension for ExtensionComponent<T> {
     }
 
     fn custom_editor_dispose(a0: String) {
-        T::custom_editor_dispose(a0)
+        T::custom_editor_dispose(a0);
     }
 
     fn webview_receive_message(a0: String, a1: String) {
-        T::webview_receive_message(a0, a1)
+        T::webview_receive_message(a0, a1);
     }
 
     fn on_webview_disposed(a0: String) {
-        T::on_webview_disposed(a0)
+        T::on_webview_disposed(a0);
     }
 
     fn on_webview_visibility_changed(a0: String, a1: bool) {
-        T::on_webview_visibility_changed(a0, a1)
+        T::on_webview_visibility_changed(a0, a1);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sidex::extension::common_types::NotebookCellKind;
 
     /// Implements only the required hook.
     struct Minimal;
