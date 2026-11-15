@@ -74,15 +74,21 @@ export class ParticipantEditApplier {
 	}
 
 	private async _applyTextOp(op: Extract<ParticipantEditOp, { kind: 'text' }>): Promise<void> {
-		if (op.edits.length > 0) {
+		let created = false;
+		if (op.edits.length > 0 || op.done) {
+			// An edit stream for a file that is not there creates it. That includes a stream with no edits at all,
+			// which is how an empty file arrives (an add-file patch with no content).
 			if (!(await this._fileService.exists(op.uri))) {
 				await this._bulkEditService.apply([new ResourceFileEdit(undefined, op.uri, { ignoreIfExists: true })]);
+				created = true;
 			}
+		}
+		if (op.edits.length > 0) {
 			await this._bulkEditService.apply(op.edits.map(edit => new ResourceTextEdit(op.uri, edit)));
 		}
 		if (op.done && (await this._fileService.exists(op.uri))) {
 			await this._textFileService.save(op.uri);
-			this._report(`Edited ${basename(op.uri)}`, false);
+			this._report(`${created ? 'Created' : 'Edited'} ${basename(op.uri)}`, false);
 		}
 	}
 }
