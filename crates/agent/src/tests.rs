@@ -118,6 +118,34 @@ mod tests {
     }
 
     #[test]
+    fn test_shell_timeout_kills_the_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let start = std::time::Instant::now();
+        let resp = execute(
+            &req("shell", r#"{"command":"sleep 30","timeout":1}"#),
+            &ctx(dir.path()),
+        );
+        assert!(resp.error.contains("timed out"), "{}", resp.error);
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(10),
+            "took {:?}",
+            start.elapsed()
+        );
+    }
+
+    #[test]
+    fn test_shell_reports_exit_code() {
+        let dir = tempfile::tempdir().unwrap();
+        let resp = execute(
+            &req("shell", r#"{"command":"echo out; exit 3"}"#),
+            &ctx(dir.path()),
+        );
+        assert!(resp.error.is_empty(), "{}", resp.error);
+        assert!(resp.output.contains("out"), "{}", resp.output);
+        assert!(resp.output.contains("exit code: 3"), "{}", resp.output);
+    }
+
+    #[test]
     fn test_shell_bad_dir() {
         let resp = execute(
             &req(
