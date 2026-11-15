@@ -2373,6 +2373,7 @@ ${prompt}`,
 				const used = chunk.tokens_used;
 				const prompt = used?.prompt_tokens ?? chunk.usage?.input_tokens ?? 0;
 				if (prompt > 0) {
+					console.log(`[sidex-chat] usage: ${prompt} prompt tokens`);
 					this._lastPromptTokens = prompt;
 					this._onDidChangeMessages.fire(this._messages);
 				}

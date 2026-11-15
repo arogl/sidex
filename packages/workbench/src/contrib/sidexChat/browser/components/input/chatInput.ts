@@ -1,12 +1,14 @@
-import { Component, DOM, $ } from '../base.js';
+import { Codicon } from '@sidex/base/common/codicons.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { DisposableStore } from '@sidex/base/common/lifecycle.js';
-import { Codicon } from '@sidex/base/common/codicons.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
-import { MentionPopup } from './mentionPopup.js';
-import { MentionResolver, MentionItem } from '../../context/mentionResolver.js';
 import { URI } from '@sidex/base/common/uri.js';
+import { MentionItem, MentionResolver } from '../../context/mentionResolver.js';
+import { parseParticipantModelId } from '../../participantBridge.js';
 import { ISidexChatService } from '../../sidexChatService.js';
+import { $, Component, DOM } from '../base.js';
+import { conversationTokens as estimateConversationTokens } from './contextEstimate.js';
+import { MentionPopup } from './mentionPopup.js';
 
 export type AgentMode = 'agent' | 'plan' | 'ask';
 
@@ -1546,26 +1548,21 @@ export class ChatInput extends Component {
 	}
 
 	private _updateContextUsage(popover: HTMLElement, contextBadge: HTMLElement): void {
-		// Calculate actual message characters
-		let msgChars = 0;
 		let hasSkills = false;
 		let hasMcp = false;
-
-		if (this._chatService && Array.isArray(this._chatService.messages)) {
-			for (const m of this._chatService.messages) {
-				const content = m.content || '';
-				msgChars += content.length;
-				if (m.thinkingContent) {
-					msgChars += m.thinkingContent.length;
-				}
-				if (content.includes('<skill_content') || content.includes('kilo-config')) {
-					hasSkills = true;
-				}
-				if (content.includes('mcp_') || content.includes('Model Context Protocol')) {
-					hasMcp = true;
-				}
+		const messages = this._chatService && Array.isArray(this._chatService.messages) ? this._chatService.messages : [];
+		for (const m of messages) {
+			const content = m.content || '';
+			if (content.includes('<skill_content') || content.includes('kilo-config')) {
+				hasSkills = true;
+			}
+			if (content.includes('mcp_') || content.includes('Model Context Protocol')) {
+				hasMcp = true;
 			}
 		}
+		// A Copilot (participant) turn runs through the extension's own prompt and tools, not this server's, so the
+		// fixed server sizes below do not apply. Until the extension reports the real prompt size, count the conversation.
+		const isParticipant = parseParticipantModelId(this._chatService?.serverModel ?? '') !== undefined;
 
 		// 100% Real, active-state-derived token estimates mapping the Go server's actual prompts and schemas
 		const mode = this._chatService?.currentMode || 'agent';
@@ -1587,9 +1584,11 @@ export class ChatInput extends Component {
 		const subagentTokens = 727;
 
 		// Conversation transcript: exactly measured from active message chars (~4 chars per token).
-		const conversationTokens = Math.round(msgChars / 4);
+		const conversationTokens = estimateConversationTokens(messages);
 
-		const estimated = systemTokens + toolTokens + skillsTokens + mcpTokens + subagentTokens + conversationTokens;
+		const estimated = isParticipant
+			? conversationTokens
+			: systemTokens + toolTokens + skillsTokens + mcpTokens + subagentTokens + conversationTokens;
 		const lastPrompt = this._chatService?.lastPromptTokens ?? 0;
 		const totalTokens = lastPrompt > 0 ? lastPrompt : estimated;
 		const maxTokens = this._chatService?.contextWindow || 200000;
@@ -1632,14 +1631,16 @@ export class ChatInput extends Component {
 		const seg = DOM.append(bar, $('div.sc-context-segment'));
 		seg.style.width = `${pct}%`;
 
-		const segments = [
-			{ tokens: systemTokens, name: 'System prompt' },
-			{ tokens: toolTokens, name: 'Tool definitions' },
-			{ tokens: skillsTokens, name: 'Skills' },
-			{ tokens: mcpTokens, name: 'MCP' },
-			{ tokens: subagentTokens, name: 'Subagent definitions' },
-			{ tokens: conversationTokens, name: 'Conversation' }
-		];
+		const segments = isParticipant
+			? [{ tokens: conversationTokens, name: 'Conversation' }]
+			: [
+					{ tokens: systemTokens, name: 'System prompt' },
+					{ tokens: toolTokens, name: 'Tool definitions' },
+					{ tokens: skillsTokens, name: 'Skills' },
+					{ tokens: mcpTokens, name: 'MCP' },
+					{ tokens: subagentTokens, name: 'Subagent definitions' },
+					{ tokens: conversationTokens, name: 'Conversation' }
+				];
 
 		const legend = DOM.append(popover, $('div.sc-context-legend'));
 
