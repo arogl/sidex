@@ -34,3 +34,21 @@ const ICONS: Record<TodoStatus, string> = {
 export function todoStatusIcon(status: TodoStatus): string {
 	return ICONS[status];
 }
+
+/** The most recent checklist a message wrote. Each write replaces the whole list, so the last one is the state. */
+export function latestChecklist(
+	calls: readonly { readonly name: string; readonly input?: string }[]
+): readonly ITodo[] | undefined {
+	for (let i = calls.length - 1; i >= 0; i--) {
+		const todos = todoChecklistFromCall(calls[i].name, calls[i].input);
+		if (todos) {
+			return todos;
+		}
+	}
+	return undefined;
+}
+
+/** A write of the checklist, which is shown pinned above the tool group rather than as a row in it. */
+export function isChecklistWrite(call: { readonly name: string; readonly input?: string }): boolean {
+	return todoChecklistFromCall(call.name, call.input) !== undefined;
+}
