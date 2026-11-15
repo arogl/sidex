@@ -56,3 +56,31 @@ describe('edit applier wiring', () => {
 		expect(source).toContain('await this._editApplier.flush()');
 	});
 });
+
+describe('edit applier, empty file', () => {
+	it('creates a file that does not exist when the edit stream ends with no edits', async () => {
+		const { ParticipantEditApplier } = await import('../participantEditApplier.js');
+		const files = new Set<string>();
+		const calls: string[] = [];
+		const bulk = {
+			apply: async (edits: { newResource?: URI }[]) => {
+				for (const e of edits) {
+					if (e.newResource) {
+						files.add(e.newResource.toString());
+						calls.push('create');
+					}
+				}
+			}
+		};
+		const fileService = { exists: async (u: URI) => files.has(u.toString()) };
+		const textFiles = { save: async () => void calls.push('save') };
+		const reports: string[] = [];
+		const applier = new ParticipantEditApplier(bulk as never, fileService as never, textFiles as never, m =>
+			reports.push(m)
+		);
+		applier.enqueue([{ kind: 'text', uri, edits: [], done: true }]);
+		await applier.flush();
+		expect(calls).toEqual(['create', 'save']);
+		expect(reports).toEqual(['Created a.rs']);
+	});
+});
