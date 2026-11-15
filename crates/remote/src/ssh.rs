@@ -1368,9 +1368,9 @@ Host *.example.com
         async fn auth_publickey(
             &mut self,
             _user: &str,
-            key: &PublicKey,
+            key: server::VerifiedPublicKey<'_>,
         ) -> Result<server::Auth, Self::Error> {
-            Ok(if self.authorized_key.as_ref() == Some(key) {
+            Ok(if self.authorized_key.as_ref() == Some(key.public_key) {
                 server::Auth::Accept
             } else {
                 server::Auth::reject()
