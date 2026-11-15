@@ -418,9 +418,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	): Promise<IExtensionsConfigContent | undefined> {
 		try {
 			const content = await this.fileService.readFile(workspaceConfigurationResource);
-			const extensionsConfigContent = <IExtensionsConfigContent | undefined>(
-				parse(content.value.toString())['extensions']
-			);
+			const extensionsConfigContent = <IExtensionsConfigContent | undefined>parse(content.value.toString()).extensions;
 			return extensionsConfigContent ? this.parseExtensionConfig(extensionsConfigContent) : undefined;
 		} catch (_e) {
 			/* Ignore */

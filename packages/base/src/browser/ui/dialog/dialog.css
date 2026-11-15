@@ -86,6 +86,11 @@
 	align-self: baseline;
 }
 
+.monaco-dialog-box .dialog-message-row > .dialog-icon.custom-icon {
+	display: flex;
+	flex: 0 0 auto;
+}
+
 .monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container {
 	align-self: stretch;
 }
@@ -128,7 +133,7 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
 	font-size: 13px;
 	font-weight: 500;
-	flex: 1;
+	flex-grow: 1;
 	white-space: normal;
 	word-wrap: break-word;
 	min-height: 22px;
@@ -141,9 +146,11 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
 	line-height: 20px;
 	flex: 1;
+	white-space: pre-wrap;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message a:focus,
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail a:focus {
 	outline-width: 1px;
 	outline-style: solid;
 }

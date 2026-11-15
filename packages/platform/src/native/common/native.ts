@@ -5,6 +5,15 @@
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
+export interface IStartTracingOptions {
+	/**
+	 * Whether to enable heap profiling for MemoryInfra traces. Only takes effect
+	 * if the `disabled-by-default-memory-infra` category is included in the trace
+	 * and requires the recording to also collect periodic memory dumps.
+	 */
+	readonly enableHeapProfiling?: boolean;
+}
+
 export const enum FocusMode {
 	Transfer,
 	Notify,

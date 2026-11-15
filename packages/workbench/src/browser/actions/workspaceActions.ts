@@ -25,6 +25,7 @@ import { MenuRegistry, MenuId, Action2, registerAction2 } from '@sidex/platform/
 import {
 	EmptyWorkspaceSupportContext,
 	EnterMultiRootWorkspaceSupportContext,
+	IsSessionsWindowContext,
 	OpenFolderWorkspaceSupportContext,
 	WorkbenchStateContext,
 	WorkspaceFolderCountContext
@@ -182,7 +183,11 @@ class CloseWorkspaceAction extends Action2 {
 			title: localize2('closeWorkspace', 'Close Workspace'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext),
+			precondition: ContextKeyExpr.and(
+				WorkbenchStateContext.notEqualsTo('empty'),
+				EmptyWorkspaceSupportContext,
+				IsSessionsWindowContext.negate()
+			),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyF)
@@ -207,7 +212,7 @@ class OpenWorkspaceConfigFileAction extends Action2 {
 			title: localize2('openWorkspaceConfigFile', 'Open Workspace Configuration File'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -231,9 +236,9 @@ export class AddRootFolderAction extends Action2 {
 			title: ADD_ROOT_FOLDER_LABEL,
 			category: workspacesCategory,
 			f1: true,
-			precondition: ContextKeyExpr.or(
-				EnterMultiRootWorkspaceSupportContext,
-				WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
+				IsSessionsWindowContext.negate()
 			)
 		});
 	}
@@ -256,7 +261,8 @@ export class RemoveRootFolderAction extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				WorkspaceFolderCountContext.notEqualsTo('0'),
-				ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))
+				ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
+				IsSessionsWindowContext.negate()
 			)
 		});
 	}
@@ -281,7 +287,7 @@ class SaveWorkspaceAsAction extends Action2 {
 			title: localize2('saveWorkspaceAsAction', 'Save Workspace As...'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: EnterMultiRootWorkspaceSupportContext
+			precondition: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -313,7 +319,7 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 			title: localize2('duplicateWorkspaceInNewWindow', 'Duplicate As Workspace in New Window'),
 			category: workspacesCategory,
 			f1: true,
-			precondition: EnterMultiRootWorkspaceSupportContext
+			precondition: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -412,7 +418,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 			'A&&dd Folder to Workspace...'
 		)
 	},
-	when: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
+		IsSessionsWindowContext.negate()
+	),
 	order: 1
 });
 
@@ -423,7 +432,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize('miSaveWorkspaceAs', 'Save Workspace As...')
 	},
 	order: 2,
-	when: EnterMultiRootWorkspaceSupportContext
+	when: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -433,7 +442,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize('duplicateWorkspace', 'Duplicate Workspace')
 	},
 	order: 3,
-	when: EnterMultiRootWorkspaceSupportContext
+	when: ContextKeyExpr.and(EnterMultiRootWorkspaceSupportContext, IsSessionsWindowContext.negate())
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -443,7 +452,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, 'Close &&Folder')
 	},
 	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('folder'), EmptyWorkspaceSupportContext)
+	when: ContextKeyExpr.and(
+		WorkbenchStateContext.isEqualTo('folder'),
+		EmptyWorkspaceSupportContext,
+		IsSessionsWindowContext.negate()
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -453,5 +466,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		title: localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, 'Close &&Workspace')
 	},
 	order: 3,
-	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), EmptyWorkspaceSupportContext)
+	when: ContextKeyExpr.and(
+		WorkbenchStateContext.isEqualTo('workspace'),
+		EmptyWorkspaceSupportContext,
+		IsSessionsWindowContext.negate()
+	)
 });

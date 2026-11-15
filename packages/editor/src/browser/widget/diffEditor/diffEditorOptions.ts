@@ -7,10 +7,12 @@ import {
 	IObservable,
 	IObservableWithChange,
 	ISettableObservable,
+	ITransaction,
 	derived,
 	derivedConstOnceDefined,
 	observableFromEvent,
-	observableValue
+	observableValue,
+	transaction
 } from '@sidex/base/common/observable.js';
 import { Constants } from '@sidex/base/common/uint.js';
 import { IAccessibilityService } from '@sidex/platform/accessibility/common/accessibility.js';
@@ -29,6 +31,8 @@ import { LineRangeMapping } from '../../../common/diff/rangeMapping.js';
 import { allowsTrueInlineDiffRendering } from './components/diffEditorViewZones/diffEditorViewZones.js';
 import { DiffEditorViewModel, DiffState } from './diffEditorViewModel.js';
 
+export type DiffEditorVariant = 'default' | 'compact';
+
 export class DiffEditorOptions {
 	private readonly _options: ISettableObservable<
 		IEditorOptions & Required<IDiffEditorBaseOptions>,
@@ -40,6 +44,7 @@ export class DiffEditorOptions {
 	}
 
 	private readonly _diffEditorWidth;
+	private readonly _widthBasedLayout = observableValue<'auto' | 'inline'>(this, 'auto');
 
 	private readonly _screenReaderMode;
 
@@ -60,6 +65,15 @@ export class DiffEditorOptions {
 				this._diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
 		);
 		this.renderOverviewRuler = derived(this, reader => this._options.read(reader).renderOverviewRuler);
+		this.renderSideBySideInAutomaticMode = derived(this, reader => {
+			if (this.compactMode.read(reader) && this.shouldRenderInlineViewInSmartMode.read(reader)) {
+				return false;
+			}
+			return (
+				this._diffEditorWidth.read(reader) > this._options.read(reader).renderSideBySideInlineBreakpoint ||
+				this._screenReaderMode.read(reader)
+			);
+		});
 		this.renderSideBySide = derived(this, reader => {
 			if (this.compactMode.read(reader)) {
 				if (this.shouldRenderInlineViewInSmartMode.read(reader)) {
@@ -69,6 +83,7 @@ export class DiffEditorOptions {
 
 			return (
 				this._options.read(reader).renderSideBySide &&
+				this._widthBasedLayout.read(reader) === 'auto' &&
 				!(
 					this._options.read(reader).useInlineViewWhenSpaceIsLimited &&
 					this.couldShowInlineViewBecauseOfSize.read(reader) &&
@@ -145,7 +160,10 @@ export class DiffEditorOptions {
 			)
 			.flatten()
 			.map(this, v => !!v);
-		this.inlineViewHideOriginalLineNumbers = this.compactMode;
+		this.inlineViewHideOriginalLineNumbers = derived(
+			this,
+			reader => this._options.read(reader).hideOriginalLineNumbers || this.compactMode.read(reader)
+		);
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue(this, optionsCopy);
 	}
@@ -153,7 +171,9 @@ export class DiffEditorOptions {
 	public readonly couldShowInlineViewBecauseOfSize;
 
 	public readonly renderOverviewRuler;
+	public readonly renderSideBySideInAutomaticMode;
 	public readonly renderSideBySide;
+	public readonly temporaryInlineMode = this._widthBasedLayout.map(this, layout => layout === 'inline');
 	public readonly readOnly;
 
 	public readonly shouldRenderOldRevertArrows;
@@ -184,13 +204,44 @@ export class DiffEditorOptions {
 	public readonly hideUnchangedRegionsMinimumLineCount;
 
 	public updateOptions(changedOptions: IDiffEditorOptions): void {
+		const currentOptions = this._options.get();
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
-		const newOptions = { ...this._options.get(), ...changedOptions, ...newDiffEditorOptions };
-		this._options.set(newOptions, undefined, { changedOptions: changedOptions });
+		const newOptions = { ...currentOptions, ...changedOptions, ...newDiffEditorOptions };
+		transaction(tx => {
+			if (
+				currentOptions.renderSideBySide !== newOptions.renderSideBySide ||
+				currentOptions.useInlineViewWhenSpaceIsLimited !== newOptions.useInlineViewWhenSpaceIsLimited ||
+				currentOptions.renderSideBySideInlineBreakpoint !== newOptions.renderSideBySideInlineBreakpoint
+			) {
+				this._widthBasedLayout.set('auto', tx);
+			}
+			this._options.set(newOptions, tx, { changedOptions: changedOptions });
+		});
 	}
 
-	public setWidth(width: number): void {
-		this._diffEditorWidth.set(width, undefined);
+	public setWidth(width: number, smoothResizeStartWidth?: number): void {
+		const options = this._options.get();
+		transaction(tx => {
+			this._diffEditorWidth.set(width, tx);
+			if (width <= options.renderSideBySideInlineBreakpoint) {
+				this._widthBasedLayout.set('auto', tx);
+			} else if (
+				smoothResizeStartWidth !== undefined &&
+				this._widthBasedLayout.get() === 'auto' &&
+				options.renderSideBySide &&
+				options.useInlineViewWhenSpaceIsLimited &&
+				smoothResizeStartWidth <= options.renderSideBySideInlineBreakpoint &&
+				width > options.renderSideBySideInlineBreakpoint &&
+				!this._screenReaderMode.get() &&
+				!(this.compactMode.get() && this.shouldRenderInlineViewInSmartMode.get())
+			) {
+				this._widthBasedLayout.set('inline', tx);
+			}
+		});
+	}
+
+	public resetWidthBasedLayout(tx?: ITransaction): void {
+		this._widthBasedLayout.set('auto', tx);
 	}
 
 	private readonly _model;
@@ -247,10 +298,12 @@ function validateDiffEditorOptions(
 			'on',
 			'inherit'
 		]),
-		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], {
-			smart: 'legacy',
-			experimental: 'advanced'
-		}),
+		diffAlgorithm: validateStringSetOption(
+			options.diffAlgorithm,
+			defaults.diffAlgorithm,
+			['legacy', 'advanced', 'advanced-external', 'advanced-wasm'],
+			{ smart: 'legacy', experimental: 'advanced' }
+		),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
 		experimental: {
 			showMoves: validateBooleanOption(options.experimental?.showMoves, defaults.experimental.showMoves!),
@@ -303,6 +356,7 @@ function validateDiffEditorOptions(
 			defaults.useInlineViewWhenSpaceIsLimited
 		),
 		renderGutterMenu: validateBooleanOption(options.renderGutterMenu, defaults.renderGutterMenu),
-		compactMode: validateBooleanOption(options.compactMode, defaults.compactMode)
+		compactMode: validateBooleanOption(options.compactMode, defaults.compactMode),
+		hideOriginalLineNumbers: validateBooleanOption(options.hideOriginalLineNumbers, defaults.hideOriginalLineNumbers)
 	};
 }

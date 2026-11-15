@@ -287,6 +287,10 @@ class DeleteOperation implements IFileOperation {
 					this._configurationService.getValue<boolean>('files.enableTrash')
 			});
 
+			if (!fileStat.isFile && !fileStat.isDirectory) {
+				continue;
+			}
+
 			// read file contents for undo operation. when a file is too large it won't be restored
 			let fileContent: IFileContent | undefined;
 			let fileContentExceedsMaxSize = false;

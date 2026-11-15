@@ -8,7 +8,7 @@ import { createFastDomNode } from '@sidex/base/browser/fastDomNode.js';
 import { IMouseWheelEvent } from '@sidex/base/browser/mouseEvent.js';
 import { ScrollbarState } from '@sidex/base/browser/ui/scrollbar/scrollbarState.js';
 import { Color } from '@sidex/base/common/color.js';
-import { Disposable } from '@sidex/base/common/lifecycle.js';
+import { Disposable, toDisposable } from '@sidex/base/common/lifecycle.js';
 import {
 	IObservable,
 	autorun,
@@ -50,6 +50,9 @@ export class OverviewRulerFeature extends Disposable {
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
+
+		this._rootElement.classList.add('has-diff-overview');
+		this._register(toDisposable(() => this._rootElement.classList.remove('has-diff-overview')));
 
 		const currentColorTheme = observableFromEvent(this._themeService.onDidColorThemeChange, () =>
 			this._themeService.getColorTheme()

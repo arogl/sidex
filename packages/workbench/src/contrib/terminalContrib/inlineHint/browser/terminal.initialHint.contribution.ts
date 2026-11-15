@@ -290,22 +290,13 @@ class TerminalInitialHintWidget extends Disposable {
 		return { before, after };
 	}
 
-	private _getHintInlineChat() {
+	private _getHintContent() {
 		const ariaLabelParts: string[] = [];
 
 		const handleDontShowClick = () => {
 			this._configurationService.updateValue(TerminalInitialHintSettingId.Enabled, false);
 		};
 
-		const hintHandler: IContentActionHandler = {
-			disposables: this._toDispose,
-			callback: (index, _event) => {
-				switch (index) {
-					case '0':
-						break;
-				}
-			}
-		};
 		const dontShowHintHandler: IContentActionHandler = {
 			disposables: this._toDispose,
 			callback: (index, _event) => {
@@ -341,7 +332,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 			hintElement.appendChild(suggestBefore);
 
-			const suggestLabel = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
+			const suggestLabel = this._toDispose.add(new KeybindingLabel(hintElement, OS));
 			suggestLabel.set(suggestKeybinding);
 			suggestLabel.element.style.width = 'min-content';
 			suggestLabel.element.style.display = 'inline';
@@ -394,12 +385,12 @@ class TerminalInitialHintWidget extends Disposable {
 		hintElement.appendChild(typeToDismissCompactRendered);
 		ariaLabelParts.push(localize('hintTextDismissAriaLabel', "Start typing to dismiss or don't show this again."));
 
-		return { ariaLabel: ariaLabelParts.join(' '), hintHandler, hintElement };
+		return { ariaLabel: ariaLabelParts.join(' '), hintElement };
 	}
 
 	getDomNode(): HTMLElement | undefined {
 		if (!this._domNode) {
-			const result = this._getHintInlineChat();
+			const result = this._getHintContent();
 			if (!result) {
 				return undefined;
 			}

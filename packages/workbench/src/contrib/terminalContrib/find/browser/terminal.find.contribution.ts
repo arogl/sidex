@@ -12,7 +12,7 @@ import { localize2 } from '@sidex/base/nls.js';
 import { ContextKeyExpr } from '@sidex/platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
-import { findInFilesCommand } from '../../../search/browser/searchActionsFind.js';
+import { findInFilesCommand } from '../../../search/browser/searchActionsBase.js';
 import {
 	IDetachedTerminalInstance,
 	ITerminalContribution,

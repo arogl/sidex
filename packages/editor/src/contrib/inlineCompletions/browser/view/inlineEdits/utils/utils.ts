@@ -64,7 +64,7 @@ export function maxContentWidthInRange(
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
 
 	if (maxContentWidth < 5 && lines.some(l => l.length > 0) && model.uri.scheme !== 'file') {
-		console.error('unexpected width');
+		console.log('unexpected width');
 	}
 	return maxContentWidth;
 }

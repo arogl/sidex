@@ -212,10 +212,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._updateHeight();
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
-
 	public getScrollable(): Scrollable {
 		return this._scrollable.getScrollable();
 	}

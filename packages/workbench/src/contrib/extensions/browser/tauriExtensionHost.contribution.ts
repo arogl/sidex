@@ -60,6 +60,7 @@ import {
 	type IExtensionManifestSummary
 } from './extensionPlatformClient.js';
 import { listen } from '@tauri-apps/api/event';
+import { isRealExtensionHostEnabled } from '../../../services/extensions/browser/realExtensionHostFlag.js';
 import { ITerminalService, ITerminalGroupService } from '../../terminal/browser/terminal.js';
 import { INotificationService, Severity as _Severity } from '@sidex/platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '@sidex/platform/progress/common/progress.js';
@@ -212,6 +213,12 @@ class TauriExtensionHostContribution extends Disposable implements IWorkbenchCon
 		if ((globalThis as any).__SIDEX_TAURI__ !== true) {
 			return;
 		}
+		if (isRealExtensionHostEnabled()) {
+			// ExtensionService runs extensions in VS Code's real extension host; starting host.cjs as well
+			// would activate every extension twice.
+			this.logService.info('[ExtHost] real extension host enabled; not starting host.cjs');
+			return;
+		}
 		this._register(
 			this.extensionManagementService.onDidInstallExtensions(results => {
 				for (const result of results) {
@@ -245,12 +252,13 @@ class TauriExtensionHostContribution extends Disposable implements IWorkbenchCon
 			const source = result.source;
 			let installed: { id: string; path: string } | undefined;
 
-			if (source && !URI.isUri(source) && (source as IGalleryExtension).assets?.download?.uri) {
+			if (result.local?.location.scheme === 'file') {
+				// Already unpacked by the install (see toWebExtensionFromGallery).
+				installed = { id: extId, path: result.local.location.fsPath };
+			} else if (source && !URI.isUri(source) && (source as IGalleryExtension).assets?.download?.uri) {
 				const downloadUrl = (source as IGalleryExtension).assets.download.uri;
 				this.logService.info(`[ExtHost] Downloading extension ${extId} from gallery: ${downloadUrl}`);
 				installed = await invoke<{ id: string; path: string }>('install_extension_from_url', { url: downloadUrl });
-			} else if (result.local?.location.scheme === 'file') {
-				installed = { id: extId, path: result.local.location.fsPath };
 			}
 
 			if (!installed?.path) {

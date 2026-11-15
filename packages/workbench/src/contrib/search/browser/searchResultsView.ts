@@ -30,6 +30,7 @@ import { ServiceCollection } from '@sidex/platform/instantiation/common/serviceC
 import { defaultCountBadgeStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '@sidex/base/browser/ui/hover/hoverDelegateFactory.js';
+import type { IManagedHover } from '@sidex/base/browser/ui/hover/hover.js';
 import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
 import {
@@ -83,6 +84,8 @@ interface IMatchTemplate {
 	replace: HTMLElement;
 	after: HTMLElement;
 	actions: MenuWorkbenchToolBar;
+	parentHover: IManagedHover;
+	lineNumberHover: IManagedHover;
 	disposables: DisposableStore;
 	contextKeyService: IContextKeyService;
 }
@@ -533,6 +536,13 @@ export class MatchRenderer
 			})
 		);
 
+		const parentHover = disposables.add(
+			this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), parent, '')
+		);
+		const lineNumberHover = disposables.add(
+			this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), lineNumber, '')
+		);
+
 		return {
 			parent,
 			before,
@@ -541,6 +551,8 @@ export class MatchRenderer
 			after,
 			lineNumber,
 			actions,
+			parentHover,
+			lineNumberHover,
 			disposables,
 			contextKeyService: contextKeyServiceMain
 		};
@@ -561,9 +573,7 @@ export class MatchRenderer
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after)
 			.trim()
 			.substr(0, 999);
-		templateData.disposables.add(
-			this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title)
-		);
+		templateData.parentHover.update(title);
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly);
 
@@ -576,13 +586,7 @@ export class MatchRenderer
 		templateData.lineNumber.classList.toggle('show', numLines > 0 || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
-		templateData.disposables.add(
-			this.hoverService.setupManagedHover(
-				getDefaultHoverDelegate('mouse'),
-				templateData.lineNumber,
-				this.getMatchTitle(match, showLineNumbers)
-			)
-		);
+		templateData.lineNumberHover.update(this.getMatchTitle(match, showLineNumbers));
 
 		templateData.actions.context = {
 			viewer: this.searchView.getControl(),

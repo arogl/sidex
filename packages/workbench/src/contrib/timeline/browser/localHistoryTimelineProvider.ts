@@ -15,12 +15,12 @@ export class LocalHistoryTimelineProvider extends Disposable implements Timeline
 	readonly label = 'Local History';
 	readonly scheme = 'file';
 
-	private readonly _onDidChange = this._register(new Emitter<TimelineChangeEvent>());
-	readonly onDidChange: Event<TimelineChangeEvent> = this._onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<readonly URI[] | undefined>());
+	readonly onDidChange: Event<readonly URI[] | undefined> = this._onDidChange.event;
 
 	constructor(private readonly historyService: IWorkingCopyHistoryService) {
 		super();
-		const fire = (uri: URI | undefined) => this._onDidChange.fire({ id: this.id, uri, reset: false });
+		const fire = (uri: URI | undefined) => this._onDidChange.fire(uri ? [uri] : undefined);
 		this._register(this.historyService.onDidAddEntry(e => fire(e.entry.workingCopy.resource)));
 		this._register(this.historyService.onDidChangeEntry(e => fire(e.entry.workingCopy.resource)));
 		this._register(this.historyService.onDidRemoveEntry(e => fire(e.entry.workingCopy.resource)));

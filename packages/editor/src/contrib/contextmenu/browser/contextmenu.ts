@@ -141,7 +141,7 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		}
 
-		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
+		// Unless the user triggered the context menu through Shift+F10, use the mouse position as menu position
 		let anchor: IMouseEvent | null = null;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
 			anchor = e.event;
@@ -232,6 +232,7 @@ export class ContextMenuController implements IEditorContribution {
 			domForShadowRoot: useShadowDOM
 				? (this._editor.getOverflowWidgetsDomNode() ?? this._editor.getDomNode())
 				: undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 
 			getAnchor: () => anchor,
 
@@ -400,6 +401,7 @@ export class ContextMenuController implements IEditorContribution {
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
 			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			useWindowContainerForShadowRoot: useShadowDOM && this._editor.getOption(EditorOption.fixedOverflowWidgets),
 			getAnchor: () => anchor,
 			getActions: () => actions,
 			onHide: (_wasCancelled: boolean) => {

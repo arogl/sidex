@@ -49,9 +49,9 @@ export async function showBrowserToast(
 
 		disposables.add(cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false })));
 
-		Event.once(toast.onClick)(() => resolve({ supported: true, clicked: true }));
-		Event.once(toast.onClose)(() => resolve({ supported: true, clicked: false }));
-		Event.once(toast.onError)(() => resolve({ supported: false, clicked: false }));
+		disposables.add(Event.once(toast.onClick)(() => resolve({ supported: true, clicked: true })));
+		disposables.add(Event.once(toast.onClose)(() => resolve({ supported: true, clicked: false })));
+		disposables.add(Event.once(toast.onError)(() => resolve({ supported: false, clicked: false })));
 	});
 }
 

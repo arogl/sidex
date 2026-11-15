@@ -9,7 +9,7 @@
         "@microsoft/1ds-post-js": "^4.4.5",
         "@tauri-apps/api": "^2.12.4",
         "@tauri-apps/plugin-shell": "^2",
-        "@vscode/codicons": "^0.0.45",
+        "@vscode/codicons": "0.0.46-46",
         "@vscode/iconv-lite-umd": "^0.7.1",
         "@vscode/tree-sitter-wasm": "^0.3.1",
         "@xterm/addon-clipboard": "^0.2.0",
@@ -33,6 +33,7 @@
         "@types/bun": "1.4.4",
         "@types/katex": "^0.16.8",
         "@types/trusted-types": "^2.0.7",
+        "@vscode/ripgrep-universal": "1.18.0",
         "@webgpu/types": "^0.1.74",
         "@xterm/headless": "^6.0.0",
         "jschardet": "^3.1.4",
@@ -409,9 +410,11 @@
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
-    "@vscode/codicons": ["@vscode/codicons@0.0.45", "", {}, "sha512-1KAZ7XCMagp5Gdrlr4bbbcAqgcIL623iO1wW6rfcSVGAVUQvR0WP7bQx1SbJ11gmV3fdQTSEFIJQ/5C+HuVasw=="],
+    "@vscode/codicons": ["@vscode/codicons@0.0.46-46", "", {}, "sha512-5P6z/falKoU3upoWeCcgjMV7HYJ1dQE0F6cXViLKIRe+l4JvVjQXmL0LetwUjVRV0eh7yXfpgIoDrdY2VadNoQ=="],
 
     "@vscode/iconv-lite-umd": ["@vscode/iconv-lite-umd@0.7.1", "", {}, "sha512-tK6k0DXFHW7q5+GGuGZO+phpAqpxO4WXl+BLc/8/uOk3RsM2ssAL3CQUQDb1TGfwltjsauhN6S4ghYZzs4sPFw=="],
+
+    "@vscode/ripgrep-universal": ["@vscode/ripgrep-universal@1.18.0", "", {}, "sha512-kgrAVy1L/v/8erAjo+I720ifTf7o4rvYUwgsuEu97XAEBtPT9sk3HhcSgFpxMydvNmwdJtXo9/AVee7JjocTrg=="],
 
     "@vscode/tree-sitter-wasm": ["@vscode/tree-sitter-wasm@0.3.1", "", {}, "sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ=="],
 

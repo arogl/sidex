@@ -579,20 +579,24 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		// utils to collect/create injected text decorations
+		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
+		const editorFontSize = this._editor.getOption(EditorOption.fontSize);
 		const newDecorationsData: InlayHintDecorationRenderInfo[] = [];
 		const addInjectedText = (
 			item: InlayHintItem,
 			ref: ClassNameReference,
 			content: string,
 			cursorStops: InjectedTextCursorStops,
-			attachedData?: RenderedInlayHintLabelPart | object
+			attachedData?: RenderedInlayHintLabelPart | object,
+			widthInEm?: number
 		): void => {
 			const opts: InjectedTextOptions = {
 				content,
 				inlineClassNameAffectsLetterSpacing: true,
 				inlineClassName: ref.className,
 				cursorStops,
-				attachedData
+				attachedData,
+				widthInEm
 			};
 			newDecorationsData.push({
 				item,
@@ -612,21 +616,23 @@ export class InlayHintsController implements IEditorContribution {
 		};
 
 		const addInjectedWhitespace = (item: InlayHintItem, isLast: boolean): void => {
+			const widthInPixels = (fontSize / 3) | 0;
+			const widthInEm = widthInPixels / editorFontSize;
 			const marginRule = this._ruleFactory.createClassNameRef({
-				width: `${(fontSize / 3) | 0}px`,
+				width: `${widthInPixels}px`,
 				display: 'inline-block'
 			});
 			addInjectedText(
 				item,
 				marginRule,
-				'\u200a',
+				'',
 				isLast ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
-				InlayHintsController._whitespaceData
+				InlayHintsController._whitespaceData,
+				widthInEm
 			);
 		};
 
 		//
-		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
 		const maxLength = this._editor.getOption(EditorOption.inlayHints).maximumLength;
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);

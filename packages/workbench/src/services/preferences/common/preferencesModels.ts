@@ -6,7 +6,7 @@
 import { coalesce } from '@sidex/base/common/arrays.js';
 import { IStringDictionary } from '@sidex/base/common/collections.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
-import { JSONVisitor, visit } from '@sidex/base/common/json.js';
+import { JSONVisitor, setObjectProperty, visit } from '@sidex/base/common/json.js';
 import { Disposable, IReference } from '@sidex/base/common/lifecycle.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { IRange, Range } from '@sidex/editor/common/core/range.js';
@@ -29,7 +29,6 @@ import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding
 import { Registry } from '@sidex/platform/registry/common/platform.js';
 import { EditorModel } from '../../../common/editor/editorModel.js';
 import {
-	IFilterMetadata,
 	IFilterResult,
 	IGroupFilter,
 	IKeybindingsEditorModel,
@@ -128,19 +127,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 		return undefined;
 	}
 
-	protected collectMetadata(groups: ISearchResultGroup[]): IStringDictionary<IFilterMetadata> | null {
-		const metadata = Object.create(null);
-		let hasMetadata = false;
-		groups.forEach(g => {
-			if (g.result.metadata) {
-				metadata[g.id] = g.result.metadata;
-				hasMetadata = true;
-			}
-		});
-
-		return hasMetadata ? metadata : null;
-	}
-
 	protected get filterGroups(): ISettingsGroup[] {
 		return this.settingsGroups;
 	}
@@ -237,12 +223,10 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 			};
 		}
 
-		const metadata = this.collectMetadata(resultGroups);
 		return {
 			allGroups: this.settingsGroups,
 			filteredGroups: filteredGroup ? [filteredGroup] : [],
-			matches,
-			metadata: metadata ?? undefined
+			matches
 		};
 	}
 }
@@ -319,7 +303,7 @@ function parse(
 		if (Array.isArray(currentParent)) {
 			(<any[]>currentParent).push(value);
 		} else if (currentProperty) {
-			currentParent[currentProperty] = value;
+			setObjectProperty(currentParent, currentProperty, value);
 		}
 		if (
 			previousParents.length === settingsPropertyIndex + 1 ||
@@ -840,6 +824,8 @@ export class DefaultSettings extends Disposable {
 			extensionInfo: isString(prop.source) ? undefined : prop.source,
 			deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 			deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
+			deprecationMessageSeverity: prop.deprecationMessageSeverity,
+			deprecationMessageShowInSettings: prop.deprecationMessageShowInSettings,
 			validator: createValidator(prop),
 			allKeysAreBoolean,
 			editPresentation: prop.editPresentation,
@@ -949,13 +935,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		const startLine = this.settingsGroups.at(-1)!.range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
-		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length
 			? {
 					allGroups: this.settingsGroups,
 					filteredGroups,
-					matches,
-					metadata: metadata ?? undefined
+					matches
 				}
 			: undefined;
 	}
@@ -1059,6 +1043,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			overrideOf: setting.overrideOf,
 			tags: setting.tags,
 			deprecationMessage: setting.deprecationMessage,
+			deprecationMessageIsMarkdown: setting.deprecationMessageIsMarkdown,
+			deprecationMessageSeverity: setting.deprecationMessageSeverity,
+			deprecationMessageShowInSettings: setting.deprecationMessageShowInSettings,
 			keyRange: nullRange,
 			valueRange: nullRange,
 			descriptionIsMarkdown: undefined,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow, runWhenWindowIdle } from '@sidex/base/browser/dom.js';
-import { debounce } from '@sidex/base/common/decorators.js';
+import { RunOnceScheduler } from '@sidex/base/common/async.js';
 import { Disposable, MutableDisposable } from '@sidex/base/common/lifecycle.js';
 import type { XtermTerminal } from './xterm/xtermTerminal.js';
 
@@ -12,7 +12,8 @@ const enum Constants {
 	/**
 	 * The _normal_ buffer length threshold at which point resizing starts being debounced.
 	 */
-	StartDebouncingThreshold = 200
+	StartDebouncingThreshold = 200,
+	DebounceResizeXDelay = 100
 }
 
 export class TerminalResizeDebouncer extends Disposable {
@@ -21,6 +22,12 @@ export class TerminalResizeDebouncer extends Disposable {
 
 	private readonly _resizeXJob = this._register(new MutableDisposable());
 	private readonly _resizeYJob = this._register(new MutableDisposable());
+
+	// Owned by the disposable store so the pending timer is cancelled on dispose,
+	// avoiding callbacks that fire against a torn-down xterm renderer.
+	private readonly _debounceResizeXScheduler = this._register(
+		new RunOnceScheduler(() => this._resizeXCallback(this._latestX), Constants.DebounceResizeXDelay)
+	);
 
 	constructor(
 		private readonly _isVisible: () => boolean,
@@ -33,6 +40,9 @@ export class TerminalResizeDebouncer extends Disposable {
 	}
 
 	async resize(cols: number, rows: number, immediate: boolean): Promise<void> {
+		if (this._store.isDisposed) {
+			return;
+		}
 		this._latestX = cols;
 		this._latestY = rows;
 
@@ -40,6 +50,7 @@ export class TerminalResizeDebouncer extends Disposable {
 		if (immediate || this._getXterm()!.raw.buffer.normal.length < Constants.StartDebouncingThreshold) {
 			this._resizeXJob.clear();
 			this._resizeYJob.clear();
+			this._debounceResizeXScheduler.cancel();
 			this._resizeBothCallback(cols, rows);
 			return;
 		}
@@ -49,12 +60,18 @@ export class TerminalResizeDebouncer extends Disposable {
 		if (win && !this._isVisible()) {
 			if (!this._resizeXJob.value) {
 				this._resizeXJob.value = runWhenWindowIdle(win, async () => {
+					if (this._store.isDisposed) {
+						return;
+					}
 					this._resizeXCallback(this._latestX);
 					this._resizeXJob.clear();
 				});
 			}
 			if (!this._resizeYJob.value) {
 				this._resizeYJob.value = runWhenWindowIdle(win, async () => {
+					if (this._store.isDisposed) {
+						return;
+					}
 					this._resizeYCallback(this._latestY);
 					this._resizeYJob.clear();
 				});
@@ -66,19 +83,18 @@ export class TerminalResizeDebouncer extends Disposable {
 		// expensive due to reflow.
 		this._resizeYCallback(rows);
 		this._latestX = cols;
-		this._debounceResizeX(cols);
+		this._debounceResizeXScheduler.schedule();
 	}
 
 	flush(): void {
-		if (this._resizeXJob.value || this._resizeYJob.value) {
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (this._resizeXJob.value || this._resizeYJob.value || this._debounceResizeXScheduler.isScheduled()) {
 			this._resizeXJob.clear();
 			this._resizeYJob.clear();
+			this._debounceResizeXScheduler.cancel();
 			this._resizeBothCallback(this._latestX, this._latestY);
 		}
-	}
-
-	@debounce(100)
-	private _debounceResizeX(cols: number) {
-		this._resizeXCallback(cols);
 	}
 }

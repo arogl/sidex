@@ -37,6 +37,7 @@ import {
 } from '@sidex/platform/contextkey/common/contextkey.js';
 import { filter } from '@sidex/base/common/objects.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
+import { ILogService } from '@sidex/platform/log/common/log.js';
 
 export class Debugger implements IDebugger, IDebuggerMetadata {
 	private debuggerContribution: IDebuggerContribution;
@@ -56,7 +57,8 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
@@ -319,10 +321,24 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 					$ref: `#/definitions/common/properties/${prop}`
 				};
 			}
+			const malformedPropertyNames: string[] = [];
 			Object.keys(properties).forEach(name => {
-				// Use schema allOf property to get independent error reporting #21113
-				ConfigurationResolverUtils.applyDeprecatedVariableMessage(properties[name]);
+				const property = properties[name];
+				// A debugger extension may contribute a malformed property whose value is not a schema
+				// object (e.g. the bare string 'integer' instead of `{ "type": "integer" }`). Skip those so
+				// one bad contribution does not throw and abort schema generation for every debugger.
+				if (isObject(property)) {
+					// Use schema allOf property to get independent error reporting #21113
+					ConfigurationResolverUtils.applyDeprecatedVariableMessage(property);
+				} else {
+					malformedPropertyNames.push(name);
+				}
 			});
+			if (malformedPropertyNames.length) {
+				this.logService.warn(
+					`Ignoring malformed debug configuration schema properties for type '${this.type}': ${malformedPropertyNames.join(', ')}`
+				);
+			}
 
 			definitions[definitionId] = { ...attributes };
 			definitions[platformSpecificDefinitionId] = {

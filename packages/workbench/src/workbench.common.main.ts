@@ -54,10 +54,12 @@ import './api/browser/viewsExtensionPoint.js';
 //#region --- workbench parts
 
 import './browser/parts/editor/editor.contribution.js';
+import './browser/parts/editor/diffEditor.workbench.contribution.js';
 import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
 import './browser/parts/statusbar/statusbarPart.js';
+import './browser/parts/titlebar/menubar.contribution.js';
 
 //#endregion
 
@@ -213,6 +215,12 @@ import './contrib/search/browser/searchView.js';
 
 // Sidex Chat
 import './contrib/sidexChat/browser/sidexChat.contribution.js';
+import './contrib/chat/browser/chat.languageModels.contribution.js';
+import './contrib/chat/browser/chatConfiguration.contribution.js';
+import './contrib/chat/browser/tools/runInTerminalTool.contribution.js';
+import './contrib/chat/browser/tools/todoListTool.contribution.js';
+import './contrib/chat/browser/tools/mcpTools.contribution.js';
+import './contrib/chat/browser/chatGitHubSignIn.contribution.js';
 
 // Sidex Complete
 import './contrib/sidexComplete/browser/sidexComplete.contribution.js';
@@ -259,6 +267,7 @@ import './contrib/url/browser/url.contribution.js';
 // Webview
 import './contrib/webview/browser/webview.contribution.js';
 import './contrib/webviewPanel/browser/webviewPanel.contribution.js';
+import './contrib/customEditor/browser/customEditor.contribution.js';
 import './contrib/webviewView/browser/webviewView.contribution.js';
 
 // Image Preview
@@ -303,6 +312,7 @@ import './contrib/limitIndicator/browser/limitIndicator.contribution.js';
 import './contrib/themes/browser/themes.contribution.js';
 
 // Timeline
+import './contrib/timeline/browser/timeline.service.contribution.js';
 import './contrib/timeline/browser/timeline.contribution.js';
 
 // Language Status

@@ -33,6 +33,7 @@ import { IConfigurationService, ConfigurationTarget } from '@sidex/platform/conf
 import { isWeb } from '@sidex/base/common/platform.js';
 import { ColorScheme } from '@sidex/platform/theme/common/theme.js';
 import { IHostColorSchemeService } from './hostColorSchemeService.js';
+import { IColorScheme } from '@sidex/platform/window/common/window.js';
 
 // Configuration: Themes
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -126,6 +127,7 @@ const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 		formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)
 	),
 	default: false,
+	...(isWeb ? { agentsWindow: { default: true } } : {}),
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG]
 };
 
@@ -446,8 +448,26 @@ export class ThemeConfiguration {
 		return undefined;
 	}
 
+	public isDetectingHighContrast(): boolean {
+		return this.configurationService.getValue(ThemeSettings.DETECT_HC);
+	}
+
 	public isDetectingColorScheme(): boolean {
 		return this.shouldAutoDetectColorScheme();
+	}
+
+	public isPreferredColorSchemeChange(previous: IColorScheme): boolean {
+		const darkChanged = previous.dark !== this.hostColorService.dark;
+		if (this.isDetectingColorScheme() && darkChanged) {
+			return true;
+		}
+		if (this.isDetectingHighContrast()) {
+			return (
+				previous.highContrast !== this.hostColorService.highContrast ||
+				(this.hostColorService.highContrast && darkChanged)
+			);
+		}
+		return false;
 	}
 
 	public getColorThemeSettingId(): ThemeSettings {
@@ -490,7 +510,7 @@ export class ThemeConfiguration {
 			return ConfigurationTarget.WORKSPACE_FOLDER;
 		} else if (!types.isUndefined(settings.workspaceValue)) {
 			return ConfigurationTarget.WORKSPACE;
-		} else if (!types.isUndefined(settings.userRemote)) {
+		} else if (!types.isUndefined(settings.userRemoteValue)) {
 			return ConfigurationTarget.USER_REMOTE;
 		}
 		return ConfigurationTarget.USER;

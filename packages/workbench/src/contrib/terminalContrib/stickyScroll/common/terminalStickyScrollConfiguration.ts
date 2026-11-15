@@ -50,6 +50,6 @@ export const terminalStickyScrollConfiguration: IStringDictionary<IConfiguration
 		items: {
 			type: 'string'
 		},
-		default: ['clear', 'cls', 'clear-host', 'copilot', 'claude', 'codex', 'gemini']
+		default: ['clear', 'cls', 'clear-host', 'agent', 'agy', 'copilot', 'claude', 'codex', 'gemini']
 	}
 };

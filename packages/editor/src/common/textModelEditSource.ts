@@ -102,24 +102,63 @@ export const EditSources = {
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
+		autoTier?: string;
+		fusionModel?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
 		mode: string | undefined;
 		extensionId: VersionedExtensionId | undefined;
 		codeBlockSuggestionId: EditSuggestionId | undefined;
+		origin?: 'agentHost';
+		harness?: string;
+		agentSessionId?: string;
+		chatSessionId?: string;
 	}) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
+			$fusionModel: data.fusionModel,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$harness: data.harness,
+			$origin: data.origin,
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
+			...(data.agentSessionId !== undefined ? { $$agentSessionId: data.agentSessionId } : {}),
+			...(data.chatSessionId !== undefined ? { $$chatSessionId: data.chatSessionId } : {}),
 			$$requestId: data.requestId,
 			$$mode: data.mode,
 			$$codeBlockSuggestionId: data.codeBlockSuggestionId
 		} as const);
+	},
+
+	agentHostChatApplyEdits(data: {
+		modelId: string | undefined;
+		autoTier?: string;
+		fusionModel?: string;
+		sessionId: string;
+		agentSessionId?: string;
+		chatSessionId?: string;
+		requestId: string;
+		harness: string;
+	}) {
+		return EditSources.chatApplyEdits({
+			modelId: data.modelId,
+			autoTier: data.autoTier,
+			fusionModel: data.fusionModel,
+			sessionId: data.sessionId,
+			agentSessionId: data.agentSessionId,
+			chatSessionId: data.chatSessionId,
+			requestId: data.requestId,
+			languageId: '',
+			mode: undefined,
+			extensionId: undefined,
+			codeBlockSuggestionId: undefined,
+			origin: 'agentHost',
+			harness: data.harness
+		});
 	},
 
 	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
@@ -163,6 +202,7 @@ export const EditSources = {
 
 	inlineChatApplyEdit(data: {
 		modelId: string | undefined;
+		autoTier?: string;
 		requestId: string | undefined;
 		sessionId: string | undefined;
 		languageId: string;
@@ -171,6 +211,7 @@ export const EditSources = {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$$sessionId: data.sessionId,

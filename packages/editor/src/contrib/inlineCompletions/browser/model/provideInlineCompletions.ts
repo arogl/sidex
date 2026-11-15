@@ -5,45 +5,45 @@
 
 import { assertNever } from '@sidex/base/common/assert.js';
 import { AsyncIterableProducer } from '@sidex/base/common/async.js';
+import { CachedFunction } from '@sidex/base/common/cache.js';
 import { CancellationToken, CancellationTokenSource } from '@sidex/base/common/cancellation.js';
-import { BugIndicatingError, onUnexpectedExternalError } from '@sidex/base/common/errors.js';
+import { groupByMap } from '@sidex/base/common/collections.js';
+import { BugIndicatingError, onUnexpectedError, onUnexpectedExternalError } from '@sidex/base/common/errors.js';
 import { Disposable, IDisposable } from '@sidex/base/common/lifecycle.js';
+import { isDefined } from '@sidex/base/common/types.js';
+import { URI } from '@sidex/base/common/uri.js';
 import { prefixedUuid } from '@sidex/base/common/uuid.js';
 import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
-import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
+import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import {
-	InlineCompletionEndOfLifeReason,
-	InlineCompletionEndOfLifeReasonKind,
+	IInlineCompletionHint,
 	InlineCompletion,
 	InlineCompletionContext,
+	InlineCompletionEndOfLifeReason,
+	InlineCompletionEndOfLifeReasonKind,
 	InlineCompletions,
-	InlineCompletionsProvider,
-	PartialAcceptInfo,
 	InlineCompletionsDisposeReason,
+	InlineCompletionsProvider,
+	InlineCompletionTriggerKind,
 	LifetimeSummary,
-	ProviderId,
-	IInlineCompletionHint,
-	InlineCompletionTriggerKind
+	PartialAcceptInfo,
+	ProviderId
 } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
+import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
 import { ErrorResult, getReadonlyEmptyArray } from '../utils.js';
-import { groupByMap } from '@sidex/base/common/collections.js';
-import { DirectedGraph } from './graph.js';
-import { CachedFunction } from '@sidex/base/common/cache.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
-import { isDefined } from '@sidex/base/common/types.js';
-import { inlineCompletionIsVisible } from './inlineCompletionIsVisible.js';
-import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
-import { URI } from '@sidex/base/common/uri.js';
 import { InlineSuggestionEditKind } from './editKind.js';
+import { DirectedGraph } from './graph.js';
+import { inlineCompletionIsVisible } from './inlineCompletionIsVisible.js';
 import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
@@ -736,6 +736,14 @@ export class InlineSuggestionList {
 				item.reportEndOfLife();
 			}
 			this.provider.disposeInlineCompletions(this.inlineSuggestions, reason);
+		} else if (this.refCount < 0) {
+			// Invariant: every addRef must be paired with exactly one removeRef.
+			// Going negative means a removeRef without a matching addRef somewhere.
+			onUnexpectedError(
+				new BugIndicatingError(
+					`InlineSuggestionList (provider=${this.provider.providerId?.toString()}) refCount went negative (${this.refCount}) — more removeRef than addRef calls.`
+				)
+			);
 		}
 	}
 }

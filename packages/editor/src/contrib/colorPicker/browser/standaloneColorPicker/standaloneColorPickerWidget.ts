@@ -55,6 +55,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	private _body: HTMLElement = document.createElement('div');
 	private _colorHover: StandaloneColorPickerHover | null = null;
 	private _selectionSetInEditor: boolean = false;
+	private _selections: IRange[];
 
 	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
 	public readonly onResult = this._onResult.event;
@@ -84,6 +85,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		);
 		this._position = this._editor._getViewModel()?.getPrimaryCursorState().modelState.position;
 		const editorSelection = this._editor.getSelection();
+		this._selections = this._editor.getSelections() ?? [];
 		const selection = editorSelection
 			? {
 					startLineNumber: editorSelection.startLineNumber,
@@ -112,6 +114,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 				} else {
 					this._selectionSetInEditor = false;
 				}
+				this._selections = this._editor.getSelections() ?? [];
 			})
 		);
 		this._register(
@@ -134,7 +137,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	public updateEditor() {
 		if (this._colorHover) {
-			this._standaloneColorPickerParticipant.updateEditorModel(this._colorHover);
+			this._standaloneColorPickerParticipant.updateEditorModel(this._colorHover, this._selections);
 		}
 	}
 

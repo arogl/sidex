@@ -49,6 +49,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	declare readonly _serviceBrand: undefined;
 
 	@memoize
+	get appSharedDataHome(): URI {
+		return joinPath(this.userRoamingDataHome, 'sharedData');
+	}
+
+	@memoize
 	get remoteAuthority(): string | undefined {
 		return this.options.remoteAuthority;
 	}
@@ -119,6 +124,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get logFile(): URI {
 		return joinPath(this.windowLogsPath, 'window.log');
+	}
+
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.userRoamingDataHome, 'agent-sessions.code-workspace');
 	}
 
 	@memoize

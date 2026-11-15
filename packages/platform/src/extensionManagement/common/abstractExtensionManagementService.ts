@@ -48,6 +48,7 @@ import {
 import {
 	areSameExtensions,
 	ExtensionKey,
+	getExtensionBlockedMessage,
 	getGalleryExtensionId,
 	getGalleryExtensionTelemetryData,
 	getLocalExtensionTelemetryData,
@@ -59,7 +60,6 @@ import {
 	isApplicationScopedExtension,
 	TargetPlatform
 } from '../../extensions/common/extensions.js';
-import { areApiProposalsCompatible } from '../../extensions/common/extensionValidator.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -112,6 +112,10 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 	}
 
 	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
+		if (extension.blockingInfo) {
+			return getExtensionBlockedMessage(extension.blockingInfo);
+		}
+
 		const allowedToInstall = this.allowedExtensionsService.isAllowed({
 			id: extension.identifier.id,
 			publisherDisplayName: extension.publisherDisplayName
@@ -475,26 +479,30 @@ export abstract class AbstractExtensionManagementService
 						);
 						existingInstallingExtension.waitingTasks.push(root);
 						// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
-						alreadyRequestedInstallations.push(
-							Event.toPromise(
-								Event.filter(this.onDidInstallExtensions, results =>
-									results.some(result => areSameExtensions(result.identifier, identifier))
-								)
-							).then(results => {
-								this.logService.info(
-									'Finished waiting for already requested installing extension',
-									identifier.id,
-									root.identifier.id,
-									options.profileLocation.toString()
-								);
-								const result = results.find(result => areSameExtensions(result.identifier, identifier));
-								if (!result?.local) {
-									// Extension failed to install
-									throw new Error(`Extension ${identifier.id} is not installed`);
-								}
-								return result.local;
-							})
-						);
+						const waitForInstallation = Event.toPromise(
+							Event.filter(this.onDidInstallExtensions, results =>
+								results.some(result => areSameExtensions(result.identifier, identifier))
+							)
+						).then(results => {
+							this.logService.info(
+								'Finished waiting for already requested installing extension',
+								identifier.id,
+								root.identifier.id,
+								options.profileLocation.toString()
+							);
+							const result = results.find(result => areSameExtensions(result.identifier, identifier));
+							if (!result?.local) {
+								// Extension failed to install
+								throw new Error(`Extension ${identifier.id} is not installed`);
+							}
+							return result.local;
+						});
+						alreadyRequestedInstallations.push(waitForInstallation);
+						// Attach a no-op rejection handler to prevent an unhandledRejection if the
+						// outer try throws before `alreadyRequestedInstallations` is awaited below.
+						// The original promise is still observed via `joinAllSettled` on the happy path,
+						// and the underlying install failure is already reported by the primary task.
+						waitForInstallation.catch(() => {});
 					}
 					return;
 				}
@@ -521,12 +529,16 @@ export abstract class AbstractExtensionManagementService
 		};
 
 		try {
+			const systemExtensions = await this.getInstalled(ExtensionType.System);
 			// Start installing extensions
 			for (const { manifest, extension, options } of extensions) {
-				const isApplicationScoped =
-					options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
+				const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+				const isSystemExtension = systemExtensions.some(e => areSameExtensions(e.identifier, { id: extensionId }));
+				const isBuiltin = options.isBuiltin || isSystemExtension;
+				const isApplicationScoped = options.isApplicationScoped || isBuiltin || isApplicationScopedExtension(manifest);
 				const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 					...options,
+					isBuiltin,
 					isApplicationScoped,
 					profileLocation: isApplicationScoped
 						? this.userDataProfilesService.defaultProfile.extensionsResource
@@ -543,12 +555,46 @@ export abstract class AbstractExtensionManagementService
 						)
 					: undefined;
 				if (existingInstallExtensionTask) {
+					const existingTask = existingInstallExtensionTask.task;
 					this.logService.info(
 						'Extension is already requested to install',
-						existingInstallExtensionTask.task.identifier.id,
+						existingTask.identifier.id,
 						installExtensionTaskOptions.profileLocation.toString()
 					);
-					alreadyRequestedInstallations.push(existingInstallExtensionTask.task.waitUntilTaskIsFinished());
+					// Record the result of the in-flight install into our results map so callers
+					// (e.g. installFromGallery) can find the actual local extension or real error
+					// instead of falling through to a generic "Unknown error".
+					const resultKey = `${existingTask.identifier.id.toLowerCase()}-${installExtensionTaskOptions.profileLocation.toString()}`;
+					const waitForInstallation = existingTask.waitUntilTaskIsFinished().then(
+						local => {
+							installExtensionResultsMap.set(resultKey, {
+								local,
+								identifier: existingTask.identifier,
+								operation: existingTask.operation,
+								source: existingTask.source,
+								context: installExtensionTaskOptions.context,
+								profileLocation: installExtensionTaskOptions.profileLocation,
+								applicationScoped: local.isApplicationScoped
+							});
+							return local;
+						},
+						error => {
+							installExtensionResultsMap.set(resultKey, {
+								error: toExtensionManagementError(error),
+								identifier: existingTask.identifier,
+								operation: existingTask.operation,
+								source: existingTask.source,
+								context: installExtensionTaskOptions.context,
+								profileLocation: installExtensionTaskOptions.profileLocation
+							});
+							throw error;
+						}
+					);
+					alreadyRequestedInstallations.push(waitForInstallation);
+					// Attach a no-op rejection handler to prevent an unhandledRejection if the
+					// outer try throws before `alreadyRequestedInstallations` is awaited below.
+					// The original promise is still observed via `joinAllSettled` on the happy path.
+					waitForInstallation.catch(() => {});
 				} else {
 					createInstallExtensionTask(manifest, extension, installExtensionTaskOptions, undefined);
 				}
@@ -1060,6 +1106,13 @@ export abstract class AbstractExtensionManagementService
 				);
 			}
 		} else {
+			if (extension.blockingInfo) {
+				throw new ExtensionManagementError(
+					getExtensionBlockedMessage(extension.blockingInfo).value,
+					ExtensionManagementErrorCode.NotAllowed
+				);
+			}
+
 			if ((await this.canInstall(extension)) !== true) {
 				if ((globalThis as any).__SIDEX_TAURI__ === true) {
 					// SideX has a Node.js extension host — skip platform compatibility check
@@ -1080,20 +1133,6 @@ export abstract class AbstractExtensionManagementService
 
 			compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease, productVersion);
 			if (!compatibleExtension) {
-				const incompatibleApiProposalsMessages: string[] = [];
-				if (
-					!areApiProposalsCompatible(extension.properties.enabledApiProposals ?? [], incompatibleApiProposalsMessages)
-				) {
-					throw new ExtensionManagementError(
-						nls.localize(
-							'incompatibleAPI',
-							"Can't install '{0}' extension. {1}",
-							extension.displayName ?? extension.identifier.id,
-							incompatibleApiProposalsMessages[0]
-						),
-						ExtensionManagementErrorCode.IncompatibleApi
-					);
-				}
 				/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 				if (
 					!installPreRelease &&

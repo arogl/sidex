@@ -475,7 +475,7 @@ export class LocalGlobalStateProvider {
 		const storageData = await this.userDataProfileStorageService.readStorageData(profile);
 		for (const [key, value] of storageData) {
 			if (value.value && value.target === StorageTarget.USER) {
-				storage[key] = { version: 1, value: value.value };
+				storage[key] = { version: 1, value: value.value, scope: value.scope };
 			}
 		}
 		return { storage };
@@ -503,7 +503,8 @@ export class LocalGlobalStateProvider {
 	): Promise<void> {
 		const syncResourceLogLabel = getSyncResourceLogLabel(SyncResource.GlobalState, profile);
 		const argv: IStringDictionary<any> = {};
-		const updatedStorage = new Map<string, string | undefined>();
+		const updatedProfileStorage = new Map<string, string | undefined>();
+		const updatedSharedStorage = profile.isDefault ? new Map<string, string | undefined>() : undefined;
 		const storageData = await this.userDataProfileStorageService.readStorageData(profile);
 		const handleUpdatedStorage = (keys: string[], storage?: IStringDictionary<IStorageValue>): void => {
 			for (const key of keys) {
@@ -514,11 +515,19 @@ export class LocalGlobalStateProvider {
 				if (storage) {
 					const storageValue = storage[key];
 					if (storageValue.value !== storageData.get(key)?.value) {
-						updatedStorage.set(key, storageValue.value);
+						const targetMap =
+							updatedSharedStorage && storageValue.scope === StorageScope.APPLICATION_SHARED
+								? updatedSharedStorage
+								: updatedProfileStorage;
+						targetMap.set(key, storageValue.value);
 					}
 				} else {
 					if (storageData.get(key) !== undefined) {
-						updatedStorage.set(key, undefined);
+						const targetMap =
+							updatedSharedStorage && storageData.get(key)?.scope === StorageScope.APPLICATION_SHARED
+								? updatedSharedStorage
+								: updatedProfileStorage;
+						targetMap.set(key, undefined);
 					}
 				}
 			}
@@ -542,10 +551,23 @@ export class LocalGlobalStateProvider {
 			this.logService.info(`${syncResourceLogLabel}: Updated locale`);
 		}
 
-		if (updatedStorage.size) {
+		if (updatedProfileStorage.size) {
 			this.logService.trace(`${syncResourceLogLabel}: Updating global state...`);
-			await this.userDataProfileStorageService.updateStorageData(profile, updatedStorage, StorageTarget.USER);
-			this.logService.info(`${syncResourceLogLabel}: Updated global state`, [...updatedStorage.keys()]);
+			await this.userDataProfileStorageService.updateStorageData(profile, updatedProfileStorage, StorageTarget.USER);
+			this.logService.info(`${syncResourceLogLabel}: Updated global state`, [...updatedProfileStorage.keys()]);
+		}
+
+		if (updatedSharedStorage?.size) {
+			this.logService.trace(`${syncResourceLogLabel}: Updating application shared state...`);
+			await this.userDataProfileStorageService.updateStorageData(
+				profile,
+				updatedSharedStorage,
+				StorageTarget.USER,
+				StorageScope.APPLICATION_SHARED
+			);
+			this.logService.info(`${syncResourceLogLabel}: Updated application shared state`, [
+				...updatedSharedStorage.keys()
+			]);
 		}
 	}
 }
@@ -580,13 +602,19 @@ export class GlobalStateInitializer extends AbstractInitializer {
 		}
 
 		const argv: IStringDictionary<any> = {};
+		const isDefaultProfile = this.storageService.hasScope(this.userDataProfilesService.defaultProfile);
 		const storage: IStringDictionary<any> = {};
 		for (const key of Object.keys(remoteGlobalState.storage)) {
 			if (key.startsWith(argvStoragePrefx)) {
 				argv[key.substring(argvStoragePrefx.length)] = remoteGlobalState.storage[key].value;
 			} else {
-				if (this.storageService.get(key, StorageScope.PROFILE) === undefined) {
-					storage[key] = remoteGlobalState.storage[key].value;
+				const isSharedScope = remoteGlobalState.storage[key].scope === StorageScope.APPLICATION_SHARED;
+				if (isSharedScope && !isDefaultProfile) {
+					continue; // Skip APPLICATION_SHARED keys for non-default profiles
+				}
+				const scope = isSharedScope ? StorageScope.APPLICATION_SHARED : StorageScope.PROFILE;
+				if (this.storageService.get(key, scope) === undefined) {
+					storage[key] = { value: remoteGlobalState.storage[key].value, scope };
 				}
 			}
 		}
@@ -606,7 +634,7 @@ export class GlobalStateInitializer extends AbstractInitializer {
 		if (Object.keys(storage).length) {
 			const storageEntries: Array<IStorageEntry> = [];
 			for (const key of Object.keys(storage)) {
-				storageEntries.push({ key, value: storage[key], scope: StorageScope.PROFILE, target: StorageTarget.USER });
+				storageEntries.push({ key, value: storage[key].value, scope: storage[key].scope, target: StorageTarget.USER });
 			}
 			this.storageService.storeAll(storageEntries, true);
 		}

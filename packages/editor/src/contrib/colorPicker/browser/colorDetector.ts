@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '@sidex
 import { RGBA } from '@sidex/base/common/color.js';
 import { onUnexpectedError } from '@sidex/base/common/errors.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
-import { Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '@sidex/base/common/lifecycle.js';
 import { StopWatch } from '@sidex/base/common/stopwatch.js';
 import { noBreakWhitespace } from '@sidex/base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -50,6 +50,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
 
+	private static readonly colorDecoratorInnerWidthInEm = 0.8;
+	private static readonly colorDecoratorMarginInEm = 0.2;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -59,6 +62,21 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		super();
 		this._colorDecoratorIds = this._editor.createDecorationsCollection();
 		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
+		const editorDomNode = this._editor.getContainerDomNode();
+		editorDomNode.style.setProperty(
+			'--vscode-colorPicker-colorDecoratorWidth',
+			`${ColorDetector.colorDecoratorInnerWidthInEm}em`
+		);
+		editorDomNode.style.setProperty(
+			'--vscode-colorPicker-colorDecoratorMargin',
+			`${ColorDetector.colorDecoratorMarginInEm}em`
+		);
+		this._register(
+			toDisposable(() => {
+				editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorWidth');
+				editorDomNode.style.removeProperty('--vscode-colorPicker-colorDecoratorMargin');
+			})
+		);
 		this._debounceInformation = languageFeatureDebounceService.for(
 			_languageFeaturesService.colorProvider,
 			'Document Colors',
@@ -133,6 +151,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.stop();
 
 		if (!this._isColorDecoratorsEnabled) {
+			this.removeAllDecorations();
 			return;
 		}
 		const model = this._editor.getModel();
@@ -218,6 +237,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecorationClassRefs.clear();
 
 		const decorations: IModelDeltaDecoration[] = [];
+		const widthInEm = ColorDetector.colorDecoratorInnerWidthInEm + 2 * ColorDetector.colorDecoratorMarginInEm;
 
 		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
 
@@ -245,7 +265,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 						content: noBreakWhitespace,
 						inlineClassName: `${ref.className} colorpicker-color-decoration`,
 						inlineClassNameAffectsLetterSpacing: true,
-						attachedData: ColorDecorationInjectedTextMarker
+						attachedData: ColorDecorationInjectedTextMarker,
+						widthInEm
 					}
 				}
 			});

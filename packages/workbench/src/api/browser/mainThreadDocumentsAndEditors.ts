@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '@sidex/base/common/event.js';
-import { combinedDisposable, DisposableStore, DisposableMap } from '@sidex/base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '@sidex/editor/browser/services/codeEditorService.js';
 import { IEditor } from '@sidex/editor/common/editorCommon.js';
@@ -296,12 +296,11 @@ class MainThreadDocumentAndEditorStateComputer {
 }
 
 @extHostCustomer
-export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
-	private readonly _toDispose = new DisposableStore();
+export class MainThreadDocumentsAndEditors extends Disposable implements IMainThreadEditorLocator {
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
 	private readonly _mainThreadDocuments: MainThreadDocuments;
 	private readonly _mainThreadEditors: MainThreadTextEditors;
-	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
+	private readonly _textEditors = this._register(new DisposableMap<string, MainThreadTextEditor>());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -321,9 +320,10 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IQuickDiffModelService quickDiffModelService: IQuickDiffModelService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		this._mainThreadDocuments = this._toDispose.add(
+		this._mainThreadDocuments = this._register(
 			new MainThreadDocuments(
 				extHostContext,
 				this._modelService,
@@ -338,7 +338,7 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 		);
 		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
-		this._mainThreadEditors = this._toDispose.add(
+		this._mainThreadEditors = this._register(
 			new MainThreadTextEditors(
 				this,
 				extHostContext,
@@ -353,7 +353,7 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 		extHostContext.set(MainContext.MainThreadTextEditors, this._mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._toDispose.add(
+		this._register(
 			new MainThreadDocumentAndEditorStateComputer(
 				delta => this._onDelta(delta),
 				_modelService,
@@ -362,10 +362,6 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 				paneCompositeService
 			)
 		);
-	}
-
-	dispose(): void {
-		this._toDispose.dispose();
 	}
 
 	private _onDelta(delta: DocumentAndEditorStateDelta): void {
@@ -395,8 +391,7 @@ export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 		for (const { id } of delta.removedEditors) {
 			const mainThreadEditor = this._textEditors.get(id);
 			if (mainThreadEditor) {
-				mainThreadEditor.dispose();
-				this._textEditors.delete(id);
+				this._textEditors.deleteAndDispose(id);
 				removedEditors.push(id);
 			}
 		}

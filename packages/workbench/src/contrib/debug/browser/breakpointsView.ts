@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '@sidex/base/browser/dom.js';
-import { IKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
 import { ActionBar } from '@sidex/base/browser/ui/actionbar/actionbar.js';
 import { AriaRole } from '@sidex/base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '@sidex/base/browser/ui/hover/hoverDelegateFactory.js';
@@ -395,6 +395,23 @@ export class BreakpointsView extends ViewPane {
 				) {
 					// double click
 					this.renderInputBox({ breakpoint: element, type: 'name' });
+				}
+			})
+		);
+
+		this._register(
+			this.tree.onKeyDown(e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Space) && !dom.isEditableElement(e.target as HTMLElement)) {
+					const focused = this.tree.getFocus();
+					if (focused.length > 0) {
+						const element = focused[0];
+						if (element && !(element instanceof BreakpointsFolderItem)) {
+							this.debugService.enableOrDisableBreakpoints(!element.enabled, element);
+							event.preventDefault();
+							event.stopPropagation();
+						}
+					}
 				}
 			})
 		);

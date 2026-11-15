@@ -33,6 +33,7 @@ export interface IOutlineService {
 		token: CancellationToken
 	): Promise<IOutline<any> | undefined>;
 	registerOutlineCreator(creator: IOutlineCreator<any, any>): IDisposable;
+	notifyOutlineChanged(): void;
 }
 
 export interface IOutlineCreator<P extends IEditorPane, E> {

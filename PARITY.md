@@ -29,8 +29,11 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 
 | Area | Notes | Evidence |
 |---|---|---|
+| AI / Chat / Copilot | Copilot Chat runs through the real extension host (chat participants, language models, tools) and is driven from SideX's own chat view, contrib/sidexChat, since VS Code's contrib/chat UI is not wired. Agent edits, run_in_terminal, MCP stdio, todo list and thinking work; gaps are tracked in TODO.md |  |
+| Custom Editors | contrib/customEditor ported from 1.144 and imported; not yet runtime-tested |  |
 | Remote / SSH | SSH/WSL/container connect+exec exist, but NullRemoteAgentService/NullRemoteExtensionsScannerService — no remote ext host | `packages/workbench/src/services/remote/browser/nullRemoteAgentService.ts`, `packages/workbench/src/services/remote/browser/nullRemoteExtensionsScannerService.ts` |
 | Testing | UI + ext-host API wired; relies on extension adapters, no dedicated backend |  |
+| VS Code Chat | VS Code 1.144 chat port in progress. Language model registry and its extension host customer are wired; the chat service, agents, tools and UI are still copied only. SideX chat is contrib/sidexChat |  |
 
 ## Stubbed
 
@@ -46,16 +49,17 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 
 | Area | Notes | Evidence |
 |---|---|---|
+| Agents Voice | VS Code 1.144 voice mode for agent sessions; copied for the chat port, not imported by any entry file |  |
 | Call Hierarchy | contrib/callHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
+| Canvases | VS Code 1.144 canvas contract copied because the chat layer references it; not imported by any entry file |  |
 | Comments | contrib/comments exists but imported in no entry file |  |
-| Custom Editors | contrib/customEditor not imported |  |
+| Edit Telemetry | VS Code 1.144 edit telemetry; copied for the chat port, not imported by any entry file |  |
 | External URI Opener | contrib/externalUriOpener defines IExternalUriOpenerService but no implementation is ever registerSingleton'd; not imported by any entry file |  |
+| Git Contrib | VS Code 1.144 contrib/git; copied for the chat port, not imported by any entry file |  |
+| GitHub Link Presentation | VS Code 1.144 GitHub link presentation and hovers; copied for the chat port, not imported by any entry file |  |
 | Interactive Window | contrib/interactive not imported |  |
+| MCP | VS Code 1.144 MCP registry, discovery and views are copied but not imported by any entry file. Stdio servers from mcp.json do work through a SideX-native contribution (contrib/chat/browser/tools/mcpTools.contribution.ts) that registers each server tool with the tools service; http/sse, extension-provided servers, OAuth and an MCP view are not done (see TODO.md) |  |
+| Onboarding | VS Code 1.144 onboarding scenarios; copied for the chat port, not imported by any entry file |  |
 | Simple Browser | contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported |  |
+| Speech | VS Code 1.144 speech service and voice providers; copied for the chat port, not imported by any entry file |  |
 | Type Hierarchy | contrib/typeHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |
-
-## Missing
-
-| Area | Notes | Evidence |
-|---|---|---|
-| AI / Chat / Copilot | No chat contrib or chat/languageModel API at all |  |

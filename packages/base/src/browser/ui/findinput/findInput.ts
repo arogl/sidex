@@ -8,7 +8,7 @@ import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { IToggleStyles, Toggle } from '../toggle/toggle.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
-import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
+import { CaseSensitiveToggle, navigateToggles, RegexToggle, WholeWordsToggle } from './findInputToggles.js';
 import {
 	HistoryInputBox,
 	IInputBoxStyles,
@@ -17,7 +17,6 @@ import {
 } from '../inputbox/inputBox.js';
 import { Widget } from '../widget.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { KeyCode } from '../../../common/keyCodes.js';
 import { IAction } from '../../../common/actions.js';
 import type { IActionViewItemProvider } from '../actionbar/actionbar.js';
 import './findInput.css';
@@ -48,6 +47,10 @@ export interface IFindInputOptions {
 	readonly history?: IHistory<string>;
 	readonly hoverLifecycleOptions?: IHoverLifecycleOptions;
 	readonly hideHoverOnValueChange?: boolean;
+}
+
+export interface IFindInputEvent {
+	readonly fromCompositionEnd: boolean;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', 'input');
@@ -88,8 +91,8 @@ export class FindInput extends Widget {
 		return this._onMouseDown.event;
 	}
 
-	private readonly _onInput = this._register(new Emitter<void>());
-	public get onInput(): Event<void> {
+	private readonly _onInput = this._register(new Emitter<IFindInputEvent>());
+	public get onInput(): Event<IFindInputEvent> {
 		return this._onInput.event;
 	}
 
@@ -215,32 +218,13 @@ export class FindInput extends Widget {
 			);
 
 			// Arrow-Key support to navigate between options
-			const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 			this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-				if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-					const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
-					if (index >= 0) {
-						let newIndex: number = -1;
-						if (event.equals(KeyCode.RightArrow)) {
-							newIndex = (index + 1) % indexes.length;
-						} else if (event.equals(KeyCode.LeftArrow)) {
-							if (index === 0) {
-								newIndex = indexes.length - 1;
-							} else {
-								newIndex = index - 1;
-							}
-						}
-
-						if (event.equals(KeyCode.Escape)) {
-							indexes[index].blur();
-							this.inputBox.focus();
-						} else if (newIndex >= 0) {
-							indexes[newIndex].focus();
-						}
-
-						dom.EventHelper.stop(event, true);
-					}
-				}
+				navigateToggles(
+					event,
+					this.domNode,
+					() => this.getToggleDomNodes(),
+					() => this.inputBox.focus()
+				);
 			});
 		}
 
@@ -273,13 +257,13 @@ export class FindInput extends Widget {
 		this._register(
 			dom.addDisposableListener(this.inputBox.inputElement, 'compositionend', (_e: CompositionEvent) => {
 				this.imeSessionInProgress = false;
-				this._onInput.fire();
+				this._onInput.fire({ fromCompositionEnd: true });
 			})
 		);
 
 		this.onkeydown(this.inputBox.inputElement, e => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, e => this._onKeyUp.fire(e));
-		this.oninput(this.inputBox.inputElement, _e => this._onInput.fire());
+		this.oninput(this.inputBox.inputElement, _e => this._onInput.fire({ fromCompositionEnd: false }));
 		this.onmousedown(this.inputBox.inputElement, e => this._onMouseDown.fire(e));
 	}
 
@@ -362,23 +346,39 @@ export class FindInput extends Widget {
 		this.updateInputBoxPadding();
 	}
 
+	protected getToggleDomNodes(): HTMLElement[] {
+		const nodes: HTMLElement[] = [];
+		if (this.caseSensitive) {
+			nodes.push(this.caseSensitive.domNode);
+		}
+		if (this.wholeWords) {
+			nodes.push(this.wholeWords.domNode);
+		}
+		if (this.regex) {
+			nodes.push(this.regex.domNode);
+		}
+		for (const toggle of this.additionalToggles) {
+			nodes.push(toggle.domNode);
+		}
+		return nodes;
+	}
+
 	public setActions(
 		actions: ReadonlyArray<IAction> | undefined,
 		actionViewItemProvider?: IActionViewItemProvider
 	): void {
 		this.inputBox.setActions(actions, actionViewItemProvider);
+		this.updateInputBoxPadding();
 	}
 
 	private updateInputBoxPadding(controlsHidden = false) {
-		if (controlsHidden) {
-			this.inputBox.paddingRight = 0;
-		} else {
-			this.inputBox.paddingRight =
-				(this.caseSensitive?.width() ?? 0) +
+		const togglesWidth = controlsHidden
+			? 0
+			: (this.caseSensitive?.width() ?? 0) +
 				(this.wholeWords?.width() ?? 0) +
 				(this.regex?.width() ?? 0) +
 				this.additionalToggles.reduce((r, t) => r + t.width(), 0);
-		}
+		this.inputBox.paddingRight = togglesWidth + this.inputBox.actionsWidth;
 	}
 
 	public clear(): void {

@@ -106,7 +106,8 @@ import {
 	radioActiveBorder,
 	checkboxDisabledBackground,
 	checkboxDisabledForeground,
-	widgetBorder
+	widgetBorder,
+	buttonSecondaryBorder
 } from '../common/colorRegistry.js';
 import { IProgressBarStyles } from '@sidex/base/browser/ui/progressbar/progressbar.js';
 import { ICheckboxStyles, IToggleStyles } from '@sidex/base/browser/ui/toggle/toggle.js';
@@ -154,7 +155,7 @@ export const defaultButtonStyles: IButtonStyles = {
 	buttonSecondaryForeground: asCssVariable(buttonSecondaryForeground),
 	buttonSecondaryBackground: asCssVariable(buttonSecondaryBackground),
 	buttonSecondaryHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
-	buttonSecondaryBorder: asCssVariable(buttonBorder),
+	buttonSecondaryBorder: asCssVariable(buttonSecondaryBorder),
 	buttonBorder: asCssVariable(buttonBorder)
 };
 
@@ -346,7 +347,7 @@ export function getSelectBoxStyles(override: IStyleOverride<ISelectBoxStyles>): 
 
 export const defaultMenuStyles: IMenuStyles = {
 	shadowColor: asCssVariable(widgetShadow),
-	borderColor: asCssVariable(menuBorder),
+	borderColor: asCssVariableWithDefault(menuBorder, editorWidgetBorder),
 	foregroundColor: asCssVariable(menuForeground),
 	backgroundColor: asCssVariable(menuBackground),
 	selectionForegroundColor: asCssVariable(listHoverForeground),

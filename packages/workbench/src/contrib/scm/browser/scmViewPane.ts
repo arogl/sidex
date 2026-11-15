@@ -1927,12 +1927,14 @@ export class SCMViewPane extends ViewPane {
 					getActionViewItemProvider(this.instantiationService),
 					resourceActionRunner
 				),
-				this.instantiationService.createInstance(
-					ResourceRenderer,
-					() => this.viewMode,
-					this.listLabels,
-					getActionViewItemProvider(this.instantiationService),
-					resourceActionRunner
+				this.disposables.add(
+					this.instantiationService.createInstance(
+						ResourceRenderer,
+						() => this.viewMode,
+						this.listLabels,
+						getActionViewItemProvider(this.instantiationService),
+						resourceActionRunner
+					)
 				)
 			],
 			treeDataSource,

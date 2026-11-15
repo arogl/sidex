@@ -30,6 +30,7 @@ import { assertReturnsDefined } from '@sidex/base/common/types.js';
 import { createActionViewItem } from '@sidex/platform/actions/browser/menuEntryActionViewItem.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../services/progress/browser/progressIndicator.js';
 import { WorkbenchToolBar } from '@sidex/platform/actions/browser/toolbar.js';
+import { IToolBarResponsiveBehaviorOptions } from '@sidex/base/browser/ui/toolbar/toolbar.js';
 import { defaultProgressBarStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 import { IBoundarySashes } from '@sidex/base/browser/ui/sash/sash.js';
 import { IBaseActionViewItemOptions } from '@sidex/base/browser/ui/actionbar/actionViewItems.js';
@@ -194,20 +195,23 @@ export abstract class CompositePart<
 		// Instantiate composite from registry otherwise
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
+			const disposable = new DisposableStore();
 			const that = this;
-			const compositeProgressIndicator = new ScopedProgressIndicator(
-				assertReturnsDefined(this.progressBar),
-				this._register(
-					new (class extends AbstractProgressScope {
-						constructor() {
-							super(compositeDescriptor!.id, !!isActive);
-							this._register(that.onDidCompositeOpen.event(e => this.onScopeOpened(e.composite.getId())));
-							this._register(that.onDidCompositeClose.event(e => this.onScopeClosed(e.getId())));
-						}
-					})()
+			const compositeProgressIndicator = disposable.add(
+				new ScopedProgressIndicator(
+					assertReturnsDefined(this.progressBar),
+					disposable.add(
+						new (class extends AbstractProgressScope {
+							constructor() {
+								super(compositeDescriptor!.id, !!isActive);
+								this._register(that.onDidCompositeOpen.event(e => this.onScopeOpened(e.composite.getId())));
+								this._register(that.onDidCompositeClose.event(e => this.onScopeClosed(e.getId())));
+							}
+						})()
+					)
 				)
 			);
-			const compositeInstantiationService = this._register(
+			const compositeInstantiationService = disposable.add(
 				this.instantiationService.createChild(
 					new ServiceCollection(
 						[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
@@ -216,14 +220,12 @@ export abstract class CompositePart<
 			);
 
 			const composite = compositeDescriptor.instantiate(compositeInstantiationService);
-			const disposable = new DisposableStore();
 
 			// Remember as Instantiated
 			this.instantiatedCompositeItems.set(id, { composite, disposable, progress: compositeProgressIndicator });
 
 			// Register to title area update events from the composite
 			disposable.add(composite.onTitleAreaUpdate(() => this.onTitleAreaUpdate(composite.getId()), this));
-			disposable.add(compositeInstantiationService);
 
 			return composite;
 		}
@@ -439,13 +441,18 @@ export abstract class CompositePart<
 				toggleMenuTitle: localize('viewsAndMoreActions', 'Views and More Actions...'),
 				telemetrySource: this.nameForTelemetry,
 				hoverDelegate: this.toolbarHoverDelegate,
-				trailingSeparator: this.trailingSeparator
+				trailingSeparator: this.trailingSeparator,
+				responsiveBehavior: this.getToolbarResponsiveBehavior()
 			})
 		);
 
 		this.collectCompositeActions()();
 
 		return titleArea;
+	}
+
+	protected getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions | undefined {
+		return undefined;
 	}
 
 	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {

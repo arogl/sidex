@@ -34,6 +34,10 @@ import { IInstantiationService } from '@sidex/platform/instantiation/common/inst
 import { handleVetos } from '@sidex/platform/lifecycle/common/lifecycle.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { INotificationService, Severity } from '@sidex/platform/notification/common/notification.js';
+import {
+	NotificationTelemetryId,
+	NotificationActionTelemetryId
+} from '@sidex/platform/notification/common/notificationTelemetry.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
 import { Registry } from '@sidex/platform/registry/common/platform.js';
 import {
@@ -131,7 +135,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		new Emitter<{
 			readonly added: ReadonlyArray<IExtensionDescription>;
 			readonly removed: ReadonlyArray<IExtensionDescription>;
-		}>({ leakWarningThreshold: 400 })
+		}>({ leakWarningThreshold: 400, leakWarningName: 'ExtensionService._onDidChangeExtensions' })
 	);
 	public readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
 
@@ -186,7 +190,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IRemoteAuthorityResolverService
 		protected readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IDialogService protected readonly _dialogService: IDialogService
 	) {
 		super();
 
@@ -419,6 +423,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize(
 					'looping',
@@ -758,6 +763,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const result = this._registry.deltaExtensions(lock, toAdd, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize(
 					'looping',
@@ -1178,12 +1184,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					),
 					[
 						{
+							telemetryId: NotificationActionTelemetryId.RestartExtensionHost,
 							label: nls.localize('restart', 'Restart Remote Extension Host'),
 							run: () => {
 								this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
 							}
 						}
-					]
+					],
+					{ telemetry: NotificationTelemetryId.RemoteExtensionHostCrashRepeated }
 				);
 			}
 		} catch (_err) {

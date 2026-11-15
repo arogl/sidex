@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use tauri::State;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -8,6 +8,46 @@ use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+/// `initialize` and `tools/list` wait on the server starting up, which includes a first-run package download
+/// for servers launched with `npx` or `uvx`.
+const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
+/// A tool call can legitimately run for a while (a build, a query, a page load).
+const TOOL_CALL_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Lines of a server's stderr kept to explain a failed start.
+const STDERR_LINES: usize = 20;
+/// A stderr line longer than this is cut, so a noisy server cannot fill an error message.
+const STDERR_LINE_CHARS: usize = 300;
+
+/// Adds a stderr line to the tail, dropping the oldest once the tail is full.
+fn push_stderr_line(tail: &mut VecDeque<String>, line: &str) {
+    let line = line.trim_end();
+    if line.is_empty() {
+        return;
+    }
+    if tail.len() == STDERR_LINES {
+        tail.pop_front();
+    }
+    tail.push_back(line.chars().take(STDERR_LINE_CHARS).collect());
+}
+
+/// The error with whatever the server printed to stderr appended, so a timeout or an early exit says why.
+fn with_server_output(error: String, tail: &VecDeque<String>) -> String {
+    if tail.is_empty() {
+        return error;
+    }
+    let lines: Vec<&str> = tail.iter().map(String::as_str).collect();
+    format!("{error}\nServer output:\n{}", lines.join("\n"))
+}
+
+/// How long to wait for the response to a request, by method.
+fn response_timeout(method: &str) -> Duration {
+    match method {
+        "initialize" | "tools/list" => STARTUP_TIMEOUT,
+        "tools/call" => TOOL_CALL_TIMEOUT,
+        _ => DEFAULT_TIMEOUT,
+    }
+}
 const CONFIG_FILENAME: &str = "mcp-servers.json";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -101,6 +141,7 @@ struct McpConnection {
     next_id: u64,
     tools: Vec<McpTool>,
     config: McpServerConfig,
+    stderr_tail: Arc<std::sync::Mutex<VecDeque<String>>>,
 }
 
 impl McpConnection {
@@ -110,7 +151,7 @@ impl McpConnection {
             .envs(&config.env)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
 
         #[cfg(windows)]
@@ -137,6 +178,20 @@ impl McpConnection {
 
         let reader = Arc::new(Mutex::new(BufReader::new(stdout)));
 
+        // Keep the end of stderr: it is where servers say why they cannot start (a missing package, a bad path).
+        let stderr_tail = Arc::new(std::sync::Mutex::new(VecDeque::new()));
+        if let Some(stderr) = child.stderr.take() {
+            let tail = Arc::clone(&stderr_tail);
+            tokio::spawn(async move {
+                let mut lines = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if let Ok(mut guard) = tail.lock() {
+                        push_stderr_line(&mut guard, &line);
+                    }
+                }
+            });
+        }
+
         let mut conn = Self {
             child,
             stdin,
@@ -144,12 +199,26 @@ impl McpConnection {
             next_id: 1,
             tools: Vec::new(),
             config: config.clone(),
+            stderr_tail,
         };
 
-        conn.initialize().await?;
-        conn.discover_tools().await?;
+        if let Err(error) = conn.start().await {
+            // Give the server a moment to print its reason before the tail is read.
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            let tail = conn
+                .stderr_tail
+                .lock()
+                .map(|guard| guard.clone())
+                .unwrap_or_default();
+            return Err(with_server_output(error, &tail));
+        }
 
         Ok(conn)
+    }
+
+    async fn start(&mut self) -> Result<(), String> {
+        self.initialize().await?;
+        self.discover_tools().await
     }
 
     async fn initialize(&mut self) -> Result<(), String> {
@@ -304,7 +373,7 @@ impl McpConnection {
                 )
             })?;
 
-        let response = self.read_response(id).await?;
+        let response = self.read_response(id, response_timeout(method)).await?;
 
         if let Some(ref err) = response.error {
             return Err(format!(
@@ -362,11 +431,15 @@ impl McpConnection {
         Ok(())
     }
 
-    async fn read_response(&mut self, expected_id: u64) -> Result<JsonRpcResponse, String> {
+    async fn read_response(
+        &mut self,
+        expected_id: u64,
+        wait: Duration,
+    ) -> Result<JsonRpcResponse, String> {
         let reader = Arc::clone(&self.reader);
         let server_name = self.config.name.clone();
 
-        let result = timeout(DEFAULT_TIMEOUT, async {
+        let result = timeout(wait, async {
             let mut reader_guard = reader.lock().await;
             let mut line = String::new();
 
@@ -687,4 +760,58 @@ pub async fn mcp_remove_server(
 pub async fn mcp_reload_config(state: State<'_, McpState>) -> Result<Vec<McpServerStatus>, String> {
     state.load_config().await?;
     mcp_list_servers(state).await
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    use super::*;
+
+    #[test]
+    fn startup_and_tool_calls_wait_longer_than_other_requests() {
+        assert_eq!(response_timeout("initialize"), STARTUP_TIMEOUT);
+        assert_eq!(response_timeout("tools/list"), STARTUP_TIMEOUT);
+        assert_eq!(response_timeout("tools/call"), TOOL_CALL_TIMEOUT);
+        assert_eq!(response_timeout("ping"), DEFAULT_TIMEOUT);
+        assert!(STARTUP_TIMEOUT > DEFAULT_TIMEOUT && TOOL_CALL_TIMEOUT > STARTUP_TIMEOUT);
+    }
+}
+
+#[cfg(test)]
+mod server_output_tests {
+    use super::*;
+
+    #[test]
+    fn keeps_only_the_newest_lines_and_skips_blank_ones() {
+        let mut tail = VecDeque::new();
+        for i in 0..(STDERR_LINES + 5) {
+            push_stderr_line(&mut tail, &format!("line {i}\r\n"));
+        }
+        push_stderr_line(&mut tail, "   ");
+        assert_eq!(tail.len(), STDERR_LINES);
+        assert_eq!(tail.front().map(String::as_str), Some("line 5"));
+        assert_eq!(
+            tail.back().map(String::as_str),
+            Some(format!("line {}", STDERR_LINES + 4).as_str())
+        );
+    }
+
+    #[test]
+    fn cuts_a_very_long_line() {
+        let mut tail = VecDeque::new();
+        push_stderr_line(&mut tail, &"x".repeat(STDERR_LINE_CHARS * 3));
+        assert_eq!(tail[0].chars().count(), STDERR_LINE_CHARS);
+    }
+
+    #[test]
+    fn appends_server_output_to_an_error_only_when_there_is_some() {
+        let error = "Timeout waiting for response from MCP server 'fs'".to_string();
+        assert_eq!(with_server_output(error.clone(), &VecDeque::new()), error);
+        let mut tail = VecDeque::new();
+        push_stderr_line(&mut tail, "npm ERR! 404 Not Found");
+        push_stderr_line(&mut tail, "npm ERR! not in registry");
+        assert_eq!(
+            with_server_output(error.clone(), &tail),
+            format!("{error}\nServer output:\nnpm ERR! 404 Not Found\nnpm ERR! not in registry")
+        );
+    }
 }

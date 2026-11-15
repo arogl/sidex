@@ -1226,7 +1226,7 @@ registerEditorCommand(
 		handler: x => x.closeFindWidget(),
 		kbOpts: {
 			weight: KeybindingWeight.EditorContrib + 5,
-			kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
+			kbExpr: EditorContextKeys.focus,
 			primary: KeyCode.Escape,
 			secondary: [KeyMod.Shift | KeyCode.Escape]
 		}
@@ -1333,11 +1333,7 @@ registerEditorCommand(
 		handler: x => x.replace(),
 		kbOpts: {
 			weight: KeybindingWeight.EditorContrib + 5,
-			kbExpr: ContextKeyExpr.and(
-				EditorContextKeys.focus,
-				CONTEXT_REPLACE_INPUT_FOCUSED,
-				EditorContextKeys.isComposing.negate()
-			),
+			kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED),
 			primary: KeyCode.Enter
 		}
 	})

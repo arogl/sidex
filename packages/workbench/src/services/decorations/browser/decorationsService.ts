@@ -32,7 +32,11 @@ import { InstantiationType, registerSingleton } from '@sidex/platform/instantiat
 import { hash } from '@sidex/base/common/hash.js';
 import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
 import { asArray, distinct } from '@sidex/base/common/arrays.js';
-import { asCssVariable, ColorIdentifier } from '@sidex/platform/theme/common/colorRegistry.js';
+import {
+	asCssVariable,
+	asCssVariableWithDefault,
+	ColorIdentifier
+} from '@sidex/platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '@sidex/platform/theme/common/iconRegistry.js';
 
 class DecorationRule {
@@ -93,7 +97,7 @@ class DecorationRule {
 		// label
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 		if (ThemeIcon.isThemeIcon(letter)) {
-			this._createIconCSSRule(letter, color, element);
+			this._createIconCSSRule(letter, getColor(color), element);
 		} else if (letter) {
 			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(color)};`, element);
 		}
@@ -101,8 +105,11 @@ class DecorationRule {
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement): void {
 		// label
-		const { color } = data.find(d => !!d.color) ?? data[0];
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
+		const color = data.reduceRight(
+			(fallback, decoration) => (decoration.color ? asCssVariableWithDefault(decoration.color, fallback) : fallback),
+			'inherit'
+		);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${color};`, element);
 
 		// badge or icon
 		const letters: string[] = [];
@@ -123,7 +130,7 @@ class DecorationRule {
 			if (letters.length) {
 				createCSSRule(
 					`.${this.itemBadgeClassName}::after`,
-					`content: "${letters.join(', ')}"; color: ${getColor(color)};`,
+					`content: "${letters.join(', ')}"; color: ${color};`,
 					element
 				);
 			}
@@ -132,13 +139,13 @@ class DecorationRule {
 			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
 			createCSSRule(
 				`.${this.bubbleBadgeClassName}::after`,
-				`content: "\uea71"; color: ${getColor(color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
+				`content: "\uea71"; color: ${color}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
 				element
 			);
 		}
 	}
 
-	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement) {
+	private _createIconCSSRule(icon: ThemeIcon, color: string, element: HTMLStyleElement) {
 		const modifier = ThemeIcon.getModifier(icon);
 		if (modifier) {
 			icon = ThemeIcon.modify(icon, undefined);
@@ -154,7 +161,7 @@ class DecorationRule {
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
 			`content: '${definition.fontCharacter}';
-			color: ${icon.color ? getColor(icon.color.id) : getColor(color)};
+			color: ${icon.color ? getColor(icon.color.id) : color};
 			font-family: ${cssValue.stringValue(definition.font?.id ?? 'codicon')};
 			font-size: 16px;
 			margin-right: 14px;
@@ -205,6 +212,10 @@ class DecorationStyles {
 		const iconClassName = rule.iconBadgeClassName;
 		let tooltip = distinct(data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip)).join(' • ');
 		const strikethrough = data.some(d => d.strikethrough);
+		const isTextBadge =
+			!onlyChildren &&
+			!data.some(decoration => ThemeIcon.isThemeIcon(decoration.letter)) &&
+			data.some(decoration => typeof decoration.letter === 'string' && decoration.letter.length > 0);
 
 		if (onlyChildren) {
 			// show items from its children only
@@ -217,6 +228,7 @@ class DecorationStyles {
 			badgeClassName,
 			iconClassName,
 			strikethrough,
+			isTextBadge,
 			tooltip,
 			dispose: () => {
 				if (rule?.release()) {
@@ -273,7 +285,7 @@ export class DecorationsService implements IDecorationsService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IThemeService themeService: IThemeService
 	) {
-		this._decorationStyles = new DecorationStyles(themeService);
+		this._decorationStyles = this._store.add(new DecorationStyles(themeService));
 		this._data = TernarySearchTree.forUris(key => uriIdentityService.extUri.ignorePathCasing(key));
 
 		this._store.add(

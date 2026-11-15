@@ -440,6 +440,7 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		const cwd = this.terminalCwd;
 		capabilities.add(TerminalCapability.CwdDetection, {
 			type: TerminalCapability.CwdDetection,
+			isTrusted: true,
 			get cwds() {
 				return [cwd.value];
 			},

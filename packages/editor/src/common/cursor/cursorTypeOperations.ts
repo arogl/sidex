@@ -97,9 +97,10 @@ export class TypeOperations {
 		selections: Selection[],
 		text: string,
 		pasteOnNewLine: boolean,
-		multicursorText: string[]
+		multicursorText: string[],
+		isBlock: boolean = false
 	): EditOperationResult {
-		return PasteOperation.getEdits(config, model, selections, text, pasteOnNewLine, multicursorText);
+		return PasteOperation.getEdits(config, model, selections, text, pasteOnNewLine, multicursorText, isBlock);
 	}
 
 	public static tab(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {

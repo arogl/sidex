@@ -128,10 +128,6 @@ export class EditorScrollbar extends ViewPart {
 		);
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
-
 	private _setLayout(): void {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);

@@ -4,3 +4,4 @@ exact = true
 [test]
 coverage = false
 coverageReporter = ["text"]
+preload = ["./scripts/mocha-shim.ts"]

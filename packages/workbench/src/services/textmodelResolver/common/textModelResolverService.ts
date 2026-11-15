@@ -17,6 +17,9 @@ import { IModelService } from '@sidex/editor/common/services/model.js';
 import { TextResourceEditorModel } from '../../../common/editor/textResourceEditorModel.js';
 import { ITextFileService, TextFileResolveReason } from '../../textfile/common/textfiles.js';
 import { Schemas } from '@sidex/base/common/network.js';
+import { generateUuid } from '@sidex/base/common/uuid.js';
+import { ITextBufferFactory } from '@sidex/editor/common/model.js';
+import { ILanguageSelection } from '@sidex/editor/common/languages/language.js';
 import {
 	ITextModelService,
 	ITextModelContentProvider,
@@ -253,6 +256,18 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		resource = this.uriIdentityService.asCanonicalUri(resource);
 
 		return await this.asyncModelCollection.acquire(resource.toString());
+	}
+
+	/** Compatibility implementation until the workbench layer is merged to 1.144: creates the model, then references it by URI. */
+	async createSyntheticDocument(
+		value: string | ITextBufferFactory,
+		languageSelection: ILanguageSelection | null
+	): Promise<IReference<IResolvedTextEditorModel>> {
+		const resource = this.uriIdentityService.asCanonicalUri(
+			URI.from({ scheme: Schemas.inMemory, path: `/synthetic/${generateUuid()}` })
+		);
+		this.modelService.createModel(value, languageSelection, resource);
+		return this.createModelReference(resource);
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

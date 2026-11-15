@@ -42,6 +42,13 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 	}
 
 	async readExtensionResource(uri: URI): Promise<string> {
+		// Extensions installed locally live on disk. Read them through the file service: converting the
+		// URI to a browser URI would give a `sidex-asset` resource that no file system provider handles.
+		if (uri.scheme === Schemas.file) {
+			const result = await this._fileService.readFile(uri);
+			return result.value.toString();
+		}
+
 		uri = FileAccess.uriToBrowserUri(uri);
 
 		if (
@@ -56,7 +63,7 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 
 		const requestInit: RequestInit = {};
 		if (await this.isExtensionGalleryResource(uri)) {
-			requestInit.headers = await this.getExtensionGalleryRequestHeaders();
+			requestInit.headers = await this.getExtensionGalleryRequestHeaders(uri);
 			requestInit.mode = 'cors'; /* set mode to cors so that above headers are always passed */
 		}
 

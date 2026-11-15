@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RealExtensionHost } from './realExtensionHost.js';
+import { isRealExtensionHostEnabled, pickRealHostKind } from './realExtensionHostFlag.js';
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { Schemas } from '@sidex/base/common/network.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
@@ -122,7 +124,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			logService
 		);
 		super(
-			{ hasLocalProcess: false, allowRemoteExtensionsInLocalWebWorker: true },
+			{ hasLocalProcess: isRealExtensionHostEnabled(), allowRemoteExtensionsInLocalWebWorker: true },
 			extensionsProposedApi,
 			extensionHostFactory,
 			new BrowserExtensionHostKindPicker(logService),
@@ -302,7 +304,15 @@ class BrowserExtensionHostFactory implements IExtensionHostFactory {
 	): IExtensionHost | null {
 		switch (runningLocation.kind) {
 			case ExtensionHostKind.LocalProcess: {
-				return null;
+				if (!isRealExtensionHostEnabled()) {
+					return null;
+				}
+				return this._instantiationService.createInstance(
+					RealExtensionHost,
+					runningLocation,
+					ExtensionHostStartup.EagerAutoStart,
+					this._createLocalExtensionHostDataProvider(runningLocations, runningLocation, isInitialStart)
+				);
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if ((globalThis as any).__SIDEX_TAURI__) {
@@ -395,6 +405,7 @@ class BrowserExtensionHostFactory implements IExtensionHostFactory {
 				return {
 					connectionData: this._remoteAuthorityResolverService.getConnectionData(remoteAuthority),
 					pid: remoteEnv.pid,
+					os: remoteEnv.os,
 					appRoot: remoteEnv.appRoot,
 					extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 					globalStorageHome: remoteEnv.globalStorageHome,
@@ -416,6 +427,10 @@ export class BrowserExtensionHostKindPicker implements IExtensionHostKindPicker 
 		isInstalledRemotely: boolean,
 		preference: ExtensionRunningPreference
 	): ExtensionHostKind | null {
+		const realHostKind = pickRealHostKind(isInstalledRemotely);
+		if (realHostKind !== undefined) {
+			return realHostKind;
+		}
 		const result = BrowserExtensionHostKindPicker.pickRunningLocation(
 			extensionKinds,
 			isInstalledLocally,

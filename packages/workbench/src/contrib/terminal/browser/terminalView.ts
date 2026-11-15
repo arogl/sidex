@@ -674,6 +674,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
+			const primaryActionIcon = this._menuItemAction.item.icon;
 			dom.reset(
 				label,
 				...renderLabelWithIcons(
@@ -681,7 +682,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 						getSingleTabLabel,
 						instance,
 						this._terminaConfigurationService.config.tabs.separator,
-						ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined
+						ThemeIcon.isThemeIcon(primaryActionIcon) ? primaryActionIcon : undefined
 					)
 				)
 			);
@@ -709,7 +710,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._class = uriClasses?.[0];
 				label.classList.add(...uriClasses);
 			}
-			if (this._commandAction.item.icon) {
+			if (primaryActionIcon) {
 				this._altCommand = `alt-command`;
 				label.classList.add(this._altCommand);
 			}

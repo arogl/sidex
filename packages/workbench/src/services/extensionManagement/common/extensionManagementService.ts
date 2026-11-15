@@ -2039,6 +2039,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		return {
 			identifier: extension.identifier,
 			type: extension.type,
+			forceAutoUpdate: false,
 			isBuiltin: extension.isBuiltin || !!extension.metadata?.isBuiltin,
 			location: extension.location,
 			manifest: extension.manifest,

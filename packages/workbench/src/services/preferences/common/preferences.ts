@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from '@sidex/base/common/collections.js';
 import { Event } from '@sidex/base/common/event.js';
 import { IMatch } from '@sidex/base/common/filters.js';
 import { IJSONSchema, IJSONSchemaMap } from '@sidex/base/common/jsonSchema.js';
@@ -76,6 +75,8 @@ export interface ISetting {
 	overrideOf?: ISetting;
 	deprecationMessage?: string;
 	deprecationMessageIsMarkdown?: boolean;
+	deprecationMessageSeverity?: 'warning' | 'info';
+	deprecationMessageShowInSettings?: boolean;
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
@@ -116,7 +117,6 @@ export interface IExtensionSetting extends ISetting {
 export interface ISearchResult {
 	filterMatches: ISettingMatch[];
 	exactMatch: boolean;
-	metadata?: IFilterMetadata;
 }
 
 export interface ISearchResultGroup {
@@ -131,7 +131,6 @@ export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
-	metadata?: IStringDictionary<IFilterMetadata>;
 	exactMatch?: boolean;
 }
 
@@ -165,35 +164,6 @@ export interface ISettingMatch {
 	keyMatchScore: number;
 	score: number;
 	providerName?: string;
-}
-
-export interface IScoredResults {
-	[key: string]: IRemoteSetting;
-}
-
-export interface IRemoteSetting {
-	score: number;
-	key: string;
-	id: string;
-	defaultValue: string;
-	description: string;
-	packageId: string;
-	extensionName?: string;
-	extensionPublisher?: string;
-}
-
-export interface IFilterMetadata {
-	requestUrl: string;
-	requestBody: string;
-	timestamp: number;
-	duration: number;
-	scoredResults: IScoredResults;
-
-	/** The number of requests made, since requests are split by number of filters */
-	requestCount?: number;
-
-	/** The name of the server that actually served the request */
-	context: string;
 }
 
 export interface IPreferencesEditorModel<T> {

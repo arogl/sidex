@@ -438,8 +438,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.toDispose.push(
 			this.configurationService.onDidChangeConfiguration(async e => {
 				if (e.affectsConfiguration('launch')) {
-					// A change happen in the launch.json. If there is already a launch configuration selected, do not change the selection.
-					await this.selectConfiguration(undefined);
+					const launch = this.selectedLaunch?.getConfigurationNames().length ? this.selectedLaunch : undefined;
+					await this.selectConfiguration(launch);
 					this.setCompoundSchemaValues();
 				}
 			})
@@ -761,13 +761,22 @@ abstract class AbstractLaunch implements ILaunch {
 
 	private getDeduplicatedConfig(): IGlobalConfig | undefined {
 		const original = this.getConfig();
-		return (
-			original && {
-				version: original.version,
-				compounds: original.compounds && distinguishConfigsByName(original.compounds),
-				configurations: original.configurations && distinguishConfigsByName(original.configurations)
-			}
-		);
+		if (!original) {
+			return undefined;
+		}
+		const compounds =
+			original.compounds?.filter(
+				(compound): compound is ICompound => !!compound && typeof compound.name === 'string'
+			) ?? [];
+		const configurations =
+			original.configurations?.filter(
+				(configuration): configuration is IConfig => !!configuration && typeof configuration.name === 'string'
+			) ?? [];
+		return {
+			version: original.version,
+			compounds: distinguishConfigsByName(compounds),
+			configurations: distinguishConfigsByName(configurations)
+		};
 	}
 }
 

@@ -60,6 +60,22 @@ export namespace EditorContextKeys {
 		undefined,
 		nls.localize('multiDiffEditorAllCollapsed', 'Whether all files in multi diff editor are collapsed')
 	);
+	export const multiDiffEditorItemAllUnchangedRegionsShown = new RawContextKey<boolean>(
+		'multiDiffEditorItemAllUnchangedRegionsShown',
+		false,
+		nls.localize(
+			'multiDiffEditorItemAllUnchangedRegionsShown',
+			'Whether all unchanged regions of a multi diff editor file are revealed'
+		)
+	);
+	export const multiDiffEditorRenderSideBySide = new RawContextKey<boolean>(
+		'multiDiffEditorRenderSideBySide',
+		true,
+		nls.localize(
+			'multiDiffEditorRenderSideBySide',
+			'Whether the multi diff editor renders diffs side by side instead of inline'
+		)
+	);
 	export const hasChanges = new RawContextKey<boolean>(
 		'diffEditorHasChanges',
 		false,
@@ -87,6 +103,22 @@ export namespace EditorContextKeys {
 		'diffEditorInlineMode',
 		false,
 		nls.localize('diffEditorInlineMode', 'Whether inline mode is active')
+	);
+	export const diffEditorTemporaryInlineMode = new RawContextKey<boolean>(
+		'diffEditorTemporaryInlineMode',
+		false,
+		nls.localize(
+			'diffEditorTemporaryInlineMode',
+			'Whether inline mode is temporarily active after manually resizing the diff editor'
+		)
+	);
+	export const diffEditorAutomaticRenderSideBySide = new RawContextKey<boolean>(
+		'diffEditorAutomaticRenderSideBySide',
+		true,
+		nls.localize(
+			'diffEditorAutomaticRenderSideBySide',
+			'Whether automatic diff editor layout would render side by side'
+		)
 	);
 
 	export const diffEditorOriginalWritable = new RawContextKey<boolean>(

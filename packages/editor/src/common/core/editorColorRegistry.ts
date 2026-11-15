@@ -119,6 +119,14 @@ export const editorWhitespaces = registerColor(
 	{ dark: '#e3e4e229', light: '#33333333', hcDark: '#e3e4e229', hcLight: '#CCCCCC' },
 	nls.localize('editorWhitespaces', 'Color of whitespace characters in the editor.')
 );
+export const editorWordWrapIndicator = registerColor(
+	'editorWordWrapIndicator.foreground',
+	editorWhitespaces,
+	nls.localize(
+		'editorWordWrapIndicator',
+		'Color of the indicator shown at the end of a soft wrapped line in the editor.'
+	)
+);
 export const editorLineNumbers = registerColor(
 	'editorLineNumber.foreground',
 	{ dark: '#858585', light: '#237893', hcDark: Color.white, hcLight: '#292929' },

@@ -20,6 +20,7 @@ import { IWorkspaceContextService } from '@sidex/platform/workspace/common/works
 import { SnippetsAction } from './abstractSnippetsActions.js';
 import { ISnippetsService } from '../snippets.js';
 import { SnippetSource } from '../snippetsFile.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
@@ -38,7 +39,8 @@ async function computePicks(
 	snippetService: ISnippetsService,
 	userDataProfileService: IUserDataProfileService,
 	languageService: ILanguageService,
-	labelService: ILabelService
+	labelService: ILabelService,
+	activeLanguageId: string | undefined
 ) {
 	const existing: ISnippetPick[] = [];
 	const future: ISnippetPick[] = [];
@@ -120,8 +122,8 @@ async function computePicks(
 		const label = languageService.getLanguageName(languageId);
 		if (label && !seen.has(languageId)) {
 			future.push({
-				label: languageId,
-				description: `(${label})`,
+				label: label,
+				description: `(${languageId})`,
 				filepath: joinPath(dir, `${languageId}.json`),
 				hint: true,
 				iconClasses: getIconClassesForLanguageId(languageId)
@@ -145,7 +147,43 @@ async function computePicks(
 		return a.label.localeCompare(b.label);
 	});
 
+	promoteActiveLanguage(existing, future, activeLanguageId);
+
 	return { existing, future };
+}
+
+// Move the active editor's language to the front of each group and mark it as detected.
+export function promoteActiveLanguage(
+	existing: ISnippetPick[],
+	future: ISnippetPick[],
+	activeLanguageId: string | undefined
+): void {
+	if (!activeLanguageId) {
+		return;
+	}
+	const detectedHint = nls.localize('detected', 'This file type was detected from the current file.');
+	promote(
+		existing,
+		existing.findIndex(pick => basename(pick.filepath) === `${activeLanguageId}.json`),
+		detectedHint
+	);
+	promote(
+		future,
+		future.findIndex(pick => pick.label === activeLanguageId),
+		detectedHint
+	);
+}
+
+function promote(picks: ISnippetPick[], index: number, hint: string): void {
+	if (index < 0) {
+		return;
+	}
+	const pick = picks[index];
+	pick.tooltip = hint;
+	pick.description = pick.description ? `${pick.description} *` : '*';
+	if (index > 0) {
+		picks.unshift(picks.splice(index, 1)[0]);
+	}
 }
 
 async function createSnippetFile(
@@ -286,13 +324,20 @@ export class ConfigureSnippetsAction extends SnippetsAction {
 		const quickInputService = accessor.get(IQuickInputService);
 		const opener = accessor.get(IOpenerService);
 		const languageService = accessor.get(ILanguageService);
+		const editorService = accessor.get(IEditorService);
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 		const labelService = accessor.get(ILabelService);
 
-		const picks = await computePicks(snippetService, userDataProfileService, languageService, labelService);
+		const picks = await computePicks(
+			snippetService,
+			userDataProfileService,
+			languageService,
+			labelService,
+			editorService.activeTextEditorLanguageId
+		);
 		const existing: QuickPickInput[] = picks.existing;
 
 		type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };

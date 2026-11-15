@@ -13,13 +13,23 @@ import {
 	isTooltipWithCommands,
 	ShowTooltipCommand,
 	StatusbarEntryKinds,
+	ToggleTooltipCommand,
 	TooltipContent
 } from '../../../services/statusbar/browser/statusbar.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '@sidex/base/common/actions.js';
 import { IThemeService } from '@sidex/platform/theme/common/themeService.js';
 import { ThemeColor } from '@sidex/base/common/themables.js';
 import { isThemeColor } from '@sidex/editor/common/editorCommon.js';
-import { addDisposableListener, EventType, hide, show, append, EventHelper, $ } from '@sidex/base/browser/dom.js';
+import {
+	addDisposableListener,
+	EventType,
+	hide,
+	show,
+	append,
+	EventHelper,
+	$,
+	isPointerEvent
+} from '@sidex/base/browser/dom.js';
 import { INotificationService } from '@sidex/platform/notification/common/notification.js';
 import { isHighContrast } from '@sidex/platform/theme/common/theme.js';
 import { assertReturnsDefined } from '@sidex/base/common/types.js';
@@ -43,6 +53,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly backgroundListener = this._register(new MutableDisposable());
 
 	private readonly commandMouseListener = this._register(new MutableDisposable());
+	private readonly commandPointerListener = this._register(new MutableDisposable());
 	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
 
@@ -129,6 +140,7 @@ export class StatusbarEntryItem extends Disposable {
 			if (isTooltipWithCommands(entry.tooltip)) {
 				hoverTooltip = entry.tooltip.content;
 				hoverOptions = {
+					onDidShow: entry.tooltip.onDidShow,
 					actions: entry.tooltip.commands.map(command => ({
 						commandId: command.id,
 						label: command.title,
@@ -154,19 +166,46 @@ export class StatusbarEntryItem extends Disposable {
 		// Update: Command
 		if (!this.entry || entry.command !== this.entry.command) {
 			this.commandMouseListener.clear();
+			this.commandPointerListener.clear();
 			this.commandTouchListener.clear();
 			this.commandKeyboardListener.clear();
 
 			const command = entry.command;
-			if (
-				command &&
-				(command !== ShowTooltipCommand || this.hover) /* "Show Hover" is only valid when we have a hover */
-			) {
-				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () =>
-					this.executeCommand(command)
-				);
-				this.commandTouchListener.value = addDisposableListener(this.labelContainer, TouchEventType.Tap, () =>
-					this.executeCommand(command)
+			const isTooltipCommand = command === ShowTooltipCommand || command === ToggleTooltipCommand;
+			if (command && (!isTooltipCommand || this.hover)) {
+				let tooltipPointerDown: { pointerId: number; wasPinned: boolean } | undefined;
+				if (command === ToggleTooltipCommand) {
+					// Mouse-down dismisses the hover before click, so capture pinned state on pointer-down.
+					this.commandPointerListener.value = addDisposableListener(
+						this.labelContainer,
+						EventType.POINTER_DOWN,
+						(e: PointerEvent) => {
+							tooltipPointerDown =
+								e.button === 0
+									? {
+											pointerId: e.pointerId,
+											wasPinned: !!this.hoverService.getStickyHover(this.container)
+										}
+									: undefined;
+						}
+					);
+				}
+				const executeCommand = (event: MouseEvent) => {
+					const wasPinned =
+						tooltipPointerDown &&
+						isPointerEvent(event) &&
+						event.detail > 0 &&
+						event.pointerId === tooltipPointerDown.pointerId
+							? tooltipPointerDown.wasPinned
+							: undefined;
+					tooltipPointerDown = undefined;
+					this.executeCommand(command, wasPinned);
+				};
+				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, executeCommand);
+				this.commandTouchListener.value = addDisposableListener(
+					this.labelContainer,
+					TouchEventType.Tap,
+					executeCommand
 				);
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
@@ -185,8 +224,10 @@ export class StatusbarEntryItem extends Disposable {
 					}
 				});
 
+				this.container.classList.add('has-command');
 				this.labelContainer.classList.remove('disabled');
 			} else {
+				this.container.classList.remove('has-command');
 				this.labelContainer.classList.add('disabled');
 			}
 		}
@@ -242,10 +283,17 @@ export class StatusbarEntryItem extends Disposable {
 		return tooltip === otherTooltip;
 	}
 
-	private async executeCommand(command: string | Command): Promise<void> {
-		// Custom command from us: Show tooltip
-		if (command === ShowTooltipCommand) {
-			this.hover?.show(true /* focus */);
+	private async executeCommand(command: string | Command, tooltipWasPinnedOnPointerDown?: boolean): Promise<void> {
+		// Custom commands from us: Show or toggle tooltip
+		if (command === ShowTooltipCommand || command === ToggleTooltipCommand) {
+			const stickyHover =
+				command === ToggleTooltipCommand ? this.hoverService.getStickyHover(this.container) : undefined;
+			if (command === ToggleTooltipCommand && (tooltipWasPinnedOnPointerDown ?? !!stickyHover)) {
+				this.hover?.hide();
+				stickyHover?.dispose();
+			} else {
+				this.hover?.show(true /* focus */);
+			}
 		}
 
 		// Any other command is going through command service
@@ -320,7 +368,7 @@ export class StatusbarEntryItem extends Disposable {
 }
 
 class StatusBarCodiconLabel extends SimpleIconLabel {
-	private progressCodicon = renderIcon(syncing);
+	private progressCodicon: HTMLElement | undefined;
 
 	private currentText = '';
 	private currentShowProgress: boolean | 'loading' | 'syncing' = false;
@@ -332,7 +380,9 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 	set showProgress(showProgress: boolean | 'loading' | 'syncing') {
 		if (this.currentShowProgress !== showProgress) {
 			this.currentShowProgress = showProgress;
-			this.progressCodicon = renderIcon(showProgress === 'syncing' ? syncing : spinningLoading);
+			if (showProgress) {
+				this.progressCodicon = renderIcon(showProgress === 'syncing' ? syncing : spinningLoading);
+			}
 			this.text = this.currentText;
 		}
 	}
@@ -340,7 +390,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 	override set text(text: string) {
 		// Progress: insert progress codicon as first element as needed
 		// but keep it stable so that the animation does not reset
-		if (this.currentShowProgress) {
+		if (this.currentShowProgress && this.progressCodicon) {
 			// Append as needed
 			if (this.container.firstChild !== this.progressCodicon) {
 				this.container.appendChild(this.progressCodicon);

@@ -67,6 +67,7 @@ pub mod encoding;
 )] // TODO(ratchet)
 pub mod ext_api;
 pub mod ext_host;
+pub mod ext_host_real;
 pub mod extension_diagnostics;
 pub mod extension_platform;
 pub mod extension_wasm;
@@ -173,6 +174,7 @@ pub use crypto::*;
 pub use debug::*;
 pub use editor::*;
 pub use ext_api::*;
+pub use ext_host_real::*;
 pub use extension_diagnostics::*;
 pub use extension_platform::*;
 pub use extension_wasm::*;

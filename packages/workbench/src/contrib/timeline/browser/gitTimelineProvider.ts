@@ -36,8 +36,8 @@ export class GitTimelineProvider extends Disposable implements TimelineProvider 
 	readonly label = 'Git History';
 	readonly scheme = 'file';
 
-	private readonly _onDidChange = this._register(new Emitter<TimelineChangeEvent>());
-	readonly onDidChange: Event<TimelineChangeEvent> = this._onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<readonly URI[] | undefined>());
+	readonly onDidChange: Event<readonly URI[] | undefined> = this._onDidChange.event;
 
 	constructor(private readonly contextService: IWorkspaceContextService) {
 		super();

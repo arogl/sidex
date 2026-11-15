@@ -1,0 +1,2 @@
+{ "name": "hello", "publisher": "spike", "version": "0.0.1", "engines": { "vscode": "^1.100.0" }, "main": "./extension.js", "activationEvents": ["*"],
+  "contributes": { "commands": [{ "command": "spike.hello", "title": "Spike Hello" }] } }

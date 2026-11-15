@@ -331,6 +331,7 @@ export abstract class AbstractCommandsQuickAccessProvider
 
 		return {
 			...commandPick,
+			id: commandPick.commandId,
 			tooltip,
 			ariaLabel,
 			detail:

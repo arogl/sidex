@@ -185,6 +185,11 @@ interface IStoredFormatters {
 export class LabelService extends Disposable implements ILabelService {
 	declare readonly _serviceBrand: undefined;
 
+	/** Compatibility stub until the workbench layer is merged to 1.144, which adds home formatters. */
+	getUriHome(_resource: URI): URI | undefined {
+		return undefined;
+	}
+
 	private formatters: ResourceLabelFormatter[];
 
 	private readonly _onDidChangeFormatters = this._register(

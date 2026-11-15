@@ -26,6 +26,8 @@ import {
 } from '@sidex/platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
 import { IFileService } from '@sidex/platform/files/common/files.js';
+import { BrowserResourceService } from '@sidex/platform/files/browser/browserResourceService.js';
+import { IBrowserResourceService } from '@sidex/platform/files/common/browserResourceService.js';
 import { FileService } from '@sidex/platform/files/common/fileService.js';
 import { Schemas, connectionTokenCookieName } from '@sidex/base/common/network.js';
 import {
@@ -432,8 +434,23 @@ export class BrowserMain extends Disposable {
 		);
 
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteResourceLoader = this.configuration.remoteResourceProvider
-			? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider)
+		const resourceProvider = this.configuration.remoteResourceProvider;
+		const browserResourceService = this._register(
+			new BrowserResourceService(
+				resourceProvider
+					? (resourceId, resource) =>
+							URI.parse(document.location.href).with({
+								path: resourceProvider.path,
+								query: new URLSearchParams({ resourceId }).toString(),
+								fragment: resource.fragment
+							})
+					: undefined,
+				fileService
+			)
+		);
+		serviceCollection.set(IBrowserResourceService, browserResourceService);
+		const remoteResourceLoader = resourceProvider
+			? this._register(new BrowserRemoteResourceLoader(resourceProvider, fileService, browserResourceService))
 			: undefined;
 		const resourceUriProvider =
 			this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();

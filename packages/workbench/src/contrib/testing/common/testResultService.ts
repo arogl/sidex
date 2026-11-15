@@ -7,7 +7,7 @@ import { findFirstIdxMonotonousOrArrLen } from '@sidex/base/common/arraysFind.js
 import { RunOnceScheduler } from '@sidex/base/common/async.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { createSingleCallFunction } from '@sidex/base/common/functional.js';
-import { Disposable, DisposableStore, dispose, toDisposable } from '@sidex/base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { generateUuid } from '@sidex/base/common/uuid.js';
 import { IContextKey, IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
@@ -83,7 +83,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 	declare _serviceBrand: undefined;
 	private changeResultEmitter = this._register(new Emitter<ResultChangeEvent>());
 	private _results: ITestResult[] = [];
-	private readonly _resultsDisposables: DisposableStore[] = [];
+	private readonly _resultsDisposables = this._register(new DisposableMap<ITestResult, DisposableStore>());
 	private testChangeEmitter = this._register(new Emitter<TestResultItemChange>());
 	private insertOrderCounter = 0;
 
@@ -124,7 +124,6 @@ export class TestResultService extends Disposable implements ITestResultService 
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
-		this._register(toDisposable(() => dispose(this._resultsDisposables)));
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 		this.hasAnyResults = TestingContextKeys.hasAnyResults.bindTo(contextKeyService);
 	}
@@ -195,18 +194,25 @@ export class TestResultService extends Disposable implements ITestResultService 
 		}
 
 		this.hasAnyResults.set(true);
+		let removed: ITestResult | undefined;
 		if (this.results.length > RETAIN_MAX_RESULTS) {
-			this.results.pop();
-			this._resultsDisposables.pop()?.dispose();
+			removed = this.results.pop();
 		}
 
 		const ds = new DisposableStore();
-		this._resultsDisposables.push(ds);
+		this._resultsDisposables.set(result, ds);
 
 		if (result instanceof LiveTestResult) {
 			ds.add(result);
 			ds.add(result.onComplete(() => this.onComplete(result)));
 			ds.add(result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter));
+		}
+
+		if (removed) {
+			this._resultsDisposables.deleteAndDispose(removed);
+		}
+
+		if (result instanceof LiveTestResult) {
 			this.isRunning.set(true);
 			this.changeResultEmitter.fire({ started: result });
 		} else {
@@ -251,6 +257,9 @@ export class TestResultService extends Disposable implements ITestResultService 
 		}
 
 		this._results = keep;
+		for (const result of removed) {
+			this._resultsDisposables.deleteAndDispose(result);
+		}
 		this.persistScheduler.schedule();
 		if (keep.length === 0) {
 			this.hasAnyResults.set(false);

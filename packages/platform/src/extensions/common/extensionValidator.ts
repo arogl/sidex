@@ -8,8 +8,7 @@ import Severity from '@sidex/base/common/severity.js';
 import { URI } from '@sidex/base/common/uri.js';
 import * as nls from '@sidex/base/nls.js';
 import * as semver from '@sidex/base/common/semver/semver.js';
-import { IExtensionManifest, parseApiProposals } from './extensions.js';
-import { allApiProposals } from './extensionsApiProposals.js';
+import { IExtensionManifest } from './extensions.js';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -249,8 +248,7 @@ export function validateExtensionManifest(
 	productDate: ProductDate,
 	extensionLocation: URI,
 	extensionManifest: IExtensionManifest,
-	extensionIsBuiltin: boolean,
-	validateApiVersion: boolean
+	extensionIsBuiltin: boolean
 ): readonly [Severity, string][] {
 	const validations: [Severity, string][] = [];
 	if (typeof extensionManifest.publisher !== 'undefined' && typeof extensionManifest.publisher !== 'string') {
@@ -435,15 +433,6 @@ export function validateExtensionManifest(
 		}
 	}
 
-	if (validateApiVersion && extensionManifest.enabledApiProposals?.length) {
-		const incompatibleNotices: string[] = [];
-		if (!areApiProposalsCompatible([...extensionManifest.enabledApiProposals], incompatibleNotices)) {
-			for (const notice of incompatibleNotices) {
-				validations.push([Severity.Error, notice]);
-			}
-		}
-	}
-
 	return validations;
 }
 
@@ -468,62 +457,6 @@ export function isValidExtensionVersion(
 export function isEngineValid(engine: string, version: string, date: ProductDate): boolean {
 	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
 	return engine === '*' || isVersionValid(version, date, engine);
-}
-
-export function areApiProposalsCompatible(apiProposals: string[]): boolean;
-export function areApiProposalsCompatible(apiProposals: string[], notices: string[]): boolean;
-export function areApiProposalsCompatible(
-	apiProposals: string[],
-	productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>
-): boolean;
-export function areApiProposalsCompatible(
-	apiProposals: string[],
-	arg1?: string[] | Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>
-): boolean {
-	if (apiProposals.length === 0) {
-		return true;
-	}
-	const notices: string[] | undefined = Array.isArray(arg1) ? arg1 : undefined;
-	const productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }> =
-		(Array.isArray(arg1) ? undefined : arg1) ?? allApiProposals;
-	const incompatibleProposals: string[] = [];
-	const parsedProposals = parseApiProposals(apiProposals);
-	for (const { proposalName, version } of parsedProposals) {
-		if (!version) {
-			continue;
-		}
-		const existingProposal = productApiProposals[proposalName];
-		if (existingProposal?.version !== version) {
-			incompatibleProposals.push(proposalName);
-		}
-	}
-	if (incompatibleProposals.length) {
-		if (notices) {
-			if (incompatibleProposals.length === 1) {
-				notices.push(
-					nls.localize(
-						'apiProposalMismatch1',
-						"This extension is using the API proposal '{0}' that is not compatible with the current version of VS Code.",
-						incompatibleProposals[0]
-					)
-				);
-			} else {
-				notices.push(
-					nls.localize(
-						'apiProposalMismatch2',
-						"This extension is using the API proposals {0} and '{1}' that are not compatible with the current version of VS Code.",
-						incompatibleProposals
-							.slice(0, incompatibleProposals.length - 1)
-							.map(p => `'${p}'`)
-							.join(', '),
-						incompatibleProposals[incompatibleProposals.length - 1]
-					)
-				);
-			}
-		}
-		return false;
-	}
-	return true;
 }
 
 function isVersionValid(

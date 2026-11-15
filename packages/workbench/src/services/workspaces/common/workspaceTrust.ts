@@ -677,6 +677,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this.doSetUrisTrust(await Promise.all(uris.map(uri => this.getCanonicalUri(uri))), trusted);
 	}
 
+	/** Compatibility stub until the workbench layer is merged to 1.144: registration is accepted but does not grant trust. */
+	registerTrustedAuthority(_scheme: string, _authority: string): IDisposable {
+		return toDisposable(() => {});
+	}
+
 	getTrustedUris(): URI[] {
 		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
 	}

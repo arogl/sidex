@@ -10,21 +10,20 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable, IDisposable } from '@sidex/base/common/lifecycle.js';
 import { StopWatch } from '@sidex/base/common/stopwatch.js';
 import { URI } from '@sidex/base/common/uri.js';
-import { IMessagePassingProtocol } from '@sidex/base/parts/ipc/common/ipc.js';
 import * as nls from '@sidex/base/nls.js';
+import { IMessagePassingProtocol } from '@sidex/base/parts/ipc/common/ipc.js';
 import { Categories } from '@sidex/platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions.js';
 import { ExtensionIdentifier, IExtensionDescription } from '@sidex/platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import {
-	RemoteAuthorityResolverErrorCode,
-	getRemoteAuthorityPrefix
+	getRemoteAuthorityPrefix,
+	RemoteAuthorityResolverErrorCode
 } from '@sidex/platform/remote/common/remoteAuthorityResolver.js';
 import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { ExtHostCustomersRegistry, IInternalExtHostContext } from './extHostCustomers.js';
 import { ExtensionHostKind, extensionHostKindToString } from './extensionHostKind.js';
 import { IExtensionHostManager } from './extensionHostManagers.js';
 import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
@@ -38,8 +37,10 @@ import {
 	IExtensionInspectInfo,
 	IInternalExtensionService
 } from './extensions.js';
+import { ExtHostCustomersRegistry, IInternalExtHostContext } from './extHostCustomers.js';
 import { Proxied, ProxyIdentifier } from './proxyIdentifier.js';
-import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from './rpcProtocol.js';
+import { IRPCProtocolLogger, RequestInitiator, ResponsiveState, RPCProtocol } from './rpcProtocol.js';
+import { registerUnsupportedActors } from './unsupportedMainThreadActors.js';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -350,6 +351,15 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 
 		if (!extensionHostProxy) {
 			throw new Error(`Missing IExtensionHostProxy!`);
+		}
+
+		// Actors SideX has not ported yet get a stand-in that rejects each call with a named error, so the
+		// host's proxy can still be handed out.
+		const unsupported = registerUnsupportedActors(this._rpcProtocol, mainProxyIdentifiers, this._logService);
+		if (unsupported.length) {
+			this._logService.warn(
+				`[ExtHost] ${unsupported.length} main-thread actors are not implemented yet: ${unsupported.join(', ')}`
+			);
 		}
 
 		// Check that no named customers are missing

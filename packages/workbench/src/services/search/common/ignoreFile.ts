@@ -126,11 +126,23 @@ export class IgnoreFile {
 			if (!(this.ignoreCase ? startsWithIgnoreCase(path, dirPath) : path.startsWith(dirPath))) {
 				return false;
 			}
-			if (isDir && isDirIgnored(path) && !isDirIncluded(path)) {
+
+			const dirIncluded = isDir && isDirIncluded(path);
+			if (isDir && isDirIgnored(path) && !dirIncluded) {
 				return true;
 			}
-			if (isFileIgnored(path) && !isFileIncluded(path)) {
+
+			const fileIncluded = isFileIncluded(path);
+			if (isFileIgnored(path) && !fileIncluded) {
 				return true;
+			}
+
+			// If this file explicitly un-ignores a path via a negation pattern
+			// (e.g., `!.myconfig/`), do not delegate to the parent. In git, a
+			// negation in a child .gitignore overrides a positive pattern in a
+			// parent or global .gitignore.
+			if (dirIncluded || fileIncluded) {
+				return false;
 			}
 
 			if (parent) {

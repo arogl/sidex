@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '@sidex/base/common/uri.js';
 import { localize, localize2 } from '@sidex/base/nls.js';
 import { MenuId, MenuRegistry, Action2, registerAction2 } from '@sidex/platform/actions/common/actions.js';
 import { CommandsRegistry } from '@sidex/platform/commands/common/commands.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IQuickInputService } from '@sidex/platform/quickinput/common/quickInput.js';
 import { Registry } from '@sidex/platform/registry/common/platform.js';
-import { IURLService } from '@sidex/platform/url/common/url.js';
 import {
 	Extensions as WorkbenchExtensions,
 	IWorkbenchContributionsRegistry,
@@ -32,6 +30,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import { ITrustedDomainService, TrustedDomainService } from './trustedDomainService.js';
 import { registerSingleton, InstantiationType } from '@sidex/platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
+import { IOpenerService } from '@sidex/platform/opener/common/opener.js';
 
 class OpenUrlAction extends Action2 {
 	static readonly STORAGE_KEY = 'workbench.action.url.openUrl.lastInput';
@@ -47,15 +46,14 @@ class OpenUrlAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
-		const urlService = accessor.get(IURLService);
+		const openerService = accessor.get(IOpenerService);
 		const storageService = accessor.get(IStorageService);
 
 		const value = storageService.get(OpenUrlAction.STORAGE_KEY, StorageScope.WORKSPACE, '');
 
 		return quickInputService.input({ prompt: localize('urlToOpen', 'URL to open'), value }).then(input => {
 			if (input) {
-				const uri = URI.parse(input);
-				urlService.open(uri, { originalUrl: input });
+				openerService.open(input, { allowContributedOpeners: true });
 				storageService.store(OpenUrlAction.STORAGE_KEY, input, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		});

@@ -369,6 +369,7 @@ export class HideInlineCompletion extends EditorAction {
 				InlineCompletionContextKeys.inlineEditVisible
 			),
 			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
 				weight: KeybindingWeight.EditorContrib + 90, // same as hiding the suggest widget
 				primary: KeyCode.Escape
 			},

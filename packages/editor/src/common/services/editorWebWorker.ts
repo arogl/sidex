@@ -14,7 +14,13 @@ import { IMirrorTextModel, IModelChangedEvent } from '../model/mirrorTextModel.j
 import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from '../languages.js';
 import { computeLinks } from '../languages/linkComputer.js';
 import { BasicInplaceReplace } from '../languages/supports/inplaceReplaceSupport.js';
-import { DiffAlgorithmName, IDiffComputationResult, ILineChange, IUnicodeHighlightsResult } from './editorWorker.js';
+import {
+	DiffAlgorithmName,
+	IDiffComputationResult,
+	ILineChange,
+	IStringEditFromDiff,
+	IUnicodeHighlightsResult
+} from './editorWorker.js';
 import { createMonacoBaseAPI } from './editorBaseApi.js';
 import { StopWatch } from '@sidex/base/common/stopwatch.js';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
@@ -140,7 +146,8 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			return null;
 		}
 
-		const result = EditorWorker.computeDiff(original, modified, options, algorithm);
+		const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
+		const result = EditorWorker.computeDiff(original, modified, options, diffAlgorithm);
 		return result;
 	}
 
@@ -148,11 +155,8 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		originalTextModel: ICommonModel | ITextModel,
 		modifiedTextModel: ICommonModel | ITextModel,
 		options: IDocumentDiffProviderOptions,
-		algorithm: DiffAlgorithmName
+		diffAlgorithm: ILinesDiffComputer
 	): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer =
-			algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
-
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
 
@@ -236,13 +240,14 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 		return diffComputer.computeDiff().changes;
 	}
 
-	public $computeStringDiff(
+	public async $computeStringDiff(
 		original: string,
 		modified: string,
 		options: { maxComputationTimeMs: number },
 		algorithm: DiffAlgorithmName
-	): ISerializedStringEdit {
-		return computeStringDiff(original, modified, options, algorithm).toJson();
+	): Promise<{ edit: ISerializedStringEdit; isCoarse: boolean }> {
+		const result = await computeStringDiffWithMetadata(original, modified, options, algorithm);
+		return { edit: result.edit.toJson(), isCoarse: result.isCoarse };
 	}
 
 	// ---- END diff --------------------------------------------------------------------------
@@ -612,17 +617,39 @@ if (typeof importScripts === 'function') {
 	globalThis.monaco = createMonacoBaseAPI();
 }
 
+function resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffComputer | Promise<ILinesDiffComputer> {
+	switch (algorithm) {
+		case 'legacy':
+			return linesDiffComputers.getLegacy();
+		case 'advanced':
+			return linesDiffComputers.getDefault();
+		// SideX does not ship the external diff engine (`@vscode/diff`), so these fall back to the default algorithm.
+		case 'advanced-external':
+		case 'advanced-wasm':
+			return linesDiffComputers.getDefault();
+	}
+}
+
 /**
  * @internal
  */
-export function computeStringDiff(
+export async function computeStringDiff(
 	original: string,
 	modified: string,
 	options: { maxComputationTimeMs: number },
 	algorithm: DiffAlgorithmName
-): StringEdit {
-	const diffAlgorithm: ILinesDiffComputer =
-		algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
+): Promise<StringEdit> {
+	return (await computeStringDiffWithMetadata(original, modified, options, algorithm)).edit;
+}
+
+/** @internal */
+export async function computeStringDiffWithMetadata(
+	original: string,
+	modified: string,
+	options: { maxComputationTimeMs: number },
+	algorithm: DiffAlgorithmName
+): Promise<IStringEditFromDiff> {
+	const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
 
 	ensureDependenciesAreSet();
 
@@ -641,5 +668,5 @@ export function computeStringDiff(
 	const textEdit = DetailedLineRangeMapping.toTextEdit(result.changes, modifiedText);
 	const strEdit = originalText.getTransformer().getStringEdit(textEdit);
 
-	return strEdit;
+	return { edit: strEdit, isCoarse: result.hitTimeout };
 }

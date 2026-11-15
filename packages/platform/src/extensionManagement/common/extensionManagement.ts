@@ -25,7 +25,9 @@ import { IExtensionGalleryManifest } from './extensionGalleryManifest.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+export const EXTENSION_PUBLISHER_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const WEB_EXTENSION_TAG = '__web_extension';
+export const LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG = 'language-models';
 export const EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT = 'skipWalkthrough';
 export const EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT = 'skipPublisherTrust';
 export const EXTENSION_INSTALL_SOURCE_CONTEXT = 'extensionInstallSource';
@@ -210,6 +212,18 @@ export interface IGalleryExtensionProperties {
 	executesCode?: boolean;
 }
 
+/** Who made the blocking statement: the marketplace, or a policy scoped to this tenant. */
+export const enum ExtensionBlockingOrigin {
+	/** Also the degraded value for any origin this client does not recognize, being the more severe. */
+	Service = 'service',
+	Policy = 'policy'
+}
+
+/** Present only when the gallery reports an extension, or the version in hand, as blocked. */
+export interface IExtensionBlockingInfo {
+	readonly origin: ExtensionBlockingOrigin;
+}
+
 export interface IGalleryExtensionAsset {
 	uri: string;
 	fallbackUri: string;
@@ -275,6 +289,8 @@ export interface IGalleryExtension {
 	lastUpdated: number;
 	preview: boolean;
 	private: boolean;
+	/** Set when this extension, or the version in hand, must not be acquired or used. Absence means "not known to be blocked", not "known to be safe". */
+	blockingInfo?: IExtensionBlockingInfo;
 	hasPreReleaseVersion: boolean;
 	hasReleaseVersion: boolean;
 	isSigned: boolean;
@@ -327,6 +343,7 @@ export interface ILocalExtension extends IExtension {
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
+	forceAutoUpdate: boolean;
 	source: InstallSource;
 	size: number;
 }
@@ -422,6 +439,7 @@ export interface IExtensionInfo extends IExtensionIdentifier {
 	version?: string;
 	preRelease?: boolean;
 	hasPreRelease?: boolean;
+	currentVersion?: string;
 }
 
 export interface IExtensionQueryOptions {
@@ -429,6 +447,7 @@ export interface IExtensionQueryOptions {
 	productVersion?: IProductVersion;
 	compatible?: boolean;
 	queryAllVersions?: boolean;
+	includeBlockedVersions?: boolean;
 	source?: string;
 }
 
@@ -845,7 +864,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			},
 			additionalProperties: false,
 			patternProperties: {
-				'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+				[EXTENSION_IDENTIFIER_PATTERN]: {
 					anyOf: [
 						{
 							type: ['boolean', 'string'],
@@ -869,7 +888,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 						}
 					]
 				},
-				'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+				[EXTENSION_PUBLISHER_IDENTIFIER_PATTERN]: {
 					type: ['boolean', 'string'],
 					enum: [true, false, 'stable'],
 					description: localize(

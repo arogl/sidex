@@ -49,7 +49,7 @@ const toReplaceResource = (fileResource: URI): URI => {
 };
 
 const toFileResource = (replaceResource: URI): URI => {
-	return replaceResource.with({ scheme: JSON.parse(replaceResource.query)['scheme'], fragment: '', query: '' });
+	return replaceResource.with({ scheme: JSON.parse(replaceResource.query).scheme, fragment: '', query: '' });
 };
 
 export class ReplacePreviewContentProvider implements ITextModelContentProvider, IWorkbenchContribution {

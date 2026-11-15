@@ -2,28 +2,59 @@
  *  Sidex Chat Service — WebSocket client for sidex-server with full workspace context
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '@sidex/base/common/cancellation.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
-import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
-import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { URI } from '@sidex/base/common/uri.js';
 import { isCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
-import { LocalToolExecutor, ILocalToolRequest, LOCAL_TOOLS_SUPPORTED } from './localToolExecutor.js';
-import {
-	SubagentRegistry,
-	SubagentType,
-	SUBAGENT_CONFIGS,
-	getAllowedTools,
-	buildSubagentPrompt
-} from './subagentTypes.js';
-import { IExplorerService } from '../../files/browser/files.js';
-import { resolveServerEndpoint, serverWsUrl, SERVER_RESTARTED_EVENT } from './localServer.js';
+import { IBulkEditService } from '@sidex/editor/browser/services/bulkEditService.js';
+import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
+import { IFileService } from '@sidex/platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
+import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
 import { IUpdateService } from '@sidex/platform/update/common/update.js';
+import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IChatRequestVariableEntry, toFileVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';
+import {
+	IChatAgentHistoryEntry,
+	IChatAgentRequest,
+	IChatAgentService
+} from '../../chat/common/participants/chatAgents.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
+import { IToolActivityService } from '../../chat/common/tools/toolActivityService.js';
+import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
+import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
+import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
+import {
+	buildParticipantHistory,
+	mergePickerModels,
+	PARTICIPANT_SETTLE_MS,
+	PARTICIPANT_WAIT_MS,
+	parseParticipantModelId,
+	pickFallbackParticipant,
+	progressToChunks,
+	routeToParticipant,
+	toParticipantModelId,
+	waitForCondition,
+	withParagraphBreak
+} from './participantBridge.js';
+import { ParticipantEditApplier } from './participantEditApplier.js';
+import { extractEditOps } from './participantEditOps.js';
+import {
+	buildSubagentPrompt,
+	getAllowedTools,
+	SUBAGENT_CONFIGS,
+	SubagentRegistry,
+	SubagentType
+} from './subagentTypes.js';
 
 export interface IWorkspaceContext {
 	activeFile: string | null;
@@ -39,6 +70,8 @@ export interface IChatMessage {
 	role: 'user' | 'assistant' | 'system';
 	content: string;
 	thinkingContent?: string;
+	/** A transient status such as "Searching the workspace", shown while the turn runs and cleared when it ends. */
+	progressMessage?: string;
 	toolCalls?: IToolCallInfo[];
 	timestamp: number;
 	checkpointLabel?: string;
@@ -69,6 +102,7 @@ export interface IStreamChunk {
 		| 'notice'
 		| 'thinking'
 		| 'thinking_done'
+		| 'progress'
 		| 'permission_request'
 		| 'turn_complete'
 		| 'subagent_spawned'
@@ -317,6 +351,56 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		return this._availableModels;
 	}
 
+	private _participantCancellation: CancellationTokenSource | undefined;
+	/** Why the local server could not be started, shown only when a message has no other way to be answered. */
+	private _serverUnavailableReason: string | undefined;
+	/** Set by a tool call, so the text that comes after it starts a new paragraph. */
+	private _textFollowsToolCall = false;
+	private readonly _editApplier: ParticipantEditApplier;
+	private _serverModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
+	private _participantModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
+
+	/** Adds the chat participant's (Copilot's) models to the picker once they resolve. */
+	private async _refreshParticipantModels(): Promise<void> {
+		try {
+			await this.languageModelsService.selectLanguageModels({ vendor: COPILOT_VENDOR_ID });
+		} catch (error) {
+			console.warn('[sidex-chat] could not resolve Copilot models', error);
+			return;
+		}
+		const models: typeof this._participantModels = [];
+		for (const identifier of this.languageModelsService.getLanguageModelIds()) {
+			const metadata = this.languageModelsService.lookupLanguageModel(identifier);
+			if (metadata && metadata.vendor === COPILOT_VENDOR_ID && metadata.isUserSelectable !== false) {
+				models.push({
+					id: toParticipantModelId(identifier),
+					name: `${metadata.name} (Copilot)`,
+					provider: 'copilot',
+					contextWindow: metadata.maxInputTokens || undefined
+				});
+			}
+		}
+		// Everything the provider returned, selectable or not, so a short picker list can be diagnosed.
+		console.info(
+			'[sidex-chat] Copilot models:',
+			JSON.stringify(
+				this.languageModelsService
+					.getLanguageModelIds()
+					.map(id => ({ id, meta: this.languageModelsService.lookupLanguageModel(id) }))
+					.filter(m => m.meta?.vendor === COPILOT_VENDOR_ID)
+					.map(m => ({
+						id: m.id,
+						name: m.meta?.name,
+						selectable: m.meta?.isUserSelectable,
+						hidden: this.languageModelsService.isModelHidden(m.id)
+					}))
+			)
+		);
+		this._participantModels = models;
+		this._availableModels = mergePickerModels(this._serverModels, this._participantModels);
+		this._onDidChangeModels.fire(this._availableModels);
+	}
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -325,10 +409,56 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IProductService private readonly productService: IProductService,
 		@IUpdateService private readonly updateService: IUpdateService,
-		@IRecentEditTracker private readonly recentEditTracker: IRecentEditTracker
+		@IRecentEditTracker private readonly recentEditTracker: IRecentEditTracker,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IToolActivityService toolActivityService: IToolActivityService,
+		@IBulkEditService bulkEditService: IBulkEditService,
+		@IFileService fileService: IFileService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
+		// A file edit that fails is shown as a notice, not an error chunk: an error chunk ends the turn.
+		this._editApplier = new ParticipantEditApplier(bulkEditService, fileService, textFileService, message =>
+			this._handleChunk({ type: 'notice', content: message } as IStreamChunk)
+		);
 		SidexChatService.INSTANCE = this;
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._refreshParticipantModels()));
+		void this._refreshParticipantModels();
+		// Tools the participant runs show up in the chat as tool calls with their results.
+		this._register(
+			toolActivityService.onDidStart(activity => {
+				console.info(
+					`[sidex-chat] tool start: ${activity.toolId} (${activity.displayName}) ${JSON.stringify(activity.parameters).slice(0, 300)}`
+				);
+				if (this._participantCancellation) {
+					this._handleChunk({
+						type: 'tool_call',
+						tool_calls: [
+							{
+								id: activity.callId,
+								function: { name: activity.toolId, arguments: JSON.stringify(activity.parameters) }
+							}
+						]
+					});
+				}
+			})
+		);
+		this._register(
+			toolActivityService.onDidFinish(activity => {
+				console.info(
+					`[sidex-chat] tool ${activity.isError ? 'failed' : 'finished'}: ${activity.callId} ${activity.output.slice(0, 500)}`
+				);
+				if (this._participantCancellation) {
+					this._handleChunk({
+						type: 'tool_result',
+						tool_call_id: activity.callId,
+						content: activity.isError ? `Error: ${activity.output}` : activity.output
+					});
+				}
+			})
+		);
 		// Restore saved model or use default immediately
 		try {
 			const saved = localStorage.getItem(SidexChatService.MODEL_STORAGE_KEY);
@@ -548,11 +678,13 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		void resolveServerEndpoint().then(ep => {
 			if (!ep.running || ep.port <= 0) {
 				this._setConnectionState('disconnected');
+				// Not an error yet: Copilot's participant can answer without the local server. The reason is
+				// kept and shown only when a message cannot be answered by either.
+				this._serverUnavailableReason =
+					ep.error?.trim() ||
+					'The local AI server is not running. Chat cannot send until sidex-server is built and the app is restarted.';
 				if (this._reconnectAttempts === 0) {
-					const why =
-						ep.error?.trim() ||
-						'The local AI server is not running. Chat cannot send until sidex-server is built and the app is restarted.';
-					this._onDidReceiveChunk.fire({ type: 'error', content: why } as IStreamChunk);
+					console.warn(`[sidex-chat] ${this._serverUnavailableReason}`);
 				}
 				this._scheduleReconnect();
 				return;
@@ -571,6 +703,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			this._ws = new WebSocket(url);
 
 			this._ws.onopen = () => {
+				this._serverUnavailableReason = undefined;
 				this._reconnectAttempts = 0;
 				this._setConnectionState('connected');
 				this._fetchServerInfo();
@@ -631,7 +764,73 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		this._setStreaming(false);
 	}
 
-	sendMessage(text: string): void {
+	sendMessage(text: string, waitedForParticipants = false): void {
+		console.info(
+			`[sidex-chat] mode=${this._currentMode}; participants: ${JSON.stringify(
+				this.chatAgentService.getAgents().map(a => ({ id: a.id, isDefault: a.isDefault, modes: a.modes }))
+			)}`
+		);
+		if (
+			!waitedForParticipants &&
+			this._connectionState !== 'connected' &&
+			this.chatAgentService.getAgents().length === 0
+		) {
+			// Extensions are still starting, so Copilot has not registered yet. Hold the message instead of
+			// failing against the local server, which is not running either.
+			this._enqueueUserMessage(text);
+			this._setStreaming(true);
+			void waitForCondition(
+				() => this.chatAgentService.getAgents().length > 0 || !this._isStreaming,
+				listener => this.chatAgentService.onDidChangeAgents(listener),
+				PARTICIPANT_WAIT_MS
+			)
+				// Participants register in a burst; give the rest a moment so the right one (Agent vs Ask) is picked.
+				.then(() => new Promise<void>(resolve => setTimeout(resolve, PARTICIPANT_SETTLE_MS)))
+				.then(() => {
+					if (this._isStreaming) {
+						this.sendMessage(text, true);
+					}
+				});
+			return;
+		}
+		const route = routeToParticipant(text, this.chatAgentService.getAgents(), this._participantMode());
+		if (route) {
+			this._enqueueUserMessage(text);
+			this._setStreaming(true);
+			void this._sendToParticipant(route.agent.id, route.command, route.message);
+			return;
+		}
+		const participantModel = parseParticipantModelId(this._serverModel);
+		if (participantModel !== undefined) {
+			// A Copilot model is selected, so the default participant answers regardless of the server.
+			const defaultAgent = pickFallbackParticipant(this.chatAgentService.getAgents(), this._participantMode());
+			if (defaultAgent) {
+				this._enqueueUserMessage(text);
+				this._setStreaming(true);
+				void this._sendToParticipant(defaultAgent.id, undefined, text, participantModel);
+				return;
+			}
+		}
+		if (this._connectionState !== 'connected') {
+			// The local server is not reachable; answer with the default participant (Copilot) when there is one.
+			const fallback = pickFallbackParticipant(this.chatAgentService.getAgents(), this._participantMode());
+			if (fallback) {
+				this._enqueueUserMessage(text);
+				this._setStreaming(true);
+				void this._sendToParticipant(fallback.id, undefined, text);
+				return;
+			}
+		}
+		if (text.trimStart().startsWith('@')) {
+			console.warn(
+				`[sidex-chat] '${text.trimStart().split(/\s/)[0]}' matches no chat participant; registered: ${
+					this.chatAgentService
+						.getAgents()
+						.map(a => `${a.name} (${a.id})`)
+						.join(', ') || 'none'
+				}`
+			);
+		}
 		this._enqueueUserMessage(text);
 
 		if (!this._ws || this._connectionState !== 'connected') {
@@ -649,7 +848,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					this._setStreaming(false);
 					this._onDidReceiveChunk.fire({
 						type: 'error',
-						content: 'Unable to reach the server. Please check your connection and try again.'
+						content:
+							this._serverUnavailableReason ?? 'Unable to reach the server. Please check your connection and try again.'
 					} as IStreamChunk);
 				}
 			}, 5000);
@@ -658,6 +858,123 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 
 		this._setStreaming(true);
 		void this._sendWithContext(text);
+	}
+
+	/** Which chat mode a participant turn runs in; Plan has no participant mode, so it behaves as Ask. */
+	private _participantMode(): 'agent' | 'ask' {
+		return this._currentMode === 'agent' ? 'agent' : 'ask';
+	}
+
+	/** In Agent mode every available tool is enabled for the participant. */
+	private _userSelectedTools(): Record<string, boolean> | undefined {
+		if (this._participantMode() !== 'agent') {
+			return undefined;
+		}
+		const tools: Record<string, boolean> = {};
+		for (const tool of this.toolsService.getTools(undefined)) {
+			tools[tool.id] = true;
+		}
+		const ids = Object.keys(tools);
+		console.info(
+			`[sidex-chat] offering ${ids.length} tools; terminal/shell: ${JSON.stringify(ids.filter(id => /terminal|shell|run/i.test(id)))}`
+		);
+		return tools;
+	}
+
+	/** The active editor's file, with its selection when there is one, as participant context. */
+	private _activeEditorVariables(): IChatRequestVariableEntry[] {
+		const uri = this.editorService.activeEditor?.resource;
+		if (!uri) {
+			return [];
+		}
+		const control = this.editorService.activeTextEditorControl;
+		if (control && isCodeEditor(control) && control.hasModel()) {
+			const selection = control.getSelection();
+			if (selection && !selection.isEmpty()) {
+				return [toFileVariableEntry(uri, selection)];
+			}
+		}
+		return [toFileVariableEntry(uri)];
+	}
+
+	/** Runs a turn against an extension chat participant and streams its progress into the chat. */
+	private async _sendToParticipant(
+		agentId: string,
+		command: string | undefined,
+		message: string,
+		userSelectedModelId?: string
+	): Promise<void> {
+		const cts = new CancellationTokenSource();
+		this._participantCancellation = cts;
+		try {
+			// The same local-session URI VS Code uses. Copilot builds its debug-log and transcript file names from
+			// the resource, and a bespoke `sidex-chat:/...` string became the folder name `sidex-chat:` (invalid on Windows).
+			const sessionResource = LocalChatSessionUri.forSession(this._sessionId ?? 'session');
+			const toRequest = (text: string, requestId: string): IChatAgentRequest => ({
+				sessionResource,
+				requestId,
+				agentId,
+				command: undefined,
+				message: text,
+				variables: { variables: [] },
+				location: ChatAgentLocation.Chat
+			});
+			// The current user message is already in the list; everything before it is history.
+			const history = buildParticipantHistory(this._messages.slice(0, -1), (text, index) =>
+				toRequest(text, `sidex-history-${index}`)
+			) as unknown as IChatAgentHistoryEntry[];
+			let thinking = false;
+			const result = await this.chatAgentService.invokeAgent(
+				agentId,
+				{
+					...toRequest(message, `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+					command,
+					userSelectedModelId,
+					userSelectedTools: this._userSelectedTools(),
+					variables: { variables: this._activeEditorVariables() }
+				},
+				parts => {
+					this._editApplier.enqueue(extractEditOps(parts as never));
+					for (const chunk of progressToChunks(parts as never)) {
+						// The thinking block stays open until something other than thinking arrives.
+						if (thinking && chunk.type !== 'thinking' && chunk.type !== 'progress' && chunk.type !== 'usage') {
+							thinking = false;
+							this._handleChunk({ type: 'thinking_done' } as IStreamChunk);
+						}
+						thinking = thinking || chunk.type === 'thinking';
+						this._handleChunk(chunk as IStreamChunk);
+					}
+				},
+				history,
+				cts.token
+			);
+			if (thinking) {
+				this._handleChunk({ type: 'thinking_done' } as IStreamChunk);
+			}
+			// Edits arrive as progress; wait until they are on disk before the turn is reported as finished.
+			await this._editApplier.flush();
+			// The full result carries the rendered prompt (attachments included), so log only what helps diagnose a turn.
+			console.info(
+				`[sidex-chat] participant '${agentId}' finished: ${JSON.stringify({
+					timings: result.timings,
+					errorDetails: result.errorDetails,
+					metadataKeys: Object.keys(result.metadata ?? {})
+				})}`
+			);
+			if (result.errorDetails) {
+				this._handleChunk({ type: 'error', error: result.errorDetails.message } as IStreamChunk);
+				return;
+			}
+		} catch (e) {
+			this._handleChunk({ type: 'error', error: e instanceof Error ? e.message : String(e) } as IStreamChunk);
+			return;
+		} finally {
+			cts.dispose();
+			if (this._participantCancellation === cts) {
+				this._participantCancellation = undefined;
+			}
+		}
+		this._handleChunk({ type: 'done' } as IStreamChunk);
 	}
 
 	/** Show the user's turn immediately, even if the socket is down. */
@@ -1194,6 +1511,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	}
 
 	stopStreaming(): void {
+		this._participantCancellation?.cancel();
 		this._currentAssistantMessage = null;
 		this._setStreaming(false);
 	}
@@ -1879,11 +2197,18 @@ ${prompt}`,
 					};
 					this._messages.push(this._currentAssistantMessage);
 				}
-				this._currentAssistantMessage.content += chunk.content || '';
+				this._currentAssistantMessage.progressMessage = undefined;
+				this._currentAssistantMessage.content += withParagraphBreak(
+					this._currentAssistantMessage.content,
+					chunk.content || '',
+					this._textFollowsToolCall
+				);
+				this._textFollowsToolCall = false;
 				this._onDidChangeMessages.fire(this._messages);
 				break;
 
 			case 'tool_call':
+				this._textFollowsToolCall = true;
 				if (!this._currentAssistantMessage) {
 					this._currentAssistantMessage = {
 						role: 'assistant',
@@ -1977,6 +2302,7 @@ ${prompt}`,
 				break;
 
 			case 'done':
+				this._textFollowsToolCall = false;
 				if (this._currentAssistantMessage) {
 					this._persistAssistantMessage(this._currentAssistantMessage);
 				}
@@ -2024,6 +2350,20 @@ ${prompt}`,
 				}
 				this._onDidChangeMessages.fire(this._messages);
 				break;
+			case 'progress': {
+				if (!this._currentAssistantMessage) {
+					this._currentAssistantMessage = {
+						role: 'assistant',
+						content: '',
+						toolCalls: [],
+						timestamp: Date.now()
+					};
+					this._messages.push(this._currentAssistantMessage);
+				}
+				this._currentAssistantMessage.progressMessage = chunk.content;
+				this._onDidChangeMessages.fire(this._messages);
+				break;
+			}
 			case 'brief':
 			case 'tick':
 			case 'notice':
@@ -2033,6 +2373,7 @@ ${prompt}`,
 				const used = chunk.tokens_used;
 				const prompt = used?.prompt_tokens ?? chunk.usage?.input_tokens ?? 0;
 				if (prompt > 0) {
+					console.log(`[sidex-chat] usage: ${prompt} prompt tokens`);
 					this._lastPromptTokens = prompt;
 					this._onDidChangeMessages.fire(this._messages);
 				}
@@ -2089,6 +2430,19 @@ ${prompt}`,
 	}
 
 	private _setStreaming(streaming: boolean): void {
+		if (!streaming) {
+			// A status line is only for while the turn runs; do not leave it on a finished or saved message.
+			let cleared = false;
+			for (const message of this._messages) {
+				if (message.progressMessage !== undefined) {
+					message.progressMessage = undefined;
+					cleared = true;
+				}
+			}
+			if (cleared) {
+				this._onDidChangeMessages.fire(this._messages);
+			}
+		}
 		if (this._isStreaming !== streaming) {
 			this._isStreaming = streaming;
 			this._onDidChangeStreaming.fire(streaming);
@@ -2414,7 +2768,8 @@ ${prompt}`,
 			// Codex, Ollama, …). Do not filter it down to a hardcoded ID
 			// allowlist — that hides new snapshots the moment a provider
 			// ships them. Custom IDs the user typed are already merged above.
-			this._availableModels = models;
+			this._serverModels = models;
+			this._availableModels = mergePickerModels(this._serverModels, this._participantModels);
 			this._onDidChangeModels.fire(this._availableModels);
 
 			// Keep the user's pick when it is still in the live list. Anthropic
@@ -2422,7 +2777,9 @@ ${prompt}`,
 			// connected Claude login ends up on a model the current window has
 			// already exhausted.
 			const effective = this._availableModels;
-			const stillOffered = effective.some(m => m.id === this._serverModel);
+			// A participant model may not have loaded yet, so never reset a saved pick of one.
+			const stillOffered =
+				effective.some(m => m.id === this._serverModel) || parseParticipantModelId(this._serverModel) !== undefined;
 			if (!stillOffered && effective.length > 0) {
 				const preferred =
 					effective.find(m => /sonnet/i.test(m.id)) || effective.find(m => /haiku/i.test(m.id)) || effective[0];

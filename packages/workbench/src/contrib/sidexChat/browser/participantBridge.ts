@@ -1,0 +1,316 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// Pure helpers that route a SideX chat message to an extension chat participant (such as Copilot Chat)
+// and turn the participant's streamed progress into SideX stream chunks.
+
+/** The slice of an agent record the router needs. */
+export interface IParticipantRef {
+	readonly id: string;
+	readonly name: string;
+	readonly isDefault?: boolean;
+	readonly modes?: readonly string[];
+	readonly slashCommands?: readonly { readonly name: string }[];
+}
+
+export interface IParticipantRoute<T extends IParticipantRef> {
+	readonly agent: T;
+	readonly command?: string;
+	readonly message: string;
+}
+
+/** Progress kinds this bridge renders; everything else is reported, not dropped. */
+export interface IProgressPart {
+	readonly kind: string;
+	readonly content?: { readonly value?: string } | string;
+	readonly [key: string]: unknown;
+}
+
+export type BridgeChunk =
+	| { type: 'text' | 'thinking' | 'notice' | 'error' | 'progress'; content: string }
+	| { type: 'usage'; tokens_used: { prompt_tokens: number; completion_tokens?: number; total_tokens?: number } };
+
+/**
+ * One line for a transient status such as "Searching the workspace": markdown links keep their text, whitespace
+ * is collapsed and it is cut short. Empty when there is nothing to show.
+ */
+export function progressMessageText(content: unknown): string {
+	const raw = typeof content === 'string' ? content : ((content as { value?: unknown } | undefined)?.value ?? '');
+	const text = (typeof raw === 'string' ? raw : '')
+		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+		.replace(/\s+/g, ' ')
+		.trim();
+	return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+}
+
+/** The token counts of a `usage` part, which drive the context ring; undefined when there is no prompt size. */
+export function usageChunk(part: IProgressPart): BridgeChunk | undefined {
+	const prompt = part['promptTokens'];
+	if (typeof prompt !== 'number' || !Number.isFinite(prompt) || prompt <= 0) {
+		return undefined;
+	}
+	const completion = part['completionTokens'];
+	const completionTokens = typeof completion === 'number' && Number.isFinite(completion) ? completion : undefined;
+	return {
+		type: 'usage',
+		tokens_used: {
+			prompt_tokens: prompt,
+			...(completionTokens !== undefined && {
+				completion_tokens: completionTokens,
+				total_tokens: prompt + completionTokens
+			})
+		}
+	};
+}
+
+const DEFAULT_AGENT_ALIASES = new Set(['copilot', 'github', 'githubcopilot', 'github.copilot']);
+
+function normalize(value: string): string {
+	return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Matches a leading `@name` (and an optional `/command`) against the registered participants.
+ * Returns undefined when the text is not addressed to a participant, so the normal SideX flow runs.
+ */
+export function routeToParticipant<T extends IParticipantRef>(
+	text: string,
+	agents: readonly T[],
+	mode?: string
+): IParticipantRoute<T> | undefined {
+	const match = /^\s*@([^\s]+)\s*([\s\S]*)$/.exec(text);
+	if (!match) {
+		return undefined;
+	}
+	const mention = match[1].toLowerCase();
+	// Copilot's default participant is named "GitHubCopilot", so also accept the short aliases users type.
+	const agent =
+		agents.find(a => a.name.toLowerCase() === mention || a.id.toLowerCase() === mention) ??
+		agents.find(a => normalize(a.name) === normalize(mention)) ??
+		(DEFAULT_AGENT_ALIASES.has(mention) ? pickFallbackParticipant(agents, mode) : undefined);
+	if (!agent) {
+		return undefined;
+	}
+	let rest = match[2];
+	let command: string | undefined;
+	const cmd = /^\/([^\s]+)\s*([\s\S]*)$/.exec(rest);
+	if (cmd && agent.slashCommands?.some(c => c.name === cmd[1])) {
+		command = cmd[1];
+		rest = cmd[2];
+	}
+	return { agent, command, message: rest };
+}
+
+/** Converts participant progress parts into SideX stream chunks. */
+export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[] {
+	const chunks: BridgeChunk[] = [];
+	for (const part of parts) {
+		switch (part.kind) {
+			case 'markdownContent': {
+				const value = typeof part.content === 'string' ? part.content : part.content?.value;
+				if (value) {
+					chunks.push({ type: 'text', content: value });
+				}
+				break;
+			}
+			case 'warning': {
+				const value = typeof part.content === 'string' ? part.content : part.content?.value;
+				chunks.push({ type: 'notice', content: value ?? 'The participant reported a warning.' });
+				break;
+			}
+			case 'thinking': {
+				// `value` is a string or a list of strings; a part with neither only carries metadata.
+				const value = Array.isArray(part['value']) ? part['value'].join('') : part['value'];
+				if (typeof value === 'string' && value) {
+					chunks.push({ type: 'thinking', content: value });
+				}
+				break;
+			}
+			case 'inlineReference': {
+				// A file or symbol mentioned inside the text; without this the name would be missing from the sentence.
+				const label = inlineReferenceLabel(part['inlineReference'], part['name']);
+				if (label) {
+					chunks.push({ type: 'text', content: `\`${label}\`` });
+				}
+				break;
+			}
+			case 'progressMessage': {
+				const status = progressMessageText(part.content);
+				if (status) {
+					chunks.push({ type: 'progress', content: status });
+				}
+				break;
+			}
+			case 'usage': {
+				const usage = usageChunk(part);
+				if (usage) {
+					chunks.push(usage);
+				}
+				break;
+			}
+			case 'autoModeResolution':
+				// Which model Auto picked for the turn; there is nowhere to show it, and it is not worth a notice.
+				break;
+			case 'textEdit':
+			case 'workspaceEdit':
+				// applied to the files by the edit applier, see participantEditOps
+				break;
+			default:
+				chunks.push({
+					type: 'notice',
+					content: `The participant sent '${part.kind}' content, which SideX cannot display yet.`
+				});
+		}
+	}
+	return chunks;
+}
+
+/**
+ * Picks the participant that answers a message with no @mention when the local SideX server is
+ * unavailable: the default participant (Copilot's), if one is registered.
+ */
+export function pickFallbackParticipant<T extends IParticipantRef>(agents: readonly T[], mode?: string): T | undefined {
+	const byMode = mode ? agents.find(a => a.isDefault && a.modes?.includes(mode)) : undefined;
+	if (byMode) {
+		return byMode;
+	}
+	// Copilot declares its agent-mode participant without a usable `modes` entry here, so in Agent mode
+	// prefer a participant whose id says it is the agent one before settling for the Ask default.
+	const byId = mode === 'agent' ? agents.find(a => /(^|[.\-_])(edits)?agent$/i.test(a.id)) : undefined;
+	return byId ?? agents.find(a => a.isDefault);
+}
+
+export interface IHistoryMessage {
+	readonly role: 'user' | 'assistant' | 'system';
+	readonly content: string;
+}
+
+export interface IParticipantHistoryEntry<TRequest> {
+	readonly request: TRequest;
+	readonly response: readonly { readonly kind: 'markdownContent'; readonly content: { readonly value: string } }[];
+	readonly result: Record<string, never>;
+}
+
+/**
+ * Pairs each user message with the assistant reply that follows it, which is the history shape
+ * participants expect. A user message with no reply (a failed or cancelled turn) is left out, and
+ * system messages never reach the participant.
+ */
+export function buildParticipantHistory<TRequest>(
+	messages: readonly IHistoryMessage[],
+	makeRequest: (message: string, index: number) => TRequest
+): IParticipantHistoryEntry<TRequest>[] {
+	const entries: IParticipantHistoryEntry<TRequest>[] = [];
+	for (let i = 0; i < messages.length - 1; i++) {
+		const user = messages[i];
+		const reply = messages[i + 1];
+		if (user.role === 'user' && reply.role === 'assistant' && reply.content) {
+			entries.push({
+				request: makeRequest(user.content, entries.length),
+				response: [{ kind: 'markdownContent', content: { value: reply.content } }],
+				result: {}
+			});
+			i++;
+		}
+	}
+	return entries;
+}
+
+const PARTICIPANT_MODEL_PREFIX = 'participant:';
+
+export interface IPickerModel {
+	readonly id: string;
+	readonly name: string;
+	readonly provider: string;
+	readonly contextWindow?: number;
+}
+
+/** The picker id for a model the chat participant provides (for example Copilot's). */
+export function toParticipantModelId(identifier: string): string {
+	return PARTICIPANT_MODEL_PREFIX + identifier;
+}
+
+/** The language model identifier behind a picker id, or undefined for a server model. */
+export function parseParticipantModelId(pickerId: string): string | undefined {
+	return pickerId.startsWith(PARTICIPANT_MODEL_PREFIX) ? pickerId.slice(PARTICIPANT_MODEL_PREFIX.length) : undefined;
+}
+
+/** Server models first, then the participant's, without repeating an id. */
+export function mergePickerModels(
+	serverModels: readonly IPickerModel[],
+	participantModels: readonly IPickerModel[]
+): IPickerModel[] {
+	const seen = new Set(serverModels.map(m => m.id));
+	return [...serverModels, ...participantModels.filter(m => !seen.has(m.id))];
+}
+
+/** How long a message waits for Copilot (or another participant) to finish registering at startup. */
+export const PARTICIPANT_WAIT_MS = 30_000;
+
+/** Extra time after the first participant appears, so the rest of Copilot's participants are registered. */
+export const PARTICIPANT_SETTLE_MS = 1_500;
+
+/**
+ * Resolves true as soon as `check` passes (now, or after `subscribe` fires), or false after `timeoutMs`.
+ * Used to hold a message sent while extensions are still starting.
+ */
+export function waitForCondition(
+	check: () => boolean,
+	subscribe: (listener: () => void) => { dispose(): void },
+	timeoutMs: number
+): Promise<boolean> {
+	if (check()) {
+		return Promise.resolve(true);
+	}
+	return new Promise(resolve => {
+		let done = false;
+		const finish = (result: boolean) => {
+			if (!done) {
+				done = true;
+				clearTimeout(timer);
+				subscription.dispose();
+				resolve(result);
+			}
+		};
+		const subscription = subscribe(() => {
+			if (check()) {
+				finish(true);
+			}
+		});
+		const timer = setTimeout(() => finish(false), timeoutMs);
+	});
+}
+
+function lastSegment(path: unknown): string {
+	return typeof path === 'string' ? (path.split(/[\\/]/).filter(Boolean).pop() ?? '') : '';
+}
+
+/** The name to show for an inline reference: its own name, else the file name of its URI, location or symbol. */
+export function inlineReferenceLabel(reference: unknown, name: unknown): string {
+	if (typeof name === 'string' && name) {
+		return name;
+	}
+	const ref = reference as
+		| { path?: unknown; uri?: { path?: unknown }; name?: unknown; location?: { uri?: { path?: unknown } } }
+		| undefined;
+	if (!ref) {
+		return '';
+	}
+	if (typeof ref.name === 'string' && ref.name) {
+		return ref.name;
+	}
+	return lastSegment(ref.path) || lastSegment(ref.uri?.path) || lastSegment(ref.location?.uri?.path);
+}
+
+/**
+ * Text that arrives after a tool call starts its own paragraph; without this a heading such as `## Done`
+ * is glued to the sentence before the call and renders as plain text.
+ */
+export function withParagraphBreak(existing: string, next: string, followsToolCall: boolean): string {
+	if (!followsToolCall || !next || !existing || /\s$/.test(existing) || /^\s/.test(next)) {
+		return next;
+	}
+	return `\n\n${next}`;
+}

@@ -165,6 +165,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 			const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);
+			const useTwoCellFullwidthCharacters = options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
@@ -177,7 +178,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				wrappingInfo.wrappingColumn,
 				wrappingIndent,
 				wordBreak,
-				wrapOnEscapedLineFeeds
+				wrapOnEscapedLineFeeds,
+				useTwoCellFullwidthCharacters
 			);
 		}
 
@@ -377,6 +379,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 		const wordBreak = options.get(EditorOption.wordBreak);
+		const useTwoCellFullwidthCharacters = options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 		if (
 			this._lines.setWrappingSettings(
@@ -384,7 +387,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				wrappingStrategy,
 				wrappingInfo.wrappingColumn,
 				wrappingIndent,
-				wordBreak
+				wordBreak,
+				useTwoCellFullwidthCharacters
 			)
 		) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
@@ -1147,6 +1151,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getViewLineData(lineNumber);
 	}
 
+	public getViewLineContinuesWithWrappedLine(lineNumber: number): boolean {
+		return this._lines.getViewLineContinuesWithWrappedLine(lineNumber);
+	}
+
 	public getMinimapLinesRenderingData(
 		startLineNumber: number,
 		endLineNumber: number,
@@ -1515,10 +1523,11 @@ export class ViewModel extends Disposable implements IViewModel {
 		text: string,
 		pasteOnNewLine: boolean,
 		multicursorText?: string[] | null | undefined,
-		source?: string | null | undefined
+		source?: string | null | undefined,
+		isBlock: boolean = false
 	): void {
 		this._executeCursorEdit(eventsCollector =>
-			this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source)
+			this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source, isBlock)
 		);
 	}
 	public cut(source?: string | null | undefined): void {

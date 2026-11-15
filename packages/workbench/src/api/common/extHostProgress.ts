@@ -134,6 +134,6 @@ class ProgressCallback extends Progress<IProgressStep> {
 		() => Object.create(null)
 	)
 	throttledReport(p: IProgressStep): void {
-		this._proxy.$progressReport(this._handle, p);
+		this._proxy.$progressReport(this._handle, { ...p, message: p.message?.toString() });
 	}
 }

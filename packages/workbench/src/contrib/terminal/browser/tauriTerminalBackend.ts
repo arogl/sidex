@@ -437,7 +437,7 @@ class TauriTerminalBackend extends Disposable implements ITerminalBackend {
 	async attachToProcess(_id: number): Promise<ITerminalChildProcess | undefined> {
 		return undefined;
 	}
-	async attachToRevivedProcess(_id: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToRevivedProcess(_id: number, _pid: number): Promise<ITerminalChildProcess | undefined> {
 		return undefined;
 	}
 	async listProcesses(): Promise<IProcessDetails[]> {

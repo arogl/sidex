@@ -38,7 +38,9 @@ import { Registry } from '@sidex/platform/registry/common/platform.js';
 import { registerAction2, Action2, MenuRegistry } from '@sidex/platform/actions/common/actions.js';
 import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
 import { clamp } from '@sidex/base/common/numbers.js';
-import { KeyCode } from '@sidex/base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '@sidex/base/common/keyCodes.js';
+import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '@sidex/platform/notification/common/notification.js';
 import {
 	IConfigurationRegistry,
 	Extensions as ConfigurationExtensions
@@ -1060,7 +1062,39 @@ class PolicyDiagnosticsAction extends Action2 {
 	}
 }
 
+class ToggleDevToolsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.toggleDevTools',
+			title: localize2('toggleDevTools', 'Toggle Developer Tools'),
+			category: Categories.Developer,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 50,
+				// Ctrl+Shift+I is the Sidex chat toggle, so the inspector gets the Alt variant.
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const invoke = (
+			globalThis as unknown as {
+				__TAURI__?: { core?: { invoke(cmd: string): Promise<unknown> } };
+			}
+		).__TAURI__?.core?.invoke;
+		if (!invoke) {
+			accessor
+				.get(INotificationService)
+				.warn(localize('devToolsUnavailable', 'Developer tools are only available in the desktop app.'));
+			return;
+		}
+		await invoke('toggle_devtools');
+	}
+}
+
 // --- Actions Registration
+registerAction2(ToggleDevToolsAction);
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);

@@ -70,7 +70,11 @@ export const calculateDisplayedStat = (coverage: CoverageBarSource, method: Test
 	}
 };
 
-export function getLabelForItem(result: LiveTestResult, testId: TestId, commonPrefixLen: number) {
+export function getLabelForItem(
+	result: LiveTestResult,
+	testId: TestId,
+	commonPrefixLen: number
+): { label: string; description?: string } {
 	const parts: string[] = [];
 	for (const id of testId.idsFromRoot()) {
 		const item = result.getTestById(id.toString());
@@ -81,7 +85,15 @@ export function getLabelForItem(result: LiveTestResult, testId: TestId, commonPr
 		parts.push(item.label);
 	}
 
-	return parts.slice(commonPrefixLen).join(' \u203a ');
+	const relevant = parts.slice(commonPrefixLen);
+	if (relevant.length <= 1) {
+		return { label: relevant[0] ?? '' };
+	}
+
+	return {
+		label: relevant[relevant.length - 1],
+		description: relevant.slice(0, -1).join(' \u203A ')
+	};
 }
 
 export namespace labels {
@@ -89,6 +101,6 @@ export namespace labels {
 	export const clickToChangeFiltering = localize('changePerTestFilter', 'Click to view coverage for a single test');
 	export const percentCoverage = (percent: number, precision?: number) =>
 		localize('testing.percentCoverage', '{0} Coverage', displayPercent(percent, precision));
-	export const allTests = localize('testing.allTests', 'All tests');
+	export const allTests = localize('testing.allTests', 'Entire run');
 	export const pickShowCoverage = localize('testing.pickTest', 'Pick a test to show coverage for');
 }

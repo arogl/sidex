@@ -19,6 +19,7 @@ import {
 	DiffAlgorithmName,
 	IEditorWorkerService,
 	ILineChange,
+	IStringEditFromDiff,
 	IUnicodeHighlightsResult
 } from '../../common/services/editorWorker.js';
 import { IModelService } from '../../common/services/model.js';
@@ -117,10 +118,6 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 				)
 			)
 		);
-	}
-
-	public override dispose(): void {
-		super.dispose();
 	}
 
 	public canComputeUnicodeHighlights(uri: URI): boolean {
@@ -245,13 +242,22 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		options: { maxComputationTimeMs: number },
 		algorithm: DiffAlgorithmName
 	): Promise<StringEdit> {
+		return (await this.computeStringEditFromDiffWithMetadata(original, modified, options, algorithm)).edit;
+	}
+
+	public async computeStringEditFromDiffWithMetadata(
+		original: string,
+		modified: string,
+		options: { maxComputationTimeMs: number },
+		algorithm: DiffAlgorithmName
+	): Promise<IStringEditFromDiff> {
 		try {
 			const worker = await this._workerWithResources([]);
-			const edit = await worker.$computeStringDiff(original, modified, options, algorithm);
-			return StringEdit.fromJson(edit);
+			const result = await worker.$computeStringDiff(original, modified, options, algorithm);
+			return { edit: StringEdit.fromJson(result.edit), isCoarse: result.isCoarse };
 		} catch (e) {
 			onUnexpectedError(e);
-			return StringEdit.replace(OffsetRange.ofLength(original.length), modified); // approximation
+			return { edit: StringEdit.replace(OffsetRange.ofLength(original.length), modified), isCoarse: true };
 		}
 	}
 

@@ -31,6 +31,7 @@ import { isDefined } from '@sidex/base/common/types.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 
+import { DataChannelForwardingTelemetryService } from '@sidex/platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { observableConfigValue } from '@sidex/platform/observable/common/platformObservableUtils.js';
@@ -115,12 +116,14 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
 	private readonly _renameProcessor: RenameSymbolProcessor;
+	private readonly _dataChannelTelemetryService: DataChannelForwardingTelemetryService;
 
 	constructor(
 		private readonly _textModel: ITextModel,
 		private readonly _versionId: IObservableWithChange<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _cursorPosition: IObservable<Position>,
+		completionsEnablementSetting: string | undefined,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -129,6 +132,9 @@ export class InlineCompletionsSource extends Disposable {
 		@ITextModelService private readonly _textModelService: ITextModelService
 	) {
 		super();
+		this._dataChannelTelemetryService = this._instantiationService.createInstance(
+			DataChannelForwardingTelemetryService
+		);
 		this._loggingEnabled = observableConfigValue(
 			'editor.inlineSuggest.logFetch',
 			false,

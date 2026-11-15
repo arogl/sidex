@@ -8,7 +8,7 @@ import { IAction } from '@sidex/base/common/actions.js';
 import { KeyCode } from '@sidex/base/common/keyCodes.js';
 import * as dom from '@sidex/base/browser/dom.js';
 import { StandardKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
-import { SelectBox, ISelectOptionItem, SeparatorSelectOption } from '@sidex/base/browser/ui/selectBox/selectBox.js';
+import { ISelectOptionItem } from '@sidex/base/browser/ui/selectBox/selectBox.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from '../common/debug.js';
@@ -16,7 +16,7 @@ import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { selectBorder, selectBackground, asCssVariable } from '@sidex/platform/theme/common/colorRegistry.js';
 import { IContextViewService } from '@sidex/platform/contextview/browser/contextView.js';
 import { IWorkspaceContextService, WorkbenchState } from '@sidex/platform/workspace/common/workspace.js';
-import { IDisposable, dispose } from '@sidex/base/common/lifecycle.js';
+import { DisposableStore, IDisposable, dispose, toDisposable } from '@sidex/base/common/lifecycle.js';
 import { ADD_CONFIGURATION_ID } from './debugCommands.js';
 import {
 	BaseActionViewItem,
@@ -33,13 +33,20 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
 import { hasNativeContextMenu } from '@sidex/platform/window/common/window.js';
 import { Gesture, EventType as TouchEventType } from '@sidex/base/browser/touch.js';
-
-const $ = dom.$;
+import {
+	ActionWidgetDropdown,
+	IActionWidgetDropdownAction
+} from '@sidex/platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetService } from '@sidex/platform/actionWidget/browser/actionWidget.js';
+import { ITelemetryService } from '@sidex/platform/telemetry/common/telemetry.js';
+import { renderLabelWithIcons } from '@sidex/base/browser/ui/iconLabel/iconLabels.js';
 
 export class StartDebugActionViewItem extends BaseActionViewItem {
 	private container!: HTMLElement;
 	private start!: HTMLElement;
-	private selectBox: SelectBox;
+	private configurationContainer!: HTMLElement;
+	private dropdownLabel: HTMLElement | undefined;
+	private dropdown!: ActionWidgetDropdown;
 	private debugOptions: { label: string; handler: () => Promise<boolean> }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
@@ -57,19 +64,15 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IContextViewService contextViewService: IContextViewService,
+		@IContextViewService _contextViewService: IContextViewService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(context, action, options);
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, {
-			ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations'),
-			useCustomDrawn: !hasNativeContextMenu(this.configurationService)
-		});
-		this.selectBox.setFocusable(false);
-		this.toDispose.push(this.selectBox);
 
 		this.registerListeners();
 	}
@@ -92,7 +95,21 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
-		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
+		let titleElement: Element | null = null;
+		let isDisposed = false;
+		this.toDispose.push(
+			toDisposable(() => {
+				isDisposed = true;
+				titleElement?.classList.remove('has-start-debug-action-item');
+			})
+		);
+		queueMicrotask(() => {
+			if (!isDisposed) {
+				titleElement = container.closest('.part > .title');
+				titleElement?.classList.add('has-start-debug-action-item');
+			}
+		});
+		this.start = dom.append(container, dom.$(ThemeIcon.asCSSSelector(debugStart)));
 		const title = this.keybindingService.appendKeybinding(this.action.label, this.action.id);
 		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
@@ -133,31 +150,53 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.RightArrow)) {
 					this.start.tabIndex = -1;
-					this.selectBox.focus();
+					this.dropdownLabel?.focus();
 					event.stopPropagation();
 				}
 			})
 		);
-		this.toDispose.push(
-			this.selectBox.onDidSelect(async e => {
-				const target = this.debugOptions[e.index];
-				const shouldBeSelected = target.handler ? await target.handler() : false;
-				if (shouldBeSelected) {
-					this.selected = e.index;
-				} else {
-					// Some select options should not remain selected https://github.com/microsoft/vscode/issues/31526
-					this.selectBox.select(this.selected);
+
+		this.configurationContainer = dom.append(container, dom.$('.configuration'));
+
+		this.dropdown = new ActionWidgetDropdown(
+			this.configurationContainer,
+			{
+				label: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations'),
+				labelRenderer: (el: HTMLElement) => {
+					this.dropdownLabel = el;
+					el.classList.add('start-debug-action-item-dropdown-label');
+					el.tabIndex = -1;
+					el.setAttribute('role', 'button');
+					el.setAttribute('aria-haspopup', 'true');
+					el.setAttribute('aria-expanded', 'false');
+					this.renderDropdownLabel();
+					return null;
+				},
+				actionProvider: { getActions: () => this.getDropdownActions() },
+				listOptions: {
+					showFilter: true,
+					filterPlaceholder: nls.localize('debugLaunchConfigurations.search', 'Search configurations'),
+					focusFilterOnOpen: true
 				}
+			},
+			this.actionWidgetService,
+			this.keybindingService,
+			this.telemetryService
+		);
+		this.toDispose.push(this.dropdown);
+		this.toDispose.push(
+			this.dropdown.onDidChangeVisibility(visible => {
+				this.dropdownLabel?.setAttribute('aria-expanded', String(visible));
 			})
 		);
 
-		const selectBoxContainer = $('.configuration');
-		this.selectBox.render(dom.append(container, selectBoxContainer));
 		this.toDispose.push(
-			dom.addDisposableListener(selectBoxContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			dom.addDisposableListener(this.configurationContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.LeftArrow)) {
-					this.selectBox.setFocusable(false);
+					if (this.dropdownLabel) {
+						this.dropdownLabel.tabIndex = -1;
+					}
 					this.start.tabIndex = 0;
 					this.start.focus();
 					event.stopPropagation();
@@ -165,8 +204,9 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				}
 			})
 		);
+
 		this.container.style.border = `1px solid ${asCssVariable(selectBorder)}`;
-		selectBoxContainer.style.borderLeft = `1px solid ${asCssVariable(selectBorder)}`;
+		this.configurationContainer.style.borderLeft = `1px solid ${asCssVariable(selectBorder)}`;
 		this.container.style.backgroundColor = asCssVariable(selectBackground);
 
 		const configManager = this.debugService.getConfigurationManager();
@@ -193,7 +233,10 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	override focus(fromRight?: boolean): void {
 		if (fromRight) {
-			this.selectBox.focus();
+			if (this.dropdownLabel) {
+				this.dropdownLabel.tabIndex = 0;
+				this.dropdownLabel.focus();
+			}
 		} else {
 			this.start.tabIndex = 0;
 			this.start.focus();
@@ -202,7 +245,10 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	override blur(): void {
 		this.start.tabIndex = -1;
-		this.selectBox.blur();
+		if (this.dropdownLabel) {
+			this.dropdownLabel.tabIndex = -1;
+			this.dropdownLabel.blur();
+		}
 		this.container.blur();
 	}
 
@@ -211,7 +257,9 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			this.start.tabIndex = 0;
 		} else {
 			this.start.tabIndex = -1;
-			this.selectBox.setFocusable(false);
+			if (this.dropdownLabel) {
+				this.dropdownLabel.tabIndex = -1;
+			}
 		}
 	}
 
@@ -220,21 +268,69 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		super.dispose();
 	}
 
+	private renderDropdownLabel(): void {
+		if (!this.dropdownLabel) {
+			return;
+		}
+		const currentLabel =
+			this.debugOptions[this.selected]?.label ?? nls.localize('noConfigurations', 'No Configurations');
+		const labelSpan = dom.$('span.start-debug-action-item-label', undefined, currentLabel);
+		const chevron = renderLabelWithIcons('$(chevron-down)');
+		dom.reset(this.dropdownLabel, labelSpan, ...chevron);
+		this.dropdownLabel.title = currentLabel;
+		this.dropdownLabel.setAttribute(
+			'aria-label',
+			nls.localize('debugLaunchConfigurationsAriaLabel', 'Debug Launch Configurations: {0}', currentLabel)
+		);
+	}
+
+	private getDropdownActions(): IActionWidgetDropdownAction[] {
+		const actions: IActionWidgetDropdownAction[] = [];
+		for (let i = 0; i < this.debugOptions.length; i++) {
+			const option = this.debugOptions[i];
+			const category = this.optionCategories[i];
+			actions.push({
+				id: `debug.config.${i}`,
+				label: option.label,
+				tooltip: option.label,
+				class: undefined,
+				enabled: true,
+				checked: i === this.selected,
+				category,
+				run: async () => {
+					// Selection state and label are reconciled by updateOptions(),
+					// triggered by manager.onDidSelectConfiguration.
+					await option.handler();
+				}
+			});
+		}
+		return actions;
+	}
+
+	private optionCategories: ({ label: string; order: number } | undefined)[] = [];
+
 	private updateOptions(): void {
 		this.selected = 0;
 		this.debugOptions = [];
+		this.optionCategories = [];
 		const manager = this.debugService.getConfigurationManager();
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let lastGroup: string | undefined;
-		const disabledIdxs: number[] = [];
-		const separatorIdxs: number[] = [];
+		let groupOrder = 0;
+
+		const pushOption = (
+			option: { label: string; handler: () => Promise<boolean> },
+			category: { label: string; order: number } | undefined
+		) => {
+			this.debugOptions.push(option);
+			this.optionCategories.push(category);
+		};
+
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
 				if (this.debugOptions.length) {
-					this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
-					disabledIdxs.push(this.debugOptions.length - 1);
-					separatorIdxs.push(this.debugOptions.length - 1);
+					groupOrder++;
 				}
 			}
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
@@ -242,13 +338,16 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			}
 
 			const label = inWorkspace ? `${name} (${launch.name})` : name;
-			this.debugOptions.push({
-				label,
-				handler: async () => {
-					await manager.selectConfiguration(launch, name);
-					return true;
-				}
-			});
+			pushOption(
+				{
+					label,
+					handler: async () => {
+						await manager.selectConfiguration(launch, name);
+						return true;
+					}
+				},
+				{ label: `configurations-${groupOrder}`, order: groupOrder }
+			);
 		});
 
 		// Only take 3 elements from the recent dynamic configurations to not clutter the dropdown
@@ -259,38 +358,40 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				if (type === manager.selectedConfiguration.type && manager.selectedConfiguration.name === name) {
 					this.selected = this.debugOptions.length;
 				}
-				this.debugOptions.push({
-					label: name,
-					handler: async () => {
-						await manager.selectConfiguration(undefined, name, undefined, { type });
-						return true;
-					}
-				});
+				pushOption(
+					{
+						label: name,
+						handler: async () => {
+							await manager.selectConfiguration(undefined, name, undefined, { type });
+							return true;
+						}
+					},
+					{ label: 'recent-dynamic', order: 100 }
+				);
 			});
 
 		if (this.debugOptions.length === 0) {
-			this.debugOptions.push({
-				label: nls.localize('noConfigurations', 'No Configurations'),
-				handler: async () => false
-			});
+			pushOption(
+				{ label: nls.localize('noConfigurations', 'No Configurations'), handler: async () => false },
+				undefined
+			);
 		}
 
-		this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
-		disabledIdxs.push(this.debugOptions.length - 1);
-		separatorIdxs.push(this.debugOptions.length - 1);
-
 		this.providers.forEach(p => {
-			this.debugOptions.push({
-				label: `${p.label}...`,
-				handler: async () => {
-					const picked = await p.pick();
-					if (picked) {
-						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, { type: p.type });
-						return true;
+			pushOption(
+				{
+					label: `${p.label}...`,
+					handler: async () => {
+						const picked = await p.pick();
+						if (picked) {
+							await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, { type: p.type });
+							return true;
+						}
+						return false;
 					}
-					return false;
-				}
-			});
+				},
+				{ label: 'actions', order: 200 }
+			);
 		});
 
 		manager
@@ -300,25 +401,19 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				const label = inWorkspace
 					? nls.localize('addConfigTo', 'Add Config ({0})...', l.name)
 					: nls.localize('addConfiguration', 'Add Configuration...');
-				this.debugOptions.push({
-					label,
-					handler: async () => {
-						await this.commandService.executeCommand(ADD_CONFIGURATION_ID, l.uri.toString());
-						return false;
-					}
-				});
+				pushOption(
+					{
+						label,
+						handler: async () => {
+							await this.commandService.executeCommand(ADD_CONFIGURATION_ID, l.uri.toString());
+							return false;
+						}
+					},
+					{ label: 'actions', order: 200 }
+				);
 			});
 
-		this.selectBox.setOptions(
-			this.debugOptions.map(
-				(data, index): ISelectOptionItem => ({
-					text: data.label,
-					isDisabled: disabledIdxs.indexOf(index) !== -1,
-					isSeparator: separatorIdxs.indexOf(index) !== -1
-				})
-			),
-			this.selected
-		);
+		this.renderDropdownLabel();
 	}
 
 	private _setAriaLabel(title: string): void {
@@ -372,20 +467,20 @@ export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSessi
 			})
 		);
 
+		const sessionListenersStore = this._register(new DisposableStore());
+		const registerSessionListeners = (session: IDebugSession) => {
+			const sessionListeners = sessionListenersStore.add(new DisposableStore());
+			sessionListeners.add(session.onDidChangeName(() => this.update()));
+			sessionListeners.add(session.onDidEndAdapter(() => sessionListenersStore.delete(sessionListeners)));
+		};
 		this._register(
 			this.debugService.onDidNewSession(session => {
-				const sessionListeners: IDisposable[] = [];
-				sessionListeners.push(session.onDidChangeName(() => this.update()));
-				sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
+				registerSessionListeners(session);
 				this.update();
 			})
 		);
 		// Apply the same pattern to existing sessions - track listeners for cleanup
-		this.getSessions().forEach(session => {
-			const sessionListeners: IDisposable[] = [];
-			sessionListeners.push(session.onDidChangeName(() => this.update()));
-			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
-		});
+		this.getSessions().forEach(registerSessionListeners);
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 
 		const selectedSession = session ? this.mapFocusedSessionToSelected(session) : undefined;

@@ -971,6 +971,8 @@ export class DefaultStyleController implements IStyleController {
 	style(styles: IListStyles): void {
 		const suffix = this.selectorSuffix && `.${this.selectorSuffix}`;
 		const content: string[] = [];
+		// `.hovered` renders a row's pointer-hover state without a pointer, e.g. in component fixtures.
+		const hover = ':is(:hover, .hovered)';
 
 		if (styles.listBackground) {
 			content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
@@ -981,7 +983,7 @@ export class DefaultStyleController implements IStyleController {
 				`.monaco-list${suffix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`
 			);
 			content.push(
-				`.monaco-list${suffix}:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`
+				`.monaco-list${suffix}:focus .monaco-list-row.focused${hover} { background-color: ${styles.listFocusBackground}; }`
 			); // overwrite :hover style in this case!
 		}
 
@@ -994,7 +996,7 @@ export class DefaultStyleController implements IStyleController {
 				`.monaco-list${suffix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`
 			);
 			content.push(
-				`.monaco-list${suffix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`
+				`.monaco-list${suffix}:focus .monaco-list-row.selected${hover} { background-color: ${styles.listActiveSelectionBackground}; }`
 			); // overwrite :hover style in this case!
 		}
 
@@ -1027,7 +1029,7 @@ export class DefaultStyleController implements IStyleController {
 		if (styles.listInactiveFocusForeground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { color:  ${styles.listInactiveFocusForeground}; }`);
 			content.push(
-				`.monaco-list${suffix} .monaco-list-row.focused:hover { color:  ${styles.listInactiveFocusForeground}; }`
+				`.monaco-list${suffix} .monaco-list-row.focused${hover} { color:  ${styles.listInactiveFocusForeground}; }`
 			); // overwrite :hover style in this case!
 		}
 
@@ -1042,7 +1044,7 @@ export class DefaultStyleController implements IStyleController {
 				`.monaco-list${suffix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`
 			);
 			content.push(
-				`.monaco-list${suffix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`
+				`.monaco-list${suffix} .monaco-list-row.focused${hover} { background-color:  ${styles.listInactiveFocusBackground}; }`
 			); // overwrite :hover style in this case!
 		}
 
@@ -1051,7 +1053,7 @@ export class DefaultStyleController implements IStyleController {
 				`.monaco-list${suffix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`
 			);
 			content.push(
-				`.monaco-list${suffix} .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`
+				`.monaco-list${suffix} .monaco-list-row.selected${hover} { background-color:  ${styles.listInactiveSelectionBackground}; }`
 			); // overwrite :hover style in this case!
 		}
 
@@ -1063,13 +1065,13 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listHoverBackground) {
 			content.push(
-				`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`
+				`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row${hover}:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`
 			);
 		}
 
 		if (styles.listHoverForeground) {
 			content.push(
-				`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`
+				`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row${hover}:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`
 			);
 		}
 
@@ -1123,7 +1125,7 @@ export class DefaultStyleController implements IStyleController {
 		if (styles.listHoverOutline) {
 			// default: activeContrastBorder
 			content.push(
-				`.monaco-list${suffix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`
+				`.monaco-list${suffix} .monaco-list-row${hover} { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`
 			);
 		}
 
@@ -1761,6 +1763,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.onDidChangeFocus(this._onFocusChange, this, this.disposables);
 		this.onDidChangeSelection(this._onSelectionChange, this, this.disposables);
+		this.view.onDidScroll(this.onDidChangeActiveDescendant, this, this.disposables);
 
 		if (this.accessibilityProvider) {
 			const ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
@@ -2266,6 +2269,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.elementTop(index);
 	}
 
+	getElementHeight(index: number): number {
+		return this.view.elementHeight(index);
+	}
+
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
 	}
@@ -2288,13 +2295,22 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const focus = this.focus.get();
 
 		if (focus.length > 0) {
+			const index = focus[0];
 			let id: string | undefined;
 
 			if (this.accessibilityProvider?.getActiveDescendantId) {
-				id = this.accessibilityProvider.getActiveDescendantId(this.view.element(focus[0]));
+				id = this.accessibilityProvider.getActiveDescendantId(this.view.element(index));
 			}
 
-			this.view.domNode.setAttribute('aria-activedescendant', id || this.view.getElementDomId(focus[0]));
+			if (!id && this.view.domElement(index)) {
+				id = this.view.getElementDomId(index);
+			}
+
+			if (id) {
+				this.view.domNode.setAttribute('aria-activedescendant', id);
+			} else {
+				this.view.domNode.removeAttribute('aria-activedescendant');
+			}
 		} else {
 			this.view.domNode.removeAttribute('aria-activedescendant');
 		}

@@ -110,9 +110,28 @@ import { ILocalizedString } from '@sidex/platform/action/common/action.js';
 import { mainWindow } from '@sidex/base/browser/window.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
 import { IHoverService } from '@sidex/platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '@sidex/base/browser/ui/hover/hoverDelegateFactory.js';
+import { StandardKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, Gesture } from '@sidex/base/browser/touch.js';
 import { IFileService } from '@sidex/platform/files/common/files.js';
 
 const $ = dom.$;
+
+/**
+ * Finds the first editor with unsaved changes in index order, i.e. the first
+ * unsaved editor of the first group that has one.
+ */
+export function findFirstDirtyEditor(groups: readonly IEditorGroup[]): OpenEditor | undefined {
+	for (const group of groups) {
+		for (const editor of group.editors) {
+			if (editor.isDirty()) {
+				return new OpenEditor(editor, group);
+			}
+		}
+	}
+
+	return undefined;
+}
 
 export class OpenEditorsView extends ViewPane {
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
@@ -133,6 +152,9 @@ export class OpenEditorsView extends ViewPane {
 	private elements: (OpenEditor | IEditorGroup)[] = [];
 	private sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 	private blockFocusActiveEditorTracking = false;
+	private preserveSelectionOnRefresh = false;
+	private readonly editorIds = new WeakMap<EditorInput, number>();
+	private editorIdPool = 0;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -183,13 +205,20 @@ export class OpenEditorsView extends ViewPane {
 				return;
 			}
 
-			this.listRefreshScheduler?.schedule(this.structuralRefreshDelay);
+			this.scheduleListRefresh(false, this.structuralRefreshDelay);
 		};
 
 		const groupDisposables = this._register(new DisposableMap<number>());
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
 				if (this.listRefreshScheduler?.isScheduled()) {
+					switch (e.kind) {
+						case GroupModelChangeKind.EDITOR_ACTIVE:
+						case GroupModelChangeKind.EDITOR_OPEN:
+						case GroupModelChangeKind.EDITOR_MOVE:
+						case GroupModelChangeKind.EDITOR_CLOSE:
+							this.preserveSelectionOnRefresh = false;
+					}
 					return;
 				}
 				if (!this.isBodyVisible() || !this.list) {
@@ -214,7 +243,7 @@ export class OpenEditorsView extends ViewPane {
 					case GroupModelChangeKind.EDITOR_PIN:
 					case GroupModelChangeKind.EDITOR_LABEL:
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
-						this.focusActiveEditor();
+						this.focusActiveEditor(true);
 						break;
 					case GroupModelChangeKind.EDITOR_OPEN:
 					case GroupModelChangeKind.EDITOR_MOVE:
@@ -253,7 +282,43 @@ export class OpenEditorsView extends ViewPane {
 		this.dirtyCountElement.style.color = asCssVariable(badgeForeground);
 		this.dirtyCountElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
+		// The badge acts as a shortcut to the first editor with unsaved changes
+		this.dirtyCountElement.tabIndex = 0;
+		this.dirtyCountElement.setAttribute('role', 'button');
+		this._register(
+			this.hoverService.setupManagedHover(
+				getDefaultHoverDelegate('element'),
+				this.dirtyCountElement,
+				nls.localize('openUnsavedEditor', 'Open Unsaved Editor')
+			)
+		);
+		this._register(Gesture.addTarget(this.dirtyCountElement));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(
+				dom.addDisposableListener(this.dirtyCountElement, eventType, e => {
+					dom.EventHelper.stop(e, true); // prevent the pane from toggling its expanded state
+					this.openFirstDirtyEditor();
+				})
+			);
+		}
+		this._register(
+			dom.addDisposableListener(this.dirtyCountElement, dom.EventType.KEY_DOWN, e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+					dom.EventHelper.stop(e, true); // prevent the pane from toggling its expanded state
+					this.openFirstDirtyEditor();
+				}
+			})
+		);
+
 		this.updateDirtyIndicator();
+	}
+
+	private openFirstDirtyEditor(): void {
+		const openEditor = findFirstDirtyEditor(this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE));
+		if (openEditor) {
+			this.openEditor(openEditor, { pinned: true });
+		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -291,13 +356,11 @@ export class OpenEditorsView extends ViewPane {
 				)
 			],
 			{
-				identityProvider: {
-					getId: (element: OpenEditor | IEditorGroup) =>
-						element instanceof OpenEditor ? element.getId() : element.id.toString()
-				},
+				identityProvider: { getId: (element: OpenEditor | IEditorGroup) => this.getElementId(element) },
 				dnd: this.dnd,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-				accessibilityProvider: new OpenEditorsAccessibilityProvider()
+				accessibilityProvider: new OpenEditorsAccessibilityProvider(),
+				openOnSingleClick: true
 			}
 		) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
@@ -307,6 +370,9 @@ export class OpenEditorsView extends ViewPane {
 		let labelChangeListeners: IDisposable[] = [];
 		this.listRefreshScheduler = this._register(
 			new RunOnceScheduler(() => {
+				const preserveSelection = this.preserveSelectionOnRefresh;
+				this.preserveSelectionOnRefresh = false;
+
 				// No need to refresh the list if it's not rendered
 				if (!this.list) {
 					return;
@@ -315,7 +381,7 @@ export class OpenEditorsView extends ViewPane {
 				const previousLength = this.list.length;
 				const elements = this.getElements();
 				this.list.splice(0, this.list.length, elements);
-				this.focusActiveEditor();
+				this.focusActiveEditor(preserveSelection);
 				if (previousLength !== this.list.length) {
 					this.updateSize();
 				}
@@ -325,7 +391,7 @@ export class OpenEditorsView extends ViewPane {
 					// We need to resort the list if the editor label changed
 					elements.forEach(e => {
 						if (e instanceof OpenEditor) {
-							labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.listRefreshScheduler?.schedule()));
+							labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.scheduleListRefresh(true)));
 						}
 					});
 				}
@@ -384,12 +450,12 @@ export class OpenEditorsView extends ViewPane {
 			})
 		);
 
-		this.listRefreshScheduler.schedule(0);
+		this.scheduleListRefresh(false, 0);
 
 		this._register(
 			this.onDidChangeBodyVisibility(visible => {
 				if (visible && this.needsRefresh) {
-					this.listRefreshScheduler?.schedule(0);
+					this.scheduleListRefresh(false, 0);
 				}
 			})
 		);
@@ -573,7 +639,32 @@ export class OpenEditorsView extends ViewPane {
 		}
 	}
 
-	private focusActiveEditor(): void {
+	private scheduleListRefresh(preserveSelection: boolean, delay?: number): void {
+		if (!this.listRefreshScheduler) {
+			return;
+		}
+
+		if (!preserveSelection || !this.listRefreshScheduler.isScheduled()) {
+			this.preserveSelectionOnRefresh = preserveSelection;
+		}
+		this.listRefreshScheduler.schedule(delay);
+	}
+
+	private getElementId(element: OpenEditor | IEditorGroup): string {
+		if (!(element instanceof OpenEditor)) {
+			return element.id.toString();
+		}
+
+		let editorId = this.editorIds.get(element.editor);
+		if (editorId === undefined) {
+			editorId = this.editorIdPool++;
+			this.editorIds.set(element.editor, editorId);
+		}
+
+		return `openeditor:${element.groupId}:${editorId}`;
+	}
+
+	private focusActiveEditor(preserveSelection = false): void {
 		if (!this.list || this.blockFocusActiveEditorTracking) {
 			return;
 		}
@@ -586,7 +677,9 @@ export class OpenEditorsView extends ViewPane {
 			if (index >= 0) {
 				try {
 					this.list.setFocus([index]);
-					this.list.setSelection([index]);
+					if (!preserveSelection) {
+						this.list.setSelection([index]);
+					}
 					this.list.reveal(index);
 				} catch (_e) {
 					// noop list updated in the meantime
@@ -596,7 +689,9 @@ export class OpenEditorsView extends ViewPane {
 		}
 
 		this.list.setFocus([]);
-		this.list.setSelection([]);
+		if (!preserveSelection) {
+			this.list.setSelection([]);
+		}
 	}
 
 	private onConfigurationChange(event: IConfigurationChangeEvent): void {
@@ -612,7 +707,7 @@ export class OpenEditorsView extends ViewPane {
 			if (this.dnd) {
 				this.dnd.sortOrder = this.sortOrder;
 			}
-			this.listRefreshScheduler?.schedule();
+			this.scheduleListRefresh(false);
 		}
 	}
 
@@ -640,6 +735,10 @@ export class OpenEditorsView extends ViewPane {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', '{0} unsaved', dirty);
+			this.dirtyCountElement.setAttribute(
+				'aria-label',
+				nls.localize('dirtyCounterAriaLabel', '{0} unsaved, open unsaved editor', dirty)
+			);
 			this.dirtyCountElement.classList.remove('hidden');
 		}
 	}

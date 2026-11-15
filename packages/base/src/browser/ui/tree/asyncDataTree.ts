@@ -635,6 +635,9 @@ function asObjectTreeOptions<TInput, T, TFilterData>(
 					return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(e.element as T);
 				}
 			},
+			stickyScrollNodeSourceRangeProvider:
+				options.stickyScrollNodeSourceRangeProvider &&
+				((e, defaultRange) => options.stickyScrollNodeSourceRangeProvider!(e.element as T, defaultRange)),
 			sorter: undefined,
 			expandOnlyOnTwistieClick:
 				typeof options.expandOnlyOnTwistieClick === 'undefined'
@@ -1105,7 +1108,17 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	hasNode(element: TInput | T): boolean {
-		return element === this.root.element || this.nodes.has(element as T);
+		if (element === this.root.element) {
+			return true;
+		}
+
+		const node = this.nodes.get(element as T);
+
+		if (!node) {
+			return false;
+		}
+
+		return this.tree.hasElement(node);
 	}
 
 	// View
@@ -1623,15 +1636,19 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		// TODO@joao this doesn't take filter into account
 		if (
 			node !== this.root &&
-			this.autoExpandSingleChildren &&
 			children.length === 1 &&
-			childrenToRefresh.length === 0
+			childrenToRefresh.length === 0 &&
+			this.shouldAutoExpandSingleChild(children[0])
 		) {
 			children[0].forceExpanded = true;
 			childrenToRefresh.push(children[0]);
 		}
 
 		return childrenToRefresh;
+	}
+
+	protected shouldAutoExpandSingleChild(node: IAsyncDataTreeNode<TInput, T>): boolean {
+		return this.autoExpandSingleChildren;
 	}
 
 	protected render(
@@ -1921,6 +1938,11 @@ export interface ICompressibleAsyncDataTreeOptions<T, TFilterData = void>
 	extends IAsyncDataTreeOptions<T, TFilterData> {
 	readonly compressionEnabled?: boolean;
 	readonly keyboardNavigationLabelProvider?: ICompressibleKeyboardNavigationLabelProvider<T>;
+	/**
+	 * Expands the only child of an element when compression combines both into a single tree
+	 * element, so that expanding the combined element reveals its children. Defaults to false.
+	 */
+	readonly autoExpandCompressedChildren?: boolean;
 }
 
 export interface ICompressibleAsyncDataTreeOptionsUpdate<T> extends IAsyncDataTreeOptionsUpdate<T> {
@@ -1932,6 +1954,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	protected readonly compressibleNodeMapper: CompressibleAsyncDataTreeNodeMapper<TInput, T, TFilterData> =
 		new WeakMapper(node => new CompressibleAsyncDataTreeNodeWrapper(node));
 	private filter?: ITreeFilter<T, TFilterData>;
+	private readonly autoExpandCompressedChildren: boolean;
 
 	constructor(
 		user: string,
@@ -1944,11 +1967,23 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	) {
 		super(user, container, virtualDelegate, renderers, dataSource, options);
 		this.filter = options.filter;
+		this.autoExpandCompressedChildren = options.autoExpandCompressedChildren ?? false;
 	}
 
 	getCompressedTreeNode(e: T | TInput) {
 		const node = this.getDataNode(e);
 		return this.tree.getCompressedTreeNode(node).element;
+	}
+
+	protected override shouldAutoExpandSingleChild(node: IAsyncDataTreeNode<TInput, T>): boolean {
+		// A single compressible child is rendered combined with its parent, which only reveals
+		// the child's children if the child is expanded along with the parent
+		return (
+			super.shouldAutoExpandSingleChild(node) ||
+			(this.autoExpandCompressedChildren &&
+				this.tree.isCompressionEnabled() &&
+				!this.compressionDelegate.isIncompressible(node.element as T))
+		);
 	}
 
 	protected override createTree(

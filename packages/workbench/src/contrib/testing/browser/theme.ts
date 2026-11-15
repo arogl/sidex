@@ -197,6 +197,28 @@ export const testingUncoveredGutterBackground = registerColor(
 	localize('testing.uncoveredGutterBackground', 'Gutter color of regions where code not covered.')
 );
 
+export const testingCoveredMinimapBackground = registerColor(
+	'testing.coveredMinimapBackground',
+	{
+		dark: transparent(diffInserted, 0.6),
+		light: transparent(diffInserted, 0.6),
+		hcDark: chartsGreen,
+		hcLight: chartsGreen
+	},
+	localize('testing.coveredMinimapBackground', 'Minimap color of regions where code was covered.')
+);
+
+export const testingUncoveredMinimapBackground = registerColor(
+	'testing.uncoveredMinimapBackground',
+	{
+		dark: transparent(diffRemoved, 1.5),
+		light: transparent(diffRemoved, 1.5),
+		hcDark: chartsRed,
+		hcLight: chartsRed
+	},
+	localize('testing.uncoveredMinimapBackground', 'Minimap color of regions where code was not covered.')
+);
+
 export const testingCoverCountBadgeBackground = registerColor(
 	'testing.coverCountBadgeBackground',
 	badgeBackground,

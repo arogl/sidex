@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isIOS, isLinux, isMacintosh, isMobile, isWeb, isWindows } from '@sidex/base/common/platform.js';
+import { isIOS, isLinux, isMacintosh, isMobile, isWeb, isWindows, isChromeOS } from '@sidex/base/common/platform.js';
 import { localize } from '@sidex/base/nls.js';
 import { RawContextKey } from './contextkey.js';
 
@@ -23,6 +23,11 @@ export const IsWindowsContext = new RawContextKey<boolean>(
 	'isWindows',
 	isWindows,
 	localize('isWindows', 'Whether the operating system is Windows')
+);
+export const IsChromeOSContext = new RawContextKey<boolean>(
+	'isChromeOS',
+	isChromeOS,
+	localize('isChromeOS', 'Whether the operating system is ChromeOS')
 );
 
 export const IsWebContext = new RawContextKey<boolean>(

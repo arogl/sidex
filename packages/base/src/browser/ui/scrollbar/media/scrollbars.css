@@ -23,6 +23,11 @@
 	transition: opacity 600ms ease;
 }
 
+.disable-animations .monaco-scrollable-element > .visible,
+.disable-animations .monaco-scrollable-element > .invisible.fade {
+	transition: none;
+}
+
 /* Scrollable Content Inset Shadow */
 .monaco-scrollable-element > .shadow {
 	position: absolute;

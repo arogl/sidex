@@ -736,6 +736,7 @@ class TauriGitSCMProvider extends Disposable implements ISCMProvider {
 	readonly isHidden = false;
 	readonly inputBoxTextModel: ITextModel;
 
+	readonly activeRepositoryName = observableValue<string | undefined>(this, undefined);
 	private readonly _contextValue = observableValue<string | undefined>(this, 'git');
 	get contextValue(): IObservable<string | undefined> {
 		return this._contextValue;

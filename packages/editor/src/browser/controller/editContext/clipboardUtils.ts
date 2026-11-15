@@ -11,6 +11,7 @@ import { ILogService } from '@sidex/platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { generateUuid } from '@sidex/base/common/uuid.js';
 import { VSDataTransfer } from '@sidex/base/common/dataTransfer.js';
+import { getPathForFile } from '@sidex/platform/dnd/browser/dnd.js';
 import { toExternalVSDataTransfer } from '../../dataTransfer.js';
 
 export function generateDataToCopyAndStoreInMemory(
@@ -44,6 +45,7 @@ function generateDataToCopy(viewModel: IViewModel): {
 		version: 1,
 		id: generateUuid(),
 		isFromEmptySelection: dataToCopy.isFromEmptySelection,
+		isBlock: dataToCopy.isBlock,
 		multicursorText: dataToCopy.multicursorText,
 		mode: dataToCopy.mode
 	};
@@ -56,6 +58,7 @@ function getDataToCopy(
 	emptySelectionClipboard: boolean,
 	copyWithSyntaxHighlighting: boolean
 ): ClipboardDataToCopy {
+	const isBlock = viewModel.getCursorColumnSelectData().isReal;
 	const { sourceRanges, sourceText } = viewModel.getPlainTextToCopy(
 		modelSelections,
 		emptySelectionClipboard,
@@ -78,6 +81,7 @@ function getDataToCopy(
 	}
 	const dataToCopy: ClipboardDataToCopy = {
 		isFromEmptySelection,
+		isBlock,
 		sourceRanges,
 		multicursorText,
 		text,
@@ -117,6 +121,7 @@ export class InMemoryClipboardMetadataManager {
 
 export interface ClipboardDataToCopy {
 	isFromEmptySelection: boolean;
+	isBlock: boolean;
 	sourceRanges: Range[];
 	multicursorText: string[] | null | undefined;
 	text: string;
@@ -128,6 +133,7 @@ export interface ClipboardStoredMetadata {
 	version: 1;
 	id: string | undefined;
 	isFromEmptySelection: boolean | undefined;
+	isBlock: boolean | undefined;
 	multicursorText: string[] | null | undefined;
 	mode: string | null;
 }
@@ -143,7 +149,10 @@ interface InMemoryClipboardMetadata {
 }
 
 const ClipboardEventUtils = {
-	getTextData(clipboardData: IReadableClipboardData | DataTransfer): [string, ClipboardStoredMetadata | null] {
+	getTextData(
+		clipboardData: IReadableClipboardData | DataTransfer,
+		getFilePath: (file: File) => string | undefined
+	): [string, ClipboardStoredMetadata | null] {
 		const text = clipboardData.getData(Mimes.text);
 		let metadata: ClipboardStoredMetadata | null = null;
 		const rawmetadata = clipboardData.getData('vscode-editor-data');
@@ -158,9 +167,11 @@ const ClipboardEventUtils = {
 			}
 		}
 		if (text.length === 0 && metadata === null && clipboardData.files.length > 0) {
-			// no textual data pasted, generate text from file names
+			// No textual data pasted. This is what Chromium does when files copied in a file manager are pasted:
+			// it only exposes the files and withholds the text (which on Linux contains their full paths).
+			// Generate text from the file paths, or from the file names when the paths are not available (e.g. web).
 			const files: File[] = Array.prototype.slice.call(clipboardData.files, 0);
-			return [files.map(file => file.name).join('\n'), null];
+			return [files.map(file => getFilePath(file) || file.name).join('\n'), null];
 		}
 		return [text, metadata];
 	},
@@ -329,9 +340,12 @@ export function createClipboardCopyEvent(
 /**
  * Creates an IClipboardPasteEvent from a DOM ClipboardEvent.
  */
-export function createClipboardPasteEvent(e: ClipboardEvent): IClipboardPasteEvent {
+export function createClipboardPasteEvent(
+	e: ClipboardEvent,
+	getFilePath: (file: File) => string | undefined = getPathForFile
+): IClipboardPasteEvent {
 	let handled = false;
-	let [text, metadata] = e.clipboardData ? ClipboardEventUtils.getTextData(e.clipboardData) : ['', null];
+	let [text, metadata] = e.clipboardData ? ClipboardEventUtils.getTextData(e.clipboardData, getFilePath) : ['', null];
 	metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 	return {
 		clipboardData: createReadableClipboardData(e.clipboardData),

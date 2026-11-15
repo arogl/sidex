@@ -435,6 +435,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 	const metadata = getMetadata(undefined, extension);
 	return {
 		...extension,
+		forceAutoUpdate: false,
 		identifier: { id: extension.identifier.id, uuid: metadata.id ?? extension.identifier.uuid },
 		isMachineScoped: !!metadata.isMachineScoped,
 		isApplicationScoped: !!metadata.isApplicationScoped,

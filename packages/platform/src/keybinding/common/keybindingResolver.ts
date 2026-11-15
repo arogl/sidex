@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	implies,
 	ContextKeyExpression,
 	ContextKeyExprType,
 	IContext,
 	IContextKeyService,
-	expressionsAreEqualWithConstantSubstitution
+	implies
 } from '../../contextkey/common/contextkey.js';
 import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
@@ -115,7 +114,14 @@ export class KeybindingResolver {
 			if (!defaultKb.when) {
 				return false;
 			}
-			if (!expressionsAreEqualWithConstantSubstitution(when, defaultKb.when)) {
+
+			// Use implication instead of strict equality so that a removal still matches
+			// when the default keybinding's when clause becomes more specific across
+			// updates (e.g. "inChatInput" → "inChatInput && !withinEditSessionDiff").
+			// See https://github.com/microsoft/vscode/issues/293802
+			const defaultWhen = defaultKb.when.substituteConstants();
+			const removalWhen = when.substituteConstants();
+			if (!KeybindingResolver.whenIsEntirelyIncluded(defaultWhen, removalWhen)) {
 				return false;
 			}
 		}
@@ -322,7 +328,7 @@ export class KeybindingResolver {
 	}
 
 	/**
-	 * Looks up a keybinding trigged as a result of pressing a sequence of chords - `[...currentChords, keypress]`
+	 * Looks up a keybinding triggered as a result of pressing a sequence of chords - `[...currentChords, keypress]`
 	 *
 	 * Example: resolving 3 chords pressed sequentially - `cmd+k cmd+p cmd+i`:
 	 * 	`currentChords = [ 'cmd+k' , 'cmd+p' ]` and `keypress = `cmd+i` - last pressed chord

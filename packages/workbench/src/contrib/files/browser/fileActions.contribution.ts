@@ -104,11 +104,13 @@ import {
 	DirtyWorkingCopiesContext,
 	EnterMultiRootWorkspaceSupportContext,
 	HasWebFileSystemAccess,
+	IsSessionsWindowContext,
 	WorkbenchStateContext,
 	WorkspaceFolderCountContext,
 	SidebarFocusContext,
 	ActiveEditorCanRevertContext,
 	ActiveEditorContext,
+	ActiveEditorDirtyContext,
 	ResourceContextKey,
 	ActiveEditorAvailableEditorIdsContext,
 	MultipleEditorsSelectedInGroupContext,
@@ -263,6 +265,22 @@ export const revealInSideBarCommand = {
 
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem(
+	SAVE_FILE_COMMAND_ID,
+	SAVE_FILE_LABEL.value,
+	ActiveEditorDirtyContext,
+	'1_close_save',
+	true,
+	10
+);
+appendEditorTitleContextMenuItem(
+	SAVE_FILE_AS_COMMAND_ID,
+	SAVE_FILE_AS_LABEL.value,
+	ActiveEditorDirtyContext,
+	'1_close_save',
+	false,
+	20
+);
+appendEditorTitleContextMenuItem(
 	COPY_PATH_COMMAND_ID,
 	copyPathCommand.title,
 	ResourceContextKey.IsFileSystemResource,
@@ -356,16 +374,22 @@ export function appendToCommandPalette(
 	});
 }
 
-appendToCommandPalette({
-	id: COPY_PATH_COMMAND_ID,
-	title: nls.localize2('copyPathOfActive', 'Copy Path of Active File'),
-	category: Categories.File
-});
-appendToCommandPalette({
-	id: COPY_RELATIVE_PATH_COMMAND_ID,
-	title: nls.localize2('copyRelativePathOfActive', 'Copy Relative Path of Active File'),
-	category: Categories.File
-});
+appendToCommandPalette(
+	{
+		id: COPY_PATH_COMMAND_ID,
+		title: nls.localize2('copyPathOfActive', 'Copy Path of Active File'),
+		category: Categories.File
+	},
+	IsSessionsWindowContext.negate()
+);
+appendToCommandPalette(
+	{
+		id: COPY_RELATIVE_PATH_COMMAND_ID,
+		title: nls.localize2('copyRelativePathOfActive', 'Copy Relative Path of Active File'),
+		category: Categories.File
+	},
+	IsSessionsWindowContext.negate()
+);
 
 appendToCommandPalette({
 	id: SAVE_FILE_COMMAND_ID,
@@ -379,23 +403,32 @@ appendToCommandPalette({
 	category: Categories.File
 });
 
-appendToCommandPalette({
-	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	title: nls.localize2('saveAllInGroup', 'Save All in Group'),
-	category: Categories.File
-});
+appendToCommandPalette(
+	{
+		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
+		title: nls.localize2('saveAllInGroup', 'Save All in Group'),
+		category: Categories.File
+	},
+	IsSessionsWindowContext.negate()
+);
 
-appendToCommandPalette({
-	id: SAVE_FILES_COMMAND_ID,
-	title: nls.localize2('saveFiles', 'Save All Files'),
-	category: Categories.File
-});
+appendToCommandPalette(
+	{
+		id: SAVE_FILES_COMMAND_ID,
+		title: nls.localize2('saveFiles', 'Save All Files'),
+		category: Categories.File
+	},
+	IsSessionsWindowContext.negate()
+);
 
-appendToCommandPalette({
-	id: REVERT_FILE_COMMAND_ID,
-	title: nls.localize2('revert', 'Revert File'),
-	category: Categories.File
-});
+appendToCommandPalette(
+	{
+		id: REVERT_FILE_COMMAND_ID,
+		title: nls.localize2('revert', 'Revert File'),
+		category: Categories.File
+	},
+	IsSessionsWindowContext.negate()
+);
 
 appendToCommandPalette({
 	id: COMPARE_WITH_SAVED_COMMAND_ID,
@@ -409,11 +442,14 @@ appendToCommandPalette({
 	}
 });
 
-appendToCommandPalette({
-	id: SAVE_FILE_AS_COMMAND_ID,
-	title: SAVE_FILE_AS_LABEL,
-	category: Categories.File
-});
+appendToCommandPalette(
+	{
+		id: SAVE_FILE_AS_COMMAND_ID,
+		title: SAVE_FILE_AS_LABEL,
+		category: Categories.File
+	},
+	IsSessionsWindowContext.negate()
+);
 
 appendToCommandPalette(
 	{
@@ -421,7 +457,7 @@ appendToCommandPalette(
 		title: NEW_FILE_LABEL,
 		category: Categories.File
 	},
-	WorkspaceFolderCountContext.notEqualsTo('0')
+	ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsSessionsWindowContext.negate())
 );
 
 appendToCommandPalette(
@@ -431,14 +467,17 @@ appendToCommandPalette(
 		category: Categories.File,
 		metadata: { description: nls.localize2('newFolderDescription', 'Create a new folder or directory') }
 	},
-	WorkspaceFolderCountContext.notEqualsTo('0')
+	ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsSessionsWindowContext.negate())
 );
 
-appendToCommandPalette({
-	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	title: NEW_UNTITLED_FILE_LABEL,
-	category: Categories.File
-});
+appendToCommandPalette(
+	{
+		id: NEW_UNTITLED_FILE_COMMAND_ID,
+		title: NEW_UNTITLED_FILE_LABEL,
+		category: Categories.File
+	},
+	IsSessionsWindowContext.negate()
+);
 
 // Menu registration - open editors
 

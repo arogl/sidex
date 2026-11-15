@@ -17,7 +17,8 @@ export interface IDiagnosticsService {
 
 	getPerformanceInfo(
 		mainProcessInfo: IMainProcessDiagnostics,
-		remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]
+		remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[],
+		options?: { skipCache?: boolean; unbounded?: boolean }
 	): Promise<PerformanceInfo>;
 	getSystemInfo(
 		mainProcessInfo: IMainProcessDiagnostics,
@@ -112,7 +113,8 @@ export class NullDiagnosticsService implements IDiagnosticsService {
 
 	async getPerformanceInfo(
 		_mainProcessInfo: IMainProcessDiagnostics,
-		_remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]
+		_remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[],
+		_options?: { skipCache?: boolean; unbounded?: boolean }
 	): Promise<PerformanceInfo> {
 		return {};
 	}

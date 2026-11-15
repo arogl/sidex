@@ -133,7 +133,7 @@ export class MoveOperations {
 			lineNumber = lineNumber + 1;
 			column = model.getLineMinColumn(lineNumber);
 		}
-		return new Position(lineNumber, column);
+		return model.normalizePosition(new Position(lineNumber, column), PositionAffinity.Right);
 	}
 
 	public static rightPositionAtomicSoftTabs(

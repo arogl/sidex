@@ -16,6 +16,7 @@ import {
 	IInputOptions,
 	IKeyMods,
 	IPickOptions,
+	IQuickInput,
 	IQuickInputButton,
 	IQuickInputService,
 	IQuickNavigateConfiguration,
@@ -122,11 +123,12 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
 			linkOpenerDelegate: content => {
-				// HACK: https://github.com/microsoft/vscode/issues/173691
-				this.instantiationService.invokeFunction(accessor => {
-					const openerService = accessor.get(IOpenerService);
-					openerService.open(content, { allowCommands: true, fromUserGesture: true });
-				});
+				// Resolved on use: injecting the opener service would create a service cycle
+				// (opener -> editor services -> editor resolver -> quick input -> opener) until the
+				// workbench layer is merged to 1.144.
+				this.instantiationService.invokeFunction(accessor =>
+					accessor.get(IOpenerService).open(content, { allowCommands: true, fromUserGesture: true })
+				);
 			},
 			returnFocus: () => host.focus(),
 			styles: this.computeStyles(),
@@ -209,6 +211,14 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				context.reset();
 			}
 		});
+	}
+
+	withQuickInputAnchor<T>(
+		anchor: IQuickInput['anchor'],
+		anchorPosition: IQuickInput['anchorPosition'],
+		operation: () => Promise<T>
+	): Promise<T> {
+		return this.controller.withQuickInputAnchor(anchor, anchorPosition, operation);
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(

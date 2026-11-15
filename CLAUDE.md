@@ -17,7 +17,7 @@ SideX is a port of VSCode's workbench that replaces Electron with **Tauri** — 
 
 ## Toolchain pins
 
-- Rust is pinned by `rust-toolchain.toml` (1.99.0, components `rustfmt` + `clippy`, target `wasm32-unknown-unknown`). Don't change the pin. Only `cargo udeps` uses nightly, via `RUSTUP_TOOLCHAIN: nightly` in `udeps.yml` (the env var beats the pin file; `cargo +nightly` beats both).
+- Rust is pinned by `rust-toolchain.toml` (1.100.0, components `rustfmt` + `clippy`, target `wasm32-unknown-unknown`). Don't change the pin. Only `cargo udeps` uses nightly, via `RUSTUP_TOOLCHAIN: nightly` in `udeps.yml` (the env var beats the pin file; `cargo +nightly` beats both).
 - CI pins bun 1.4.4 (also `.tool-versions` and `packageManager`); local bun may differ. Never regenerate `bun.lock` wholesale. Install with `bun install --frozen-lockfile`; a plain `bun install` on a clean checkout should leave the tree clean, so if it dirties `bun.lock`, report it instead of committing the change.
 - Rust and bun versions can disagree between a local machine and CI. Lints differ by toolchain: 1.99.0 deprecates `AtomicUsize::fetch_update` while its replacement `try_update` is newer than the crate's `rust-version` (1.91). Stay at or below the MSRV, and treat CI as authoritative. If the pinned toolchain cannot be downloaded locally, `RUSTUP_TOOLCHAIN=stable` works as a local-only override for the git hooks (pre-commit runs rustfmt, pre-push runs clippy and `bun test`); never bypass the hooks.
 - Wasm extension builds target `wasm32-wasip2`; check it is installed (`rustup target list --installed`) before building them.

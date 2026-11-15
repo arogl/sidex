@@ -1,14 +1,16 @@
-import { Component, DOM, $ } from '../base.js';
-import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
+import { Emitter, Event } from '@sidex/base/common/event.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
-import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
-import { renderMarkdown } from '../markdownRenderer.js';
-import { Collapsible } from '../collapsible/collapsible.js';
-import { ToolCallItem, FileEditInfo } from '../tools/toolCallItem.js';
-import { ThinkingBlock } from './thinkingBlock.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
+import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
+import { $, Component, DOM } from '../base.js';
+import { Collapsible } from '../collapsible/collapsible.js';
+import { renderMarkdown } from '../markdownRenderer.js';
+import { FileEditInfo, ToolCallItem } from '../tools/toolCallItem.js';
+import { buildActivityLabel } from '../tools/toolCallLabels.js';
+import { planToolRowSync, toolCallSignature } from '../tools/toolRowSync.js';
+import { ThinkingBlock } from './thinkingBlock.js';
 
 const EDIT_TOOL_NAMES = new Set([
 	'edit_file',
@@ -25,8 +27,76 @@ export class AssistantMessage extends Component {
 	readonly onCopy: Event<string> = this._onCopy.event;
 	private _thinkingBlock: ThinkingBlock | null = null;
 
+	private _progressEl: HTMLElement | null = null;
+	private _toolSection: Collapsible | null = null;
+	private readonly _toolRows = new Map<string, { item: ToolCallItem; signature: string }>();
+
 	get thinkingBlock(): ThinkingBlock | null {
 		return this._thinkingBlock;
+	}
+
+	/** The transient status line ("Searching the workspace") at the end of the message while a turn runs. */
+	updateProgress(msg: IChatMessage): void {
+		const text = msg.progressMessage;
+		if (!text) {
+			this._progressEl?.remove();
+			this._progressEl = null;
+			return;
+		}
+		if (!this._progressEl) {
+			const el = document.createElement('div');
+			el.className = 'sc-progress-status';
+			el.setAttribute('role', 'status');
+			el.style.cssText =
+				'color: var(--cursor-text-tertiary); font-size: 12px; padding: 4px 0; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+			this._progressEl = el;
+		}
+		if (this._progressEl.textContent !== text) {
+			this._progressEl.textContent = text;
+		}
+		// The text body is created later than this line can be, so keep the line last.
+		this.element.appendChild(this._progressEl);
+	}
+
+	/**
+	 * Draws the message's tool calls, and brings them up to date while the turn is still streaming. This used to
+	 * run once when the message was created, so a turn that began with a tool call showed only the calls that
+	 * existed at that moment and none of the later ones.
+	 */
+	syncToolCalls(msg: IChatMessage): void {
+		const calls = (msg.toolCalls ?? []).filter(tc => !EDIT_TOOL_NAMES.has(tc.name));
+		if (calls.length === 0) {
+			return;
+		}
+		if (!this._toolSection) {
+			const section = new Collapsible(buildActivityLabel(calls.map(tc => tc.name)));
+			const anchor = this.element.querySelector(':scope > .markdown-root, :scope > .sc-assistant-body');
+			if (anchor) {
+				this.element.insertBefore(section.element, anchor);
+			} else {
+				section.appendTo(this.element);
+			}
+			this._register(section);
+			this._toolSection = section;
+		}
+		const section = this._toolSection;
+		section.setLabel(buildActivityLabel(calls.map(tc => tc.name)));
+		const drawn = new Map([...this._toolRows].map(([id, row]) => [id, row.signature]));
+		for (const { call, action } of planToolRowSync(drawn, calls)) {
+			if (action === 'keep') {
+				continue;
+			}
+			const item = new ToolCallItem(call);
+			this._register(item);
+			const previous = this._toolRows.get(call.id);
+			if (previous) {
+				previous.item.element.replaceWith(item.element);
+				previous.item.dispose();
+			} else {
+				item.appendTo(section.body);
+			}
+			this._toolRows.set(call.id, { item, signature: toolCallSignature(call) });
+		}
 	}
 
 	constructor(
@@ -70,22 +140,10 @@ export class AssistantMessage extends Component {
 		const editInfoMap = hasTools ? buildEditInfoMap(allToolCalls) : new Map<string, FileEditInfo>();
 
 		if (hasTools) {
-			const nonEditCalls = msg.toolCalls!.filter(tc => !EDIT_TOOL_NAMES.has(tc.name));
 			const editCalls = msg.toolCalls!.filter(tc => EDIT_TOOL_NAMES.has(tc.name));
 
 			// Non-edit tools: show Cursor-style descriptive collapsible
-			if (nonEditCalls.length > 0) {
-				const label = buildActivityLabel(nonEditCalls);
-				const activitySection = new Collapsible(label);
-				activitySection.appendTo(this.element);
-				this._register(activitySection);
-
-				for (const tc of nonEditCalls) {
-					const item = new ToolCallItem(tc);
-					item.appendTo(activitySection.body);
-					this._register(item);
-				}
-			}
+			this.syncToolCalls(msg);
 
 			// Edit tool calls ALWAYS render with inline diffs
 			for (const tc of editCalls) {
@@ -138,6 +196,8 @@ export class AssistantMessage extends Component {
 				}, 1200);
 			});
 		}
+
+		this.updateProgress(msg);
 	}
 }
 
@@ -275,69 +335,4 @@ function stripLineNumbers(output: string): string {
 		return output;
 	}
 	return lines.map(line => line.replace(prefix, '')).join('\n');
-}
-
-const READ_TOOL_SET = new Set([
-	'read_file',
-	'batch_read',
-	'grep',
-	'glob',
-	'search_files',
-	'lsp_hover',
-	'lsp_definition',
-	'lsp_references'
-]);
-const SEARCH_TOOL_SET = new Set(['grep', 'glob', 'search_files', 'context_search', 'web_search']);
-const SHELL_TOOL_SET = new Set(['shell', 'run_background']);
-
-function buildActivityLabel(toolCalls: IToolCallInfo[]): string {
-	let readCount = 0;
-	let searchCount = 0;
-	let shellCount = 0;
-	const readFiles = new Set<string>();
-
-	for (const tc of toolCalls) {
-		if (READ_TOOL_SET.has(tc.name)) {
-			readCount++;
-			try {
-				const args = JSON.parse(tc.input || '{}');
-				if (args.path) {
-					const name = args.path.split('/').pop() || args.path;
-					readFiles.add(name);
-				}
-			} catch {
-				/* */
-			}
-		}
-		if (SEARCH_TOOL_SET.has(tc.name)) {
-			searchCount++;
-		}
-		if (SHELL_TOOL_SET.has(tc.name)) {
-			shellCount++;
-		}
-	}
-
-	if (readCount > 0 && searchCount === 0 && shellCount === 0) {
-		const fileCount = readFiles.size || readCount;
-		return `Explored ${fileCount} file${fileCount > 1 ? 's' : ''}`;
-	}
-	if (searchCount > 0 && readCount === 0 && shellCount === 0) {
-		return `${searchCount} search${searchCount > 1 ? 'es' : ''}`;
-	}
-	if (shellCount > 0 && readCount === 0 && searchCount === 0) {
-		return `Ran ${shellCount} command${shellCount > 1 ? 's' : ''}`;
-	}
-
-	// Mixed activities
-	const parts: string[] = [];
-	if (readCount > 0) {
-		parts.push(`${readFiles.size || readCount} file${readFiles.size > 1 ? 's' : ''}`);
-	}
-	if (searchCount > 0) {
-		parts.push(`${searchCount} search${searchCount > 1 ? 'es' : ''}`);
-	}
-	if (shellCount > 0) {
-		parts.push(`${shellCount} command${shellCount > 1 ? 's' : ''}`);
-	}
-	return `Explored ${parts.join(', ')}`;
 }

@@ -192,7 +192,12 @@ export function animatedObservable(
 
 				startVal = curVal;
 				targetVal = base.read(reader);
-				animationStartMs = Date.now() - (s.animate ? 0 : durationMs);
+				if (startVal === targetVal) {
+					// No change, no animation
+					animationStartMs = Date.now() - durationMs;
+				} else {
+					animationStartMs = Date.now() - (s.animate ? 0 : durationMs);
+				}
 
 				update();
 			}

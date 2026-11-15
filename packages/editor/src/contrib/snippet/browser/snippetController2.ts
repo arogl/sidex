@@ -31,7 +31,7 @@ import {
 	IContextKeyService,
 	RawContextKey
 } from '@sidex/platform/contextkey/common/contextkey.js';
-import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { ISnippetEdit, SnippetSession } from './snippetSession.js';
 import { TextModelEditSource } from '../../../common/textModelEditSource.js';
@@ -80,11 +80,17 @@ export class SnippetController2 implements IEditorContribution {
 		false,
 		localize('hasPrevTabstop', 'Whether there is a previous tab stop when in snippet mode')
 	);
+	static readonly InSnippetChoice = new RawContextKey(
+		'inSnippetChoice',
+		false,
+		localize('inSnippetChoice', 'Whether the current snippet tab stop is a choice')
+	);
 
 	private readonly _inSnippet: IContextKey<boolean>;
 	private readonly _inSnippetObservable = observableValue(this, false);
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
+	private readonly _inSnippetChoice: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
 	private readonly _snippetListener = new DisposableStore();
@@ -103,6 +109,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
 		this._hasNextTabstop = SnippetController2.HasNextTabstop.bindTo(contextKeyService);
 		this._hasPrevTabstop = SnippetController2.HasPrevTabstop.bindTo(contextKeyService);
+		this._inSnippetChoice = SnippetController2.InSnippetChoice.bindTo(contextKeyService);
 	}
 
 	dispose(): void {
@@ -110,6 +117,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
+		this._inSnippetChoice.reset();
 		this._session?.dispose();
 		this._snippetListener.dispose();
 	}
@@ -277,6 +285,7 @@ export class SnippetController2 implements IEditorContribution {
 	private _handleChoice(): void {
 		if (!this._session || !this._editor.hasModel()) {
 			this._currentChoice = undefined;
+			this._inSnippetChoice.reset();
 			return;
 		}
 
@@ -284,8 +293,11 @@ export class SnippetController2 implements IEditorContribution {
 		if (!activeChoice || !this._choiceCompletions) {
 			this._choiceCompletions?.disable();
 			this._currentChoice = undefined;
+			this._inSnippetChoice.reset();
 			return;
 		}
+
+		this._inSnippetChoice.set(true);
 
 		if (this._currentChoice !== activeChoice.choice) {
 			this._currentChoice = activeChoice.choice;
@@ -310,6 +322,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._inSnippetObservable.set(false, undefined);
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
+		this._inSnippetChoice.reset();
 		this._snippetListener.clear();
 
 		this._currentChoice = undefined;
@@ -367,6 +380,7 @@ registerEditorCommand(
 		}
 	})
 );
+
 registerEditorCommand(
 	new CommandCtor({
 		id: 'jumpToPrevSnippetPlaceholder',
@@ -379,6 +393,22 @@ registerEditorCommand(
 		}
 	})
 );
+
+// When a snippet choice is active, the suggest widget is shown and would normally
+// claim Shift+Tab for `acceptAlternativeSelectedSuggestion`. Register a higher-weight
+// rule so Shift+Tab navigates to the previous snippet placeholder instead. See #236489.
+KeybindingsRegistry.registerKeybindingRule({
+	id: 'jumpToPrevSnippetPlaceholder',
+	weight: KeybindingWeight.EditorContrib + 91,
+	when: ContextKeyExpr.and(
+		SnippetController2.InSnippetMode,
+		SnippetController2.HasPrevTabstop,
+		SnippetController2.InSnippetChoice,
+		EditorContextKeys.textInputFocus
+	),
+	primary: KeyMod.Shift | KeyCode.Tab
+});
+
 registerEditorCommand(
 	new CommandCtor({
 		id: 'leaveSnippet',

@@ -1467,12 +1467,6 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 		if (extension && this.allowedExtensionsService.isAllowed(extension) !== true) {
 			return;
 		}
-		if (
-			this.extensionsWorkbenchService.getAutoUpdateValue() === 'onlyEnabledExtensions' &&
-			!this.extensionEnablementService.isEnabledEnablementState(this.extension.enablementState)
-		) {
-			return;
-		}
 		this.enabled = true;
 		this.class = ToggleAutoUpdateForExtensionAction.EnabledClass;
 		this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);

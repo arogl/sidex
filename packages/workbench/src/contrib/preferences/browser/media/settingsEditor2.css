@@ -560,9 +560,18 @@
 	display: flex;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated-info .setting-item-deprecation-message {
+	color: var(--vscode-foreground);
+	margin-top: var(--vscode-spacing-size60);
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message .codicon {
 	color: inherit;
 	margin-right: 4px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated-info .setting-item-deprecation-message .codicon {
+	color: var(--vscode-editorInfo-foreground);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-description {
@@ -1157,8 +1166,10 @@
 	opacity: 1;
 }
 
+/* !important: settingsEditor2.ts sets style.display = 'block' inline when there are results, which would
+   otherwise show the "N Settings Found" badge on top of what the user is typing. */
 .settings-editor .settings-sidebar-search .settings-count-widget {
-	display: none;
+	display: none !important;
 }
 
 /* ===== Sidebar Scope Tabs ===== */

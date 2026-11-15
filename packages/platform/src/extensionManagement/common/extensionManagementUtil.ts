@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from '@sidex/base/common/strings.js';
+import * as nls from '@sidex/base/nls.js';
+import { IMarkdownString, MarkdownString } from '@sidex/base/common/htmlContent.js';
 import {
 	IExtensionIdentifier,
 	IGalleryExtension,
 	ILocalExtension,
 	MaliciousExtensionInfo,
-	getTargetPlatform
+	getTargetPlatform,
+	IExtensionBlockingInfo,
+	ExtensionBlockingOrigin
 } from './extensionManagement.js';
 import {
 	ExtensionIdentifier,
@@ -236,4 +240,20 @@ export function findMatchingMaliciousEntry(
 		}
 		return areSameExtensions(identifier, extensionOrPublisher);
 	});
+}
+
+/**
+ * Builds the user facing explanation for a blocked extension. A tenant policy decision and a
+ * marketplace statement are deliberately worded differently, because conflating them either
+ * alarms users about a routine policy decision or understates a genuine marketplace finding.
+ */
+export function getExtensionBlockedMessage(blockingInfo: IExtensionBlockingInfo): IMarkdownString {
+	return new MarkdownString(
+		blockingInfo.origin === ExtensionBlockingOrigin.Policy
+			? nls.localize('blocked by organization policy', "This extension is not permitted by your organization's policy.")
+			: nls.localize(
+					'blocked by marketplace',
+					'This extension has been blocked by the Extension Marketplace and must not be used.'
+				)
+	);
 }

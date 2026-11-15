@@ -13,6 +13,7 @@ import { URI } from '@sidex/base/common/uri.js';
 import { localize } from '@sidex/base/nls.js';
 import {
 	IMarker,
+	IMarkerChangeOptions,
 	IMarkerData,
 	IMarkerReadOptions,
 	IMarkerService,
@@ -82,6 +83,11 @@ class DoubleResourceMap<V> {
 
 		return Iterable.map(Iterable.concat(...this._byOwner.values()), map => map[1]);
 	}
+}
+
+interface IMarkers {
+	readonly markers: IMarker[];
+	readonly isTruncated: boolean;
 }
 
 class MarkerStats implements MarkerStatistics {
@@ -162,7 +168,7 @@ export class MarkerService implements IMarkerService {
 
 	readonly onMarkerChanged = this._onMarkerChanged.event;
 
-	private readonly _data = new DoubleResourceMap<IMarker[]>();
+	private readonly _data = new DoubleResourceMap<IMarkers>();
 	private readonly _stats = new MarkerStats(this);
 	private readonly _filteredResources = new ResourceMap<string[]>();
 
@@ -175,13 +181,17 @@ export class MarkerService implements IMarkerService {
 		return this._stats;
 	}
 
+	isSourceTruncated(resource: URI): boolean {
+		return Iterable.some(this._data.values(resource), markers => markers.isTruncated);
+	}
+
 	remove(owner: string, resources: URI[]): void {
 		for (const resource of resources || []) {
 			this.changeOne(owner, resource, []);
 		}
 	}
 
-	changeOne(owner: string, resource: URI, markerData: IMarkerData[]): void {
+	changeOne(owner: string, resource: URI, markerData: IMarkerData[], options?: IMarkerChangeOptions): void {
 		if (isFalsyOrEmpty(markerData)) {
 			// remove marker for this (owner,resource)-tuple
 			const removed = this._data.delete(resource, owner);
@@ -197,7 +207,7 @@ export class MarkerService implements IMarkerService {
 					markers.push(marker);
 				}
 			}
-			this._data.set(resource, owner, markers);
+			this._data.set(resource, owner, { markers, isTruncated: !!options?.isTruncated });
 			this._onMarkerChanged.fire([resource]);
 		}
 	}
@@ -279,7 +289,7 @@ export class MarkerService implements IMarkerService {
 		const existing = this._data.values(owner);
 		if (existing) {
 			for (const data of existing) {
-				const first = Iterable.first(data);
+				const first = Iterable.first(data.markers);
 				if (first) {
 					changes.push(first.resource);
 					this._data.delete(first.resource, owner);
@@ -308,7 +318,7 @@ export class MarkerService implements IMarkerService {
 
 			// insert all
 			for (const [resource, value] of groups) {
-				this._data.set(resource, owner, value);
+				this._data.set(resource, owner, { markers: value, isTruncated: false });
 			}
 		}
 
@@ -364,7 +374,7 @@ export class MarkerService implements IMarkerService {
 			}
 
 			const result: IMarker[] = [];
-			for (const marker of data) {
+			for (const marker of data.markers) {
 				if (take > 0 && result.length === take) {
 					break;
 				}
@@ -384,7 +394,7 @@ export class MarkerService implements IMarkerService {
 			const filtered = new ResourceSet();
 
 			for (const markers of iterable) {
-				for (const data of markers) {
+				for (const data of markers.markers) {
 					if (filtered.has(data.resource)) {
 						continue;
 					}

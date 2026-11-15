@@ -1,0 +1,157 @@
+import { describe, expect, it } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+	formatExecResult,
+	nextShellPath,
+	RUN_IN_TERMINAL_TIMEOUT_MS,
+	resolveTimeout,
+	runInTerminalInputSchema,
+	runInTerminalModelDescription,
+	shellInvocation,
+	shellInvocationFor,
+	shellKind,
+	shellLabel
+} from '../../common/tools/runInTerminalTool.js';
+
+const read = (path: string) => readFileSync(resolve(import.meta.dir, '../../../..', path), 'utf8');
+
+describe('shellInvocation', () => {
+	it('uses PowerShell on Windows and sh elsewhere', () => {
+		expect(shellInvocation('git log', true)).toEqual({
+			program: 'powershell.exe',
+			args: ['-NoProfile', '-NonInteractive', '-Command', 'git log']
+		});
+		expect(shellInvocation('git log', false)).toEqual({ program: '/bin/sh', args: ['-c', 'git log'] });
+	});
+});
+
+describe('default terminal shell', () => {
+	const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+	const pwsh = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+
+	it('classifies shells by program name', () => {
+		expect(shellKind(gitBash)).toBe('posix');
+		expect(shellKind('/usr/bin/zsh')).toBe('posix');
+		expect(shellKind(pwsh)).toBe('powershell');
+		expect(shellKind('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')).toBe('powershell');
+		expect(shellKind('C:\\Windows\\System32\\cmd.exe')).toBe('cmd');
+		expect(shellKind('C:\\Windows\\System32\\wsl.exe')).toBeUndefined();
+		expect(shellKind(undefined)).toBeUndefined();
+	});
+
+	it('runs a bash command in Git Bash with -c', () => {
+		expect(shellInvocationFor(gitBash, 'rm -f a.txt', true)).toEqual({
+			program: gitBash,
+			args: ['-c', 'rm -f a.txt']
+		});
+	});
+
+	it('keeps the PowerShell flags and uses /d /s /c for cmd', () => {
+		expect(shellInvocationFor(pwsh, 'ls', true).args).toEqual(['-NoProfile', '-NonInteractive', '-Command', 'ls']);
+		expect(shellInvocationFor('cmd.exe', 'dir', true).args).toEqual(['/d', '/s', '/c', 'dir']);
+	});
+
+	it('falls back to the platform default for an unknown or missing shell', () => {
+		expect(shellInvocationFor(undefined, 'ls', true)).toEqual(shellInvocation('ls', true));
+		expect(shellInvocationFor('wsl.exe', 'ls', false)).toEqual(shellInvocation('ls', false));
+	});
+
+	it('names the shell the model must write for', () => {
+		expect(shellLabel(gitBash)).toBe('Git Bash (bash.exe)');
+		expect(runInTerminalModelDescription(true, gitBash)).toContain('Git Bash (bash.exe)');
+		expect(runInTerminalModelDescription(true, gitBash)).toContain('POSIX syntax');
+		expect(runInTerminalModelDescription(true, gitBash)).toContain('`/e/z/f.txt`');
+		expect(runInTerminalModelDescription(true, gitBash)).not.toContain('forward slashes');
+		expect(runInTerminalModelDescription(true, pwsh)).toContain('relative');
+		expect(runInTerminalModelDescription(true, gitBash)).not.toContain('PowerShell syntax');
+		expect(runInTerminalModelDescription(true, pwsh)).toContain('PowerShell syntax');
+		expect(runInTerminalModelDescription(true)).toContain('PowerShell (powershell.exe)');
+		expect(runInTerminalModelDescription(false)).toContain('/bin/sh');
+	});
+});
+
+describe('nextShellPath', () => {
+	const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+	const pwsh = 'C:\\Users\\a\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe';
+
+	it('changes when the resolved profile changes to a shell it can drive', () => {
+		expect(nextShellPath(pwsh, gitBash)).toEqual({ shellPath: gitBash, changed: true });
+		expect(nextShellPath(undefined, pwsh)).toEqual({ shellPath: pwsh, changed: true });
+	});
+
+	it('does not change when the same shell is resolved again', () => {
+		expect(nextShellPath(gitBash, gitBash)).toEqual({ shellPath: gitBash, changed: false });
+		expect(nextShellPath(undefined, undefined)).toEqual({ shellPath: undefined, changed: false });
+	});
+
+	it('goes back to the platform default for a shell it cannot drive, and says so', () => {
+		expect(nextShellPath(gitBash, 'C:\\Windows\\System32\\wsl.exe')).toEqual({ shellPath: undefined, changed: true });
+		expect(nextShellPath(gitBash, undefined)).toEqual({ shellPath: undefined, changed: true });
+	});
+});
+
+describe('formatExecResult', () => {
+	it('returns output and the exit code', () => {
+		expect(formatExecResult({ stdout: 'hi\n', stderr: '', exit_code: 0, timed_out: false }, 1000)).toBe(
+			'hi\n\n[exit code: 0]'
+		);
+	});
+
+	it('joins stderr and reports a failing exit code', () => {
+		const text = formatExecResult({ stdout: 'a', stderr: 'boom', exit_code: 2, timed_out: false }, 1000);
+		expect(text).toBe('a\nboom\n[exit code: 2]');
+	});
+
+	it('says so when the command timed out', () => {
+		expect(formatExecResult({ stdout: '', stderr: '', exit_code: null, timed_out: true }, 5000)).toBe(
+			'[the command was stopped after 5s without finishing]'
+		);
+	});
+
+	it('truncates very long output', () => {
+		const text = formatExecResult({ stdout: 'x'.repeat(70_000), stderr: '', exit_code: 0, timed_out: false }, 1000);
+		expect(text).toContain('[output truncated]');
+		expect(text.length).toBeLessThan(61_000);
+	});
+});
+
+describe('resolveTimeout', () => {
+	it('uses the model value when it is positive, capped, otherwise the default', () => {
+		expect(resolveTimeout(5000)).toBe(5000);
+		expect(resolveTimeout(10_000_000)).toBe(600_000);
+		expect(resolveTimeout(0)).toBe(RUN_IN_TERMINAL_TIMEOUT_MS);
+		expect(resolveTimeout(undefined)).toBe(RUN_IN_TERMINAL_TIMEOUT_MS);
+	});
+});
+
+describe('run_in_terminal wiring', () => {
+	it('declares the tool Copilot looks for and asks for confirmation', () => {
+		expect((runInTerminalInputSchema() as { required: string[] }).required).toContain('command');
+		const contribution = read('contrib/chat/browser/tools/runInTerminalTool.contribution.ts');
+		expect(contribution).toContain('RUN_IN_TERMINAL_TOOL_ID');
+		expect(contribution).toContain('confirmationMessages');
+		expect(contribution).toContain("invoke<IExecResult>('exec'");
+		expect(read('workbench.common.main.ts')).toContain(
+			"import './contrib/chat/browser/tools/runInTerminalTool.contribution.js';"
+		);
+	});
+
+	it('releases the first registration before registering the tool again', () => {
+		// The tools service throws "already registered" for a tool id it still holds, so the update that names the
+		// default shell failed at startup until the old registration was cleared first.
+		const contribution = read('contrib/chat/browser/tools/runInTerminalTool.contribution.ts');
+		const clear = contribution.indexOf('this._registration.clear();');
+		const assign = contribution.indexOf('this._registration.value = ');
+		expect(clear).toBeGreaterThan(-1);
+		expect(clear).toBeLessThan(assign);
+	});
+
+	it('resolves the shell again when the profiles or the default profile setting change', () => {
+		// The profile list is empty at startup, before the terminal backend registers, so one lookup at startup
+		// picked the system shell even when another profile had been chosen.
+		const contribution = read('contrib/chat/browser/tools/runInTerminalTool.contribution.ts');
+		expect(contribution).toContain('profileService.onDidChangeAvailableProfiles(');
+		expect(contribution).toContain("e.affectsConfiguration('terminal.integrated.defaultProfile')");
+	});
+});

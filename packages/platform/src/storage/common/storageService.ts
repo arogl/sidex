@@ -13,6 +13,7 @@ import { IRemoteService } from '../../ipc/common/services.js';
 import { AbstractStorageService, isProfileUsingDefaultStorage, StorageScope, WillSaveStateReason } from './storage.js';
 import {
 	ApplicationStorageDatabaseClient,
+	ApplicationSharedStorageDatabaseClient,
 	ProfileStorageDatabaseClient,
 	WorkspaceStorageDatabaseClient
 } from './storageIpc.js';
@@ -21,7 +22,9 @@ import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export class RemoteStorageService extends AbstractStorageService {
 	private readonly applicationStorageProfile: IUserDataProfile;
-	private readonly applicationStorage: IStorage;
+	protected readonly applicationStorage: IStorage;
+
+	private readonly applicationSharedStorage: IStorage;
 
 	private profileStorageProfile: IUserDataProfile;
 	private readonly profileStorageDisposables = this._register(new DisposableStore());
@@ -34,13 +37,14 @@ export class RemoteStorageService extends AbstractStorageService {
 	constructor(
 		initialWorkspace: IAnyWorkspaceIdentifier | undefined,
 		initialProfiles: { defaultProfile: IUserDataProfile; currentProfile: IUserDataProfile },
-		private readonly remoteService: IRemoteService,
+		protected readonly remoteService: IRemoteService,
 		private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
 		this.applicationStorageProfile = initialProfiles.defaultProfile;
 		this.applicationStorage = this.createApplicationStorage();
+		this.applicationSharedStorage = this.createApplicationSharedStorage();
 
 		this.profileStorageProfile = initialProfiles.currentProfile;
 		this.profileStorage = this.createProfileStorage(this.profileStorageProfile);
@@ -58,6 +62,19 @@ export class RemoteStorageService extends AbstractStorageService {
 		this._register(applicationStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.APPLICATION, e)));
 
 		return applicationStorage;
+	}
+
+	protected createApplicationSharedStorage(): IStorage {
+		const storageDataBaseClient = this._register(
+			new ApplicationSharedStorageDatabaseClient(this.remoteService.getChannel('storage'))
+		);
+		const applicationSharedStorage = this._register(new Storage(storageDataBaseClient));
+
+		this._register(
+			applicationSharedStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.APPLICATION_SHARED, e))
+		);
+
+		return applicationSharedStorage;
 	}
 
 	private createProfileStorage(profile: IUserDataProfile): IStorage {
@@ -117,6 +134,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		// Init all storage locations
 		await Promises.settled([
 			this.applicationStorage.init(),
+			this.applicationSharedStorage.init(),
 			this.profileStorage.init(),
 			this.workspaceStorage?.init() ?? Promise.resolve()
 		]);
@@ -124,6 +142,8 @@ export class RemoteStorageService extends AbstractStorageService {
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
 		switch (scope) {
+			case StorageScope.APPLICATION_SHARED:
+				return this.applicationSharedStorage;
 			case StorageScope.APPLICATION:
 				return this.applicationStorage;
 			case StorageScope.PROFILE:
@@ -135,6 +155,9 @@ export class RemoteStorageService extends AbstractStorageService {
 
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
+			case StorageScope.APPLICATION_SHARED:
+				return joinPath(this.environmentService.appSharedDataHome, 'sharedStorage').with({ scheme: Schemas.file })
+					.fsPath;
 			case StorageScope.APPLICATION:
 				return this.applicationStorageProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath;
 			case StorageScope.PROFILE:
@@ -156,6 +179,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		// Do it
 		await Promises.settled([
 			this.applicationStorage.close(),
+			this.applicationSharedStorage.close(),
 			this.profileStorage.close(),
 			this.workspaceStorage?.close() ?? Promise.resolve()
 		]);

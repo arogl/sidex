@@ -13,7 +13,8 @@ import {
 	isMacintosh,
 	isSafari,
 	isWeb,
-	isWindows
+	isWindows,
+	isChromeOS
 } from '@sidex/base/common/platform.js';
 import { isFalsyOrWhitespace } from '@sidex/base/common/strings.js';
 import { Scanner, LexingError, Token, TokenType } from './scanner.js';
@@ -28,6 +29,7 @@ CONSTANT_VALUES.set('true', true);
 CONSTANT_VALUES.set('isMac', isMacintosh);
 CONSTANT_VALUES.set('isLinux', isLinux);
 CONSTANT_VALUES.set('isWindows', isWindows);
+CONSTANT_VALUES.set('isChromeOS', isChromeOS);
 CONSTANT_VALUES.set('isWeb', isWeb);
 CONSTANT_VALUES.set('isMacNative', isMacintosh && !isWeb);
 CONSTANT_VALUES.set('isEdge', isEdge);

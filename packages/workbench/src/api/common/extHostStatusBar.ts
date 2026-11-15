@@ -60,6 +60,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
 	private _latestCommandRegistration?: DisposableStore;
+	private _latestCommandRegistrationWasPublished = false;
 	private readonly _staleCommandRegistrations = new DisposableStore();
 	private _command?: {
 		readonly fromApi: string | vscode.Command;
@@ -252,9 +253,15 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		}
 
 		if (this._latestCommandRegistration) {
-			this._staleCommandRegistrations.add(this._latestCommandRegistration);
+			if (this._latestCommandRegistrationWasPublished) {
+				// Hidden entries can still have renderer clicks in flight.
+				this._staleCommandRegistrations.add(this._latestCommandRegistration);
+			} else {
+				this._latestCommandRegistration.dispose();
+			}
 		}
 		this._latestCommandRegistration = new DisposableStore();
+		this._latestCommandRegistrationWasPublished = false;
 		if (typeof command === 'string') {
 			this._command = {
 				fromApi: command,
@@ -352,6 +359,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				this._priority,
 				this._accessibilityInformation
 			);
+
+			this._latestCommandRegistrationWasPublished = true;
 
 			// clean-up state commands _after_ updating the UI
 			this._staleCommandRegistrations.clear();

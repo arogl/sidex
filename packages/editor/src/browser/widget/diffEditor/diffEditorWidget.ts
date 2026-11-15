@@ -2,13 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow, h } from '@sidex/base/browser/dom.js';
+import { addDisposableListener, getWindow, h } from '@sidex/base/browser/dom.js';
 import { IBoundarySashes } from '@sidex/base/browser/ui/sash/sash.js';
+import { RunOnceScheduler } from '@sidex/base/common/async.js';
 import { findLast } from '@sidex/base/common/arraysFind.js';
 import { BugIndicatingError, onUnexpectedError } from '@sidex/base/common/errors.js';
 import { Event } from '@sidex/base/common/event.js';
 import { readHotReloadableExport } from '@sidex/base/common/hotReloadHelpers.js';
-import { toDisposable } from '@sidex/base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '@sidex/base/common/lifecycle.js';
 import {
 	IObservable,
 	ITransaction,
@@ -60,7 +61,7 @@ import { DiffEditorEditors } from './components/diffEditorEditors.js';
 import { DiffEditorSash, SashLayout } from './components/diffEditorSash.js';
 import { DiffEditorViewZones } from './components/diffEditorViewZones/diffEditorViewZones.js';
 import { DelegatingEditor } from './delegatingEditorImpl.js';
-import { DiffEditorOptions } from './diffEditorOptions.js';
+import { DiffEditorOptions, DiffEditorVariant } from './diffEditorOptions.js';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel.js';
 import { DiffEditorGutter } from './features/gutterFeature.js';
 import { HideUnchangedRegionsFeature } from './features/hideUnchangedRegionsFeature.js';
@@ -78,8 +79,12 @@ import {
 } from './utils.js';
 
 export interface IDiffCodeEditorWidgetOptions {
+	/** Controls the presentation of unchanged-region disclosures. */
+	variant?: DiffEditorVariant;
 	originalEditor?: ICodeEditorWidgetOptions;
 	modifiedEditor?: ICodeEditorWidgetOptions;
+	runWithOriginalEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
+	runWithModifiedEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
 }
 
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
@@ -88,6 +93,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly elements;
 	private readonly _diffModelSrc;
 	private readonly _diffModel;
+	private readonly _deferredDiffModelRefDisposals = this._register(new DisposableStore());
 	public readonly onDidChangeModel;
 
 	public get onDidContentSizeChange() {
@@ -117,6 +123,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		return this._options.hideUnchangedRegions.get();
 	}
 
+	/**
+	 * `true` when every hidden-unchanged region of the current diff is fully
+	 * revealed (or there are none). Read by `DiffEditorItemTemplate` to drive the
+	 * multi-diff per-file expand/collapse toggle. Not external API.
+	 * @internal
+	 */
+	public readonly allUnchangedRegionsShown: IObservable<boolean>;
+
 	constructor(
 		private readonly _domElement: HTMLElement,
 		options: Readonly<IDiffEditorConstructionOptions>,
@@ -137,6 +151,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			disposableObservableValue<RefCounted<DiffEditorViewModel> | undefined>(this, undefined)
 		);
 		this._diffModel = derived<DiffEditorViewModel | undefined>(this, reader => this._diffModelSrc.read(reader)?.object);
+		this.allUnchangedRegionsShown = derived(this, reader => {
+			const regions = this._diffModel.read(reader)?.unchangedRegions.read(reader) ?? [];
+			return regions.every(
+				r => r.visibleLineCountTop.read(reader) + r.visibleLineCountBottom.read(reader) >= r.lineCount
+			);
+		});
 		this.onDidChangeModel = Event.fromObservableLight(this._diffModel);
 		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
 		this._instantiationService = this._register(
@@ -224,9 +244,58 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
 		this._options = this._instantiationService.createInstance(DiffEditorOptions, options);
+		let lastWidth: number | undefined;
+		let resizeStartWidth: number | undefined;
+		let windowResizeEventCount = 0;
+		let resizeWasPointerDriven = false;
+		let pointerDown = false;
+		const finishSmoothResize = () => {
+			if (pointerDown) {
+				smoothResizeScheduler.schedule();
+				return;
+			}
+			resizeStartWidth = undefined;
+			windowResizeEventCount = 0;
+			resizeWasPointerDriven = false;
+		};
+		const smoothResizeScheduler = this._register(new RunOnceScheduler(finishSmoothResize, 200));
+		const targetWindow = getWindow(this._domElement);
+		this._register(
+			addDisposableListener(targetWindow, 'resize', () => {
+				windowResizeEventCount++;
+				smoothResizeScheduler.schedule();
+			})
+		);
+		const onPointerDown = () => (pointerDown = true);
+		const onPointerUp = () => {
+			if (!pointerDown) {
+				return;
+			}
+			pointerDown = false;
+			smoothResizeScheduler.cancel();
+			finishSmoothResize();
+		};
+		this._register(addDisposableListener(targetWindow, 'mousedown', onPointerDown, true));
+		this._register(addDisposableListener(targetWindow, 'mouseup', onPointerUp, true));
+		this._register(addDisposableListener(targetWindow, 'touchstart', onPointerDown, true));
+		this._register(addDisposableListener(targetWindow, 'touchend', onPointerUp, true));
+		this._register(addDisposableListener(targetWindow, 'touchcancel', onPointerUp, true));
 		this._register(
 			autorun(reader => {
-				this._options.setWidth(this._rootSizeObserver.width.read(reader));
+				const width = this._rootSizeObserver.width.read(reader);
+				let smoothResizeStartWidth: number | undefined;
+				if (lastWidth !== undefined && width !== lastWidth) {
+					if (resizeStartWidth === undefined) {
+						resizeStartWidth = lastWidth;
+					}
+					resizeWasPointerDriven ||= pointerDown;
+					if (resizeStartWidth !== undefined && (resizeWasPointerDriven || windowResizeEventCount > 1)) {
+						smoothResizeStartWidth = resizeStartWidth;
+					}
+					smoothResizeScheduler.schedule();
+				}
+				this._options.setWidth(width, smoothResizeStartWidth);
+				lastWidth = width;
 			})
 		);
 
@@ -255,6 +324,16 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				EditorContextKeys.diffEditorInlineMode,
 				this._contextKeyService,
 				reader => !this._options.renderSideBySide.read(reader)
+			)
+		);
+		this._register(
+			bindContextKey(EditorContextKeys.diffEditorTemporaryInlineMode, this._contextKeyService, reader =>
+				this._options.temporaryInlineMode.read(reader)
+			)
+		);
+		this._register(
+			bindContextKey(EditorContextKeys.diffEditorAutomaticRenderSideBySide, this._contextKeyService, reader =>
+				this._options.renderSideBySideInAutomaticMode.read(reader)
 			)
 		);
 
@@ -345,7 +424,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				readHotReloadableExport(HideUnchangedRegionsFeature, reader),
 				this._editors,
 				this._diffModel,
-				this._options
+				this._options,
+				codeEditorWidgetOptions.runWithOriginalEditorScrollAnchor,
+				codeEditorWidgetOptions.runWithModifiedEditorScrollAnchor,
+				codeEditorWidgetOptions.variant ?? 'default'
 			)
 		).recomputeInitiallyAndOnChange(this._store);
 
@@ -548,7 +630,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	public getContentHeight() {
-		return this._editors.modified.getContentHeight();
+		return this._editors.getContentHeight();
 	}
 
 	protected _createInnerEditor(
@@ -655,6 +737,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		if (this._diffModel.get() !== viewModel?.object) {
 			subtransaction(tx, tx => {
 				const vm = viewModel?.object;
+				if (
+					currentModel?.model.original !== vm?.model.original ||
+					currentModel?.model.modified !== vm?.model.modified
+				) {
+					this._options.resetWidthBasedLayout(tx);
+				}
 				/** @description DiffEditorWidget.setModel */
 				observableFromEvent.batchEventsGlobally(tx, () => {
 					this._editors.original.setModel(vm ? vm.model.original : null);
@@ -662,11 +750,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				});
 				const prevValueRef = this._diffModelSrc.get()?.createNewRef(this);
 				this._diffModelSrc.set(viewModel?.createNewRef(this) as RefCounted<DiffEditorViewModel> | undefined, tx);
-				setTimeout(() => {
-					// async, so that this runs after the transaction finished.
-					// TODO: use the transaction to schedule disposal
-					prevValueRef?.dispose();
-				}, 0);
+				if (prevValueRef) {
+					this._deferredDiffModelRefDisposals.add(prevValueRef);
+					setTimeout(() => {
+						// async, so that this runs after the transaction finished.
+						// TODO: use the transaction to schedule disposal
+						this._deferredDiffModelRefDisposals.delete(prevValueRef);
+					}, 0);
+				}
 			});
 		}
 	}
@@ -708,6 +799,18 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	get renderSideBySide(): boolean {
 		return this._options.renderSideBySide.get();
+	}
+
+	get renderSideBySideInAutomaticMode(): IObservable<boolean> {
+		return this._options.renderSideBySideInAutomaticMode;
+	}
+
+	get temporaryInlineMode(): IObservable<boolean> {
+		return this._options.temporaryInlineMode;
+	}
+
+	resetWidthBasedLayout(): void {
+		this._options.resetWidthBasedLayout();
 	}
 
 	/**

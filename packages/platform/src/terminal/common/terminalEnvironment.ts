@@ -41,7 +41,8 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 		case WindowsShellType.GitBash:
 			escapeConfig = {
 				bothQuotes: path => `$'${path.replace(/'/g, "\\'")}'`,
-				singleQuotes: path => `'${path.replace(/'/g, "\\'")}'`,
+				// A backslash does not escape inside single quotes, so close, escape, and reopen them
+				singleQuotes: path => `'${path.replace(/'/g, "'\\''")}'`,
 				noSingleQuotes: path => `'${path}'`
 			};
 			break;
@@ -65,7 +66,7 @@ export function escapeNonWindowsPath(path: string, shellType?: TerminalShellType
 			// Default to POSIX shell escaping for unknown shells
 			escapeConfig = {
 				bothQuotes: path => `$'${path.replace(/'/g, "\\'")}'`,
-				singleQuotes: path => `'${path.replace(/'/g, "\\'")}'`,
+				singleQuotes: path => `'${path.replace(/'/g, "'\\''")}'`,
 				noSingleQuotes: path => `'${path}'`
 			};
 			break;

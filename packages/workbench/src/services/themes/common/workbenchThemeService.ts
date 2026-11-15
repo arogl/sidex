@@ -16,6 +16,7 @@ import { ConfigurationTarget } from '@sidex/platform/configuration/common/config
 import { isBoolean, isString } from '@sidex/base/common/types.js';
 import { IconContribution, IconDefinition } from '@sidex/platform/theme/common/iconRegistry.js';
 import { ColorScheme, ThemeTypeSelector } from '@sidex/platform/theme/common/theme.js';
+import { IDisposable } from '@sidex/base/common/lifecycle.js';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -535,9 +536,14 @@ export interface IWorkbenchThemeService extends IThemeService {
 		settingsTarget: ThemeSettingTarget
 	): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
+	/** Returns the selected theme and user customizations without window-local overlays. */
+	getBaseColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	readonly onDidColorThemeChange: Event<IWorkbenchColorTheme>;
+
+	/** Applies window-local colors computed from the base theme, without persisting them or changing the selected theme. */
+	registerColorThemeOverlay(getColors: (theme: IWorkbenchColorTheme) => IColorMap): IDisposable;
 
 	getPreferredColorScheme(): ColorScheme | undefined;
 
