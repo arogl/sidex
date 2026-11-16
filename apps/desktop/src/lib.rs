@@ -20,6 +20,7 @@ mod commands;
 mod server;
 
 use commands::auth::AuthState;
+use commands::background::BackgroundStore;
 use commands::db_state::SidexDbState;
 use commands::debug::{DapClientStore, DebugAdapterStore};
 use commands::ext_host::ExtensionPlatformSupervisor;
@@ -478,6 +479,7 @@ pub fn run() {
         .manage(Arc::new(commands::extensions::MarketplaceClientState::new()))
         .manage(Arc::new(TerminalStore::new()))
         .manage(Arc::new(ProcessStore::new()))
+        .manage(Arc::new(BackgroundStore::new()))
         .manage(Arc::new(DebugAdapterStore::new()))
         .manage(Arc::new(DapClientStore::new()))
         .manage(Arc::new(LspState::new()))
@@ -788,6 +790,9 @@ pub fn run() {
             commands::terminal_kill,
             commands::terminal_get_pid,
             // High-performance process management
+            commands::bg_exec_start,
+            commands::bg_exec_output,
+            commands::bg_exec_kill,
             commands::term_spawn,
             commands::term_write,
             commands::term_resize,
@@ -1149,6 +1154,9 @@ pub fn run() {
             // host would otherwise outlive the editor as orphans.
             if let tauri::RunEvent::Exit = event {
                 if let Some(store) = app_handle.try_state::<Arc<TaskProcessStore>>() {
+                    store.kill_all();
+                }
+                if let Some(store) = app_handle.try_state::<Arc<BackgroundStore>>() {
                     store.kill_all();
                 }
                 if let Some(store) = app_handle.try_state::<Arc<DebugAdapterStore>>() {
