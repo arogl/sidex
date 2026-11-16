@@ -334,7 +334,7 @@ mod tests {
         let mut out = Output::default();
         out.push(&"€".as_bytes()[..2]);
         assert_eq!(out.take_new(false).0, "");
-        assert!(!out.take_new(true).0.is_empty());
+        assert_eq!(out.take_new(true).0, "\u{FFFD}");
     }
 
     #[test]
