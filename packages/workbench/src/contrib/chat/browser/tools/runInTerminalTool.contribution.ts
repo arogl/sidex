@@ -17,6 +17,21 @@ import {
 } from '../../../../common/contributions.js';
 import { ITerminalProfileResolverService, ITerminalProfileService } from '../../../terminal/common/terminal.js';
 import {
+	BACKGROUND_READ_WAIT_MS,
+	BACKGROUND_START_WAIT_MS,
+	formatBackgroundKill,
+	formatBackgroundOutput,
+	formatBackgroundStart,
+	GET_TERMINAL_OUTPUT_TOOL_ID,
+	getTerminalOutputInputSchema,
+	getTerminalOutputModelDescription,
+	IBackgroundOutput,
+	KILL_TERMINAL_TOOL_ID,
+	killTerminalInputSchema,
+	killTerminalModelDescription,
+	parseTerminalId
+} from '../../common/tools/backgroundTerminal.js';
+import {
 	ILanguageModelToolsService,
 	IToolData,
 	IToolImpl,
@@ -57,6 +72,7 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 	) {
 		super();
 		this._registerTool();
+		this._registerBackgroundTools();
 		void this._useDefaultTerminalShell();
 		// The profile list is empty until the terminal backend registers, which is after this runs at startup, so
 		// resolving once picked the system shell even when another profile was chosen. Resolve again when the
@@ -126,14 +142,84 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 		this._registration.value = this._toolsService.registerTool(data, impl);
 	}
 
+	/**
+	 * A command that keeps running (a server, a watcher) cannot be waited for, so run_in_terminal can start it in the
+	 * background, and these two tools read what it printed and stop it.
+	 */
+	private _registerBackgroundTools(): void {
+		this._register(
+			this._toolsService.registerTool(
+				{
+					id: GET_TERMINAL_OUTPUT_TOOL_ID,
+					toolReferenceName: 'getTerminalOutput',
+					displayName: localize('sidex.getTerminalOutput.displayName', 'Get Terminal Output'),
+					userDescription: localize(
+						'sidex.getTerminalOutput.userDescription',
+						'Read the output of a background command'
+					),
+					modelDescription: getTerminalOutputModelDescription(),
+					source: ToolDataSource.Internal,
+					inputSchema: getTerminalOutputInputSchema()
+				},
+				{
+					prepareToolInvocation: async () => ({
+						invocationMessage: localize('sidex.getTerminalOutput.reading', 'Reading terminal output')
+					}),
+					invoke: async invocation => {
+						const id = this._terminalId(invocation, GET_TERMINAL_OUTPUT_TOOL_ID);
+						const result = await invoke<IBackgroundOutput>('bg_exec_output', {
+							id,
+							waitMs: invocation.parameters.wait === true ? BACKGROUND_READ_WAIT_MS : 0
+						});
+						return { content: [{ kind: 'text', value: formatBackgroundOutput(result) }] };
+					}
+				}
+			)
+		);
+		this._register(
+			this._toolsService.registerTool(
+				{
+					id: KILL_TERMINAL_TOOL_ID,
+					toolReferenceName: 'killTerminal',
+					displayName: localize('sidex.killTerminal.displayName', 'Kill Terminal'),
+					userDescription: localize('sidex.killTerminal.userDescription', 'Stop a background command'),
+					modelDescription: killTerminalModelDescription(),
+					source: ToolDataSource.Internal,
+					inputSchema: killTerminalInputSchema()
+				},
+				{
+					prepareToolInvocation: async () => ({
+						invocationMessage: localize('sidex.killTerminal.stopping', 'Stopping a background command')
+					}),
+					invoke: async invocation => {
+						const id = this._terminalId(invocation, KILL_TERMINAL_TOOL_ID);
+						const result = await invoke<IBackgroundOutput>('bg_exec_kill', { id });
+						return { content: [{ kind: 'text', value: formatBackgroundKill(id, result) }] };
+					}
+				}
+			)
+		);
+	}
+
+	private _terminalId(invocation: IToolInvocation, tool: string): number {
+		const id = parseTerminalId(invocation.parameters.id);
+		if (id === undefined) {
+			throw new Error(`${tool} needs the terminal id returned by run_in_terminal in async mode.`);
+		}
+		return id;
+	}
+
 	private async _run(invocation: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
 		const command = invocation.parameters.command;
 		if (typeof command !== 'string' || !command.trim()) {
 			throw new Error('run_in_terminal needs a non-empty "command".');
 		}
-		const timeoutMs = resolveTimeout(invocation.parameters.timeout);
 		const folder = this.workspaceContextService.getWorkspace().folders[0]?.uri;
 		const { program, args } = shellInvocationFor(this._shellPath, command, isWindows);
+		if (invocation.parameters.mode === 'async') {
+			return this._runInBackground(program, args, folder?.scheme === 'file' ? folder.fsPath : undefined, token);
+		}
+		const timeoutMs = resolveTimeout(invocation.parameters.timeout);
 		const result = await invoke<IExecResult>('exec', {
 			command: program,
 			args,
@@ -144,6 +230,22 @@ class RunInTerminalToolContribution extends Disposable implements IWorkbenchCont
 			throw new Error('Cancelled');
 		}
 		return { content: [{ kind: 'text', value: formatExecResult(result, timeoutMs) }] };
+	}
+
+	private async _runInBackground(
+		program: string,
+		args: string[],
+		cwd: string | undefined,
+		token: CancellationToken
+	): Promise<IToolResult> {
+		const id = await invoke<number>('bg_exec_start', { command: program, args, cwd });
+		if (token.isCancellationRequested) {
+			await invoke('bg_exec_kill', { id }).catch(() => undefined);
+			throw new Error('Cancelled');
+		}
+		// Wait a moment so a command that fails straight away (a typo, a port in use) is seen in the same reply.
+		const first = await invoke<IBackgroundOutput>('bg_exec_output', { id, waitMs: BACKGROUND_START_WAIT_MS });
+		return { content: [{ kind: 'text', value: formatBackgroundStart(id, first) }] };
 	}
 }
 

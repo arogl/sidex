@@ -16,6 +16,7 @@ pub mod agent;
     unused_imports
 )] // TODO(ratchet)
 pub mod auth;
+pub mod background;
 #[allow(
     clippy::pedantic,
     clippy::style,
@@ -206,6 +207,7 @@ pub use theme::*;
 pub use updater::*;
 // pub use validation::*; // Internal helpers, not Tauri commands
 pub use auth::*;
+pub use background::*;
 pub use browser::*;
 pub use mcp::*;
 pub use watch::*;

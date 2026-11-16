@@ -494,7 +494,7 @@ fn get_best_shell(preferred: Option<&str>) -> (String, String) {
     clippy::cast_possible_wrap,
     clippy::unnecessary_wraps
 )]
-fn kill_process_tree(pid: u32) -> Result<(), String> {
+pub(crate) fn kill_process_tree(pid: u32) -> Result<(), String> {
     use std::process::Command;
 
     // Try to get child PIDs using pgrep (Linux/macOS)
@@ -526,7 +526,7 @@ fn kill_process_tree(pid: u32) -> Result<(), String> {
 }
 
 #[cfg(windows)]
-fn kill_process_tree(pid: u32) -> Result<(), String> {
+pub(crate) fn kill_process_tree(pid: u32) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     use std::process::Command;
 

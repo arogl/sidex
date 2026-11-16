@@ -143,8 +143,9 @@ export function runInTerminalModelDescription(isWindows: boolean, shellPath?: st
 		syntax,
 		'Commands run in the workspace folder, so prefer paths relative to it, which work the same in every shell.',
 		'Each call starts a fresh shell, so state such as `cd` or environment variables does not carry over; chain steps in one command instead.',
-		'The command must finish by itself: it cannot read input and it is stopped after a timeout (120 seconds by default).',
-		'Do not start servers, watchers or anything that keeps running. Use this for one-shot commands such as builds, tests and git queries.',
+		'The command cannot read input. By default it must finish by itself and is stopped after a timeout (120 seconds).',
+		'Use that default for one-shot commands such as builds, tests and git queries.',
+		'For a server, a watcher or anything else that keeps running, set mode to "async": the command starts in the background and you get a terminal id, which you pass to get_terminal_output to read its output and to kill_terminal to stop it.',
 		'The user is asked to approve every command before it runs.'
 	]
 		.filter(Boolean)
@@ -163,12 +164,14 @@ export function runInTerminalInputSchema(): IJSONSchema {
 			goal: { type: 'string', description: 'A short description of the goal of the command.' },
 			mode: {
 				type: 'string',
-				enum: ['sync'],
-				description: 'Only sync is supported: wait for the command to finish and return its output.'
+				enum: ['sync', 'async'],
+				description:
+					'sync (the default) waits for the command to finish and returns its output. async starts it in the background and returns a terminal id for get_terminal_output and kill_terminal.'
 			},
 			timeout: {
 				type: 'number',
-				description: 'Optional. Milliseconds to wait before stopping the command. Omit to use the default.'
+				description:
+					'Optional, sync mode only. Milliseconds to wait before stopping the command. Omit to use the default.'
 			}
 		},
 		required: ['command', 'explanation', 'goal']
