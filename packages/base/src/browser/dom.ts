@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from './browser.js';
-import { BrowserFeatures } from './canIUse.js';
-import { hasModifierKeys, IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
-import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
-import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
+import { _runWhenIdle, AbstractIdleValue, IdleDeadline, IntervalTimer, TimeoutTimer } from '../common/async.js';
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
+import { hash } from '../common/hash.js';
 import { KeyCode } from '../common/keyCodes.js';
 import {
 	Disposable,
 	DisposableStore,
 	IDisposable,
-	markAsSingleton,
 	MutableDisposable,
+	markAsSingleton,
 	toDisposable
 } from '../common/lifecycle.js';
 import { RemoteAuthorities } from '../common/network.js';
+import { isPointWithinTriangle } from '../common/numbers.js';
+import { derived, derivedOpts, IObservable, IReader, isObservable, observableValue } from '../common/observable.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
-import { hash } from '../common/hash.js';
+import * as browser from './browser.js';
+import { BrowserFeatures } from './canIUse.js';
+import { hasModifierKeys, IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from './window.js';
-import { isPointWithinTriangle } from '../common/numbers.js';
-import { IObservable, derived, derivedOpts, IReader, observableValue, isObservable } from '../common/observable.js';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -1793,11 +1793,22 @@ export function computeScreenAwareSize(window: Window, cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if ((globalThis as any).__SIDEX_TAURI__ && (globalThis as any).__sidex_shellOpen) {
-		(globalThis as any).__sidex_shellOpen(url);
+	if (openWithTauriShell(url)) {
 		return;
 	}
 	mainWindow.open(url, '_blank', 'noopener');
+}
+
+/**
+ * Inside the desktop app a new window cannot be opened from the page, so a link goes to the system's browser
+ * through the shell plugin (which `main.ts` hooks up). Returns false when that is not available.
+ */
+function openWithTauriShell(url: string): boolean {
+	if ((globalThis as any).__SIDEX_TAURI__ && (globalThis as any).__sidex_shellOpen) {
+		(globalThis as any).__sidex_shellOpen(url);
+		return true;
+	}
+	return false;
 }
 
 /**
@@ -1916,6 +1927,11 @@ export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): 
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
 export function windowOpenWithSuccess(url: string, noOpener = true, targetWindow: Window = mainWindow): boolean {
+	// The webviews on Linux and macOS report themselves as Safari, which sends links through this function. They
+	// cannot open a window from the page, so it would fail and show the "browser blocked a new tab" dialog.
+	if (openWithTauriShell(url)) {
+		return true;
+	}
 	const newTab = takeReservedWindowForExternalOpen() ?? targetWindow.open();
 	if (newTab) {
 		if (noOpener) {
