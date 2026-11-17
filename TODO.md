@@ -87,5 +87,6 @@ Legend:
 - [ ] Ship the ripgrep binaries in the release build
 - [ ] Copilot models on WSL (storage fix merged; needs a WSL test and sign-in)
 - [ ] URL scheme for the vscode.dev redirect page
-- [ ] Remaining dependency-injection failures (UriOpeners, Comments, Browsers)
+- [~] External URI openers (`MainThreadUriOpeners` now gets its service; an opener must claim a link as Default or Preferred, there is no picker)
+- [ ] Remaining dependency-injection failures (Comments, Browsers)
 - [ ] Clippy errors in the native crate tests
