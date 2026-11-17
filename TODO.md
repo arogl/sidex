@@ -33,7 +33,7 @@ Legend:
 - [x] The model writes a todo list instead of only reading it (an empty read says how to create one; confirmed in one four-step run, model behaviour can vary)
 - [ ] Remember approvals across sessions
 - [ ] Tool picker (choose which tools the model is offered)
-- [~] Terminal output and kill tools (`run_in_terminal` `mode: "async"`, `get_terminal_output`, `kill_terminal`)
+- [x] Terminal output and kill tools (`run_in_terminal` `mode: "async"`, `get_terminal_output`, `kill_terminal`)
 - [ ] Task tools
 - [ ] Subagent tool
 - [ ] Other missing VS Code built-in tools
