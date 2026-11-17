@@ -55,6 +55,11 @@ describe('formatBackgroundOutput', () => {
 		expect(formatBackgroundOutput(finished('', null))).toContain('exit code: unknown');
 	});
 
+	it('removes colour codes from the output', () => {
+		const esc = String.fromCharCode(27);
+		expect(formatBackgroundOutput(running(`${esc}[32mready${esc}[0m\n`))).toBe('ready\n\n[still running]');
+	});
+
 	it('says how much older output was dropped', () => {
 		const text = formatBackgroundOutput(running('tail', 500));
 		expect(text).toContain('500 bytes of older output were dropped');
