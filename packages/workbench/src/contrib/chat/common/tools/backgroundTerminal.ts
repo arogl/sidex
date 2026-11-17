@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IJSONSchema } from '@sidex/base/common/jsonSchema.js';
+import { removeAnsiEscapeCodes } from '@sidex/base/common/strings.js';
 import { TerminalToolId } from './terminalToolIds.js';
 
 /** What the desktop `bg_exec_output` and `bg_exec_kill` commands return (snake_case, as serialised by Rust). */
@@ -44,11 +45,12 @@ function outputBody(result: IBackgroundOutput): string | undefined {
 	if (result.dropped_bytes > 0) {
 		parts.push(`[${result.dropped_bytes} bytes of older output were dropped because the buffer is limited]`);
 	}
-	if (result.output) {
+	const output = removeAnsiEscapeCodes(result.output);
+	if (output) {
 		parts.push(
-			result.output.length > MAX_OUTPUT_CHARS
-				? `[output truncated, showing the last ${MAX_OUTPUT_CHARS} characters]\n${result.output.slice(-MAX_OUTPUT_CHARS)}`
-				: result.output
+			output.length > MAX_OUTPUT_CHARS
+				? `[output truncated, showing the last ${MAX_OUTPUT_CHARS} characters]\n${output.slice(-MAX_OUTPUT_CHARS)}`
+				: output
 		);
 	}
 	return parts.length > 0 ? parts.join('\n') : undefined;

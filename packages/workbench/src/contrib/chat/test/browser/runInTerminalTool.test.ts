@@ -155,3 +155,20 @@ describe('run_in_terminal wiring', () => {
 		expect(contribution).toContain("e.affectsConfiguration('terminal.integrated.defaultProfile')");
 	});
 });
+
+describe('formatExecResult and colour codes', () => {
+	const esc = String.fromCharCode(27);
+
+	it('removes the colour codes PowerShell and other tools print', () => {
+		const stdout = `${esc}[32;1mMode   ${esc}[0m ${esc}[32;1mName${esc}[0m\nd---- ${esc}[44;1mdocs${esc}[0m`;
+		const text = formatExecResult({ stdout, stderr: '', exit_code: 0, timed_out: false }, 1000);
+		expect(text).toBe('Mode    Name\nd---- docs\n[exit code: 0]');
+	});
+
+	it('removes them from stderr too', () => {
+		const stderr = `${esc}[31merror${esc}[0m: nope`;
+		expect(formatExecResult({ stdout: '', stderr, exit_code: 1, timed_out: false }, 1000)).toBe(
+			'error: nope\n[exit code: 1]'
+		);
+	});
+});

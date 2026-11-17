@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IJSONSchema } from '@sidex/base/common/jsonSchema.js';
+import { removeAnsiEscapeCodes } from '@sidex/base/common/strings.js';
 import { TerminalToolId } from './terminalToolIds.js';
 
 /** Result of the desktop `exec` command (snake_case, as serialised by Rust). */
@@ -104,7 +105,11 @@ export function shellInvocationFor(
 /** What the model reads back: output, exit code, and a note when it was cut short or timed out. */
 export function formatExecResult(result: IExecResult, timeoutMs: number): string {
 	const parts: string[] = [];
-	const output = [result.stdout, result.stderr].filter(part => part.length > 0).join('\n');
+	// Colour and cursor codes (PowerShell's table headers, git, cargo) are noise to the model and unreadable in the chat.
+	const output = [result.stdout, result.stderr]
+		.map(removeAnsiEscapeCodes)
+		.filter(part => part.length > 0)
+		.join('\n');
 	if (output) {
 		parts.push(output.length > MAX_OUTPUT_CHARS ? `${output.slice(0, MAX_OUTPUT_CHARS)}\n[output truncated]` : output);
 	}
