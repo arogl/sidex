@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IPickAndOpenOptions,
-	ISaveDialogOptions,
-	IOpenDialogOptions,
-	IFileDialogService
-} from '@sidex/platform/dialogs/common/dialogs.js';
+import { Schemas } from '@sidex/base/common/network.js';
 import { URI } from '@sidex/base/common/uri.js';
+import {
+	IFileDialogService,
+	IOpenDialogOptions,
+	IPickAndOpenOptions,
+	ISaveDialogOptions
+} from '@sidex/platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
 import { AbstractFileDialogService } from './abstractFileDialogService.js';
-import { Schemas } from '@sidex/base/common/network.js';
 
 /**
  * SideX file dialog service — always routes through the Tauri native dialog
@@ -79,6 +79,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			const selected = await open({ directory: false, multiple: false, title: 'Open File' });
 			if (selected && typeof selected === 'string') {
 				const fileUri = URI.file(selected);
+				this.addFileToRecentlyOpened(fileUri);
 				await this.editorService.openEditor({ resource: fileUri, options: { pinned: true } });
 			}
 		} catch (e) {
