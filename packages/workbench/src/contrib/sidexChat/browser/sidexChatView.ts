@@ -26,6 +26,7 @@ import { IAccountService } from './account/accountService.js';
 import { ChatInput } from './components/input/chatInput.js';
 import { renderMarkdown } from './components/markdownRenderer.js';
 import { AssistantMessage } from './components/messages/assistantMessage.js';
+import { EditsReview } from './components/messages/editsReview.js';
 import { PermissionRequestData, PermissionRequestDialog } from './components/messages/permissionRequest.js';
 import { QuestionDialog } from './components/messages/questionDialog.js';
 import { SubagentCard, SubagentInfo } from './components/messages/subagentCard.js';
@@ -34,7 +35,7 @@ import { ChatHeader } from './components/toolbar/chatHeader.js';
 import { errorBannerTitle } from './errorBannerTitle.js';
 import { serverWsUrl } from './localServer.js';
 import { OrchestrationView, SidexOrchestrator, StreamConsumer } from './orchestrator/index.js';
-import { IChatMessage, ISidexChatService } from './sidexChatService.js';
+import { IChatMessage, IEditsReview, ISidexChatService } from './sidexChatService.js';
 
 const $ = DOM.$;
 
@@ -516,6 +517,9 @@ export class SidexChatViewPane extends ViewPane {
 				if (chunk.type === 'notice' && chunk.content) {
 					this._showNotice(chunk.content);
 				}
+				if (chunk.type === 'edits_review' && chunk.edits_review) {
+					this._showEditsReview(chunk.edits_review);
+				}
 				if (chunk.type === 'error' && chunk.content) {
 					this._showErrorBanner(chunk.content);
 				}
@@ -889,6 +893,22 @@ export class SidexChatViewPane extends ViewPane {
 			dialog.onRespond(result => {
 				this.chatService.respondToPermission(result.toolCallId, result.approved);
 			})
+		);
+		this._scrollToBottom();
+	}
+
+	private _showEditsReview(review: IEditsReview): void {
+		if (!this._messagesEl) {
+			return;
+		}
+		const row = new EditsReview(review);
+		row.appendTo(this._messagesEl);
+		this._viewDisposables.add(row);
+		this._viewDisposables.add(
+			row.onKeep(action => row.update(this.chatService.keepEdits(action.reviewId, action.uri)))
+		);
+		this._viewDisposables.add(
+			row.onUndo(async action => row.update(await this.chatService.undoEdits(action.reviewId, action.uri)))
 		);
 		this._scrollToBottom();
 	}

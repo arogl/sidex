@@ -59,7 +59,8 @@ Legend:
 - [x] File deletes in an agent's patch are performed and reported (permanent: see trash below)
 - [ ] Trash or recycle bin support for the desktop file provider, so agent deletes are recoverable
 - [~] The error banner is titled "Something went wrong" unless the error is about reaching the model
-- [ ] Diff view and accept/reject for agent edits, with checkpoints and undo
+- [~] Keep and Undo for the files an agent turn changed (each file is copied before the turn first edits it; a row after the turn lists the files with Keep and Undo, per file and for all; a file the user changed since is left alone; kept in memory only, so it is gone after a restart)
+- [ ] Diff view for the files an agent turn changed, opened from that row
 
 ## Chat input and history
 

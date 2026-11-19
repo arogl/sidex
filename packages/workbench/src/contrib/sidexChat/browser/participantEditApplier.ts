@@ -12,6 +12,7 @@ import {
 } from '@sidex/editor/browser/services/bulkEditService.js';
 import { IFileService } from '@sidex/platform/files/common/files.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import type { TurnEditCheckpoint } from './participantEditCheckpoint.js';
 import { describeFileOp, type ParticipantEditOp } from './participantEditOps.js';
 
 /**
@@ -27,7 +28,9 @@ export class ParticipantEditApplier {
 		private readonly _fileService: IFileService,
 		private readonly _textFileService: ITextFileService,
 		/** Reports a line the user should see: what was changed, or what could not be. */
-		private readonly _report: (message: string, failed: boolean) => void
+		private readonly _report: (message: string, failed: boolean) => void,
+		/** The checkpoint for the turn that is running; each file is copied into it before it is first touched. */
+		private readonly _checkpoint: () => TurnEditCheckpoint | undefined = () => undefined
 	) {}
 
 	enqueue(ops: readonly ParticipantEditOp[]): void {
@@ -57,6 +60,12 @@ export class ParticipantEditApplier {
 
 	private async _applyFileOp(op: { oldResource?: URI; newResource?: URI }): Promise<void> {
 		const kind = describeFileOp(op);
+		const checkpoint = this._checkpoint();
+		for (const resource of [op.oldResource, op.newResource]) {
+			if (resource) {
+				await checkpoint?.snapshot(resource);
+			}
+		}
 		if (kind === 'delete') {
 			// Files only: a non-recursive delete of a folder with content fails and is reported. The desktop file
 			// provider has no trash, so this removes the file for good; the bulk edit keeps the content for an undo.
@@ -74,6 +83,7 @@ export class ParticipantEditApplier {
 	}
 
 	private async _applyTextOp(op: Extract<ParticipantEditOp, { kind: 'text' }>): Promise<void> {
+		await this._checkpoint()?.snapshot(op.uri);
 		let created = false;
 		if (op.edits.length > 0 || op.done) {
 			// An edit stream for a file that is not there creates it. That includes a stream with no edits at all,
