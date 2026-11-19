@@ -173,10 +173,13 @@ entries:
       contrib: contrib/interactive
   - id: simple-browser
     area: Simple Browser
-    status: unwired
-    summary: contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported
+    status: stubbed
+    summary: NullBrowserViewCDPService (no integrated browser, CDP sessions are refused); contrib/browserView is a stub and not imported
     signals:
+      stub_service: NullBrowserViewCDPService
       contrib: contrib/browserView
+    evidence:
+      - packages/workbench/src/contrib/browserView/common/browserView.ts
   - id: call-hierarchy
     area: Call Hierarchy
     status: unwired
