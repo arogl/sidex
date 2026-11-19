@@ -2,9 +2,11 @@
  *  Sidex Chat Service — WebSocket client for sidex-server with full workspace context
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '@sidex/base/common/buffer.js';
 import { CancellationTokenSource } from '@sidex/base/common/cancellation.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
+import { basename } from '@sidex/base/common/resources.js';
 import { URI } from '@sidex/base/common/uri.js';
 import { isCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
 import { IBulkEditService } from '@sidex/editor/browser/services/bulkEditService.js';
@@ -47,6 +49,13 @@ import {
 	withParagraphBreak
 } from './participantBridge.js';
 import { ParticipantEditApplier } from './participantEditApplier.js';
+import {
+	describeUndo,
+	type EditChangeKind,
+	type ICheckpointFiles,
+	MAX_SNAPSHOT_BYTES,
+	TurnEditCheckpoint
+} from './participantEditCheckpoint.js';
 import { extractEditOps } from './participantEditOps.js';
 import {
 	buildSubagentPrompt,
@@ -113,7 +122,8 @@ export interface IStreamChunk {
 		| 'subagent_done'
 		| 'ask_question'
 		| 'checkpoint_created'
-		| 'checkpoint_restored';
+		| 'checkpoint_restored'
+		| 'edits_review';
 	content?: string;
 	error?: string;
 	done?: boolean;
@@ -156,6 +166,27 @@ export interface IStreamChunk {
 	checkpoint_timestamp?: number;
 	checkpoint_file_count?: number;
 	checkpoint_files?: string[];
+	// Edits review fields: the files a participant turn changed, for Keep and Undo
+	edits_review?: IEditsReview;
+}
+
+export interface IEditsReviewFile {
+	readonly uri: URI;
+	readonly name: string;
+	readonly kind: EditChangeKind;
+	readonly undoable: boolean;
+}
+
+/** The files a participant turn changed that the user has not yet kept or undone. */
+export interface IEditsReview {
+	readonly id: string;
+	readonly files: readonly IEditsReviewFile[];
+}
+
+/** What is left to review after a Keep or Undo, and a line about what happened. */
+export interface IEditsReviewResult {
+	readonly files: readonly IEditsReviewFile[];
+	readonly message?: string;
 }
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -198,6 +229,10 @@ export interface ISidexChatService {
 	setSelectedModel(modelId: string): void;
 	setPermissionMode(mode: PermissionMode): void;
 	respondToPermission(toolCallId: string, approved: boolean): void;
+	/** Leaves the files a turn changed as they are. With no `uri`, every file in the review. */
+	keepEdits(reviewId: string, uri?: URI): IEditsReviewResult;
+	/** Puts the files a turn changed back as they were before it. With no `uri`, every file in the review. */
+	undoEdits(reviewId: string, uri?: URI): Promise<IEditsReviewResult>;
 	respondToQuestion(toolCallId: string, selectedIds: string[]): void;
 	revertToMessage(messageIndex: number): void;
 	redoCheckpoint(): void;
@@ -357,6 +392,11 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	/** Set by a tool call, so the text that comes after it starts a new paragraph. */
 	private _textFollowsToolCall = false;
 	private readonly _editApplier: ParticipantEditApplier;
+	private readonly _checkpointFiles: ICheckpointFiles;
+	/** The checkpoint for the participant turn that is running. */
+	private _turnCheckpoint: TurnEditCheckpoint | undefined;
+	/** Finished turns whose changes the user can still keep or undo, by review id. */
+	private readonly _editReviews = new Map<string, TurnEditCheckpoint>();
 	private _serverModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
 	private _participantModels: Array<{ id: string; name: string; provider: string; contextWindow?: number }> = [];
 
@@ -420,8 +460,26 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	) {
 		super();
 		// A file edit that fails is shown as a notice, not an error chunk: an error chunk ends the turn.
-		this._editApplier = new ParticipantEditApplier(bulkEditService, fileService, textFileService, message =>
-			this._handleChunk({ type: 'notice', content: message } as IStreamChunk)
+		this._checkpointFiles = {
+			read: async uri => {
+				if (!(await fileService.exists(uri))) {
+					return undefined;
+				}
+				// A file over the limit makes this throw, and the checkpoint reports it as too large to restore.
+				const content = await fileService.readFile(uri, { limits: { size: MAX_SNAPSHOT_BYTES + 1 } });
+				return content.value.buffer;
+			},
+			write: async (uri, bytes) => {
+				await fileService.writeFile(uri, VSBuffer.wrap(bytes));
+			},
+			delete: uri => fileService.del(uri)
+		};
+		this._editApplier = new ParticipantEditApplier(
+			bulkEditService,
+			fileService,
+			textFileService,
+			message => this._handleChunk({ type: 'notice', content: message } as IStreamChunk),
+			() => this._turnCheckpoint
 		);
 		SidexChatService.INSTANCE = this;
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._refreshParticipantModels()));
@@ -906,6 +964,11 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	): Promise<void> {
 		const cts = new CancellationTokenSource();
 		this._participantCancellation = cts;
+		const checkpoint = new TurnEditCheckpoint(
+			`edits-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			this._checkpointFiles
+		);
+		this._turnCheckpoint = checkpoint;
 		try {
 			// The same local-session URI VS Code uses. Copilot builds its debug-log and transcript file names from
 			// the resource, and a bespoke `sidex-chat:/...` string became the folder name `sidex-chat:` (invalid on Windows).
@@ -973,8 +1036,62 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			if (this._participantCancellation === cts) {
 				this._participantCancellation = undefined;
 			}
+			await this._publishEditReview(checkpoint);
 		}
 		this._handleChunk({ type: 'done' } as IStreamChunk);
+	}
+
+	/** Once a turn has finished writing, offers the files it changed for Keep and Undo. */
+	private async _publishEditReview(checkpoint: TurnEditCheckpoint): Promise<void> {
+		if (this._turnCheckpoint === checkpoint) {
+			this._turnCheckpoint = undefined;
+		}
+		try {
+			await this._editApplier.flush();
+			await checkpoint.finish();
+			const files = this._reviewFiles(checkpoint);
+			if (files.length > 0) {
+				this._editReviews.set(checkpoint.id, checkpoint);
+				this._handleChunk({ type: 'edits_review', edits_review: { id: checkpoint.id, files } } as IStreamChunk);
+			}
+		} catch (e) {
+			console.error('[sidex-chat] could not record the files this turn changed', e);
+		}
+	}
+
+	private _reviewFiles(checkpoint: TurnEditCheckpoint): IEditsReviewFile[] {
+		return checkpoint.changes().map(change => ({
+			uri: change.uri,
+			name: basename(change.uri),
+			kind: change.kind,
+			undoable: change.undoable
+		}));
+	}
+
+	keepEdits(reviewId: string, uri?: URI): IEditsReviewResult {
+		const checkpoint = this._editReviews.get(reviewId);
+		if (!checkpoint) {
+			return { files: [] };
+		}
+		checkpoint.keep(uri);
+		return this._afterReview(reviewId, checkpoint);
+	}
+
+	async undoEdits(reviewId: string, uri?: URI): Promise<IEditsReviewResult> {
+		const checkpoint = this._editReviews.get(reviewId);
+		if (!checkpoint) {
+			return { files: [], message: 'These changes can no longer be undone.' };
+		}
+		const outcomes = await checkpoint.undo(uri);
+		return { ...this._afterReview(reviewId, checkpoint), message: describeUndo(outcomes, basename) };
+	}
+
+	private _afterReview(reviewId: string, checkpoint: TurnEditCheckpoint): IEditsReviewResult {
+		const files = this._reviewFiles(checkpoint);
+		if (files.length === 0) {
+			this._editReviews.delete(reviewId);
+		}
+		return { files };
 	}
 
 	/** Show the user's turn immediately, even if the socket is down. */
@@ -1185,6 +1302,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		this._dbSessionPromise = null;
 		this._msgCounter = 0;
 		this._persistedMessages.clear();
+		this._editReviews.clear();
 		this._currentAssistantMessage = null;
 		this._lastPromptTokens = 0;
 		this._sessionCost = 0;
