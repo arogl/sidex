@@ -68,7 +68,7 @@ Legend:
 - [ ] Slash-command and participant completion in the input
 - [ ] Follow-up suggestions
 - [ ] Vote, copy and retry actions on replies
-- [ ] Chat history across restarts
+- [x] Chat history across restarts (chats are saved to the local database per workspace; after a restart the chat starts fresh and earlier chats are in the history search, in full)
 - [ ] Edit and resend an earlier message
 
 ## MCP
