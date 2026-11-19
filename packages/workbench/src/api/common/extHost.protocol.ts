@@ -44,6 +44,7 @@ import {
 	IConfigurationOverrides
 } from '@sidex/platform/configuration/common/configuration.js';
 import { ConfigurationScope } from '@sidex/platform/configuration/common/configurationRegistry.js';
+import type { LinkPresentationKind } from '@sidex/platform/dataChannel/common/dataChannel.js';
 import { IEditorOptions } from '@sidex/platform/editor/common/editor.js';
 import { IExtensionIdWithVersion } from '@sidex/platform/extensionManagement/common/extensionStorage.js';
 import { ExtensionIdentifier, IExtensionDescription } from '@sidex/platform/extensions/common/extensions.js';
@@ -3990,10 +3991,27 @@ export interface ExtHostTestingShape {
 	$disposeTestFollowups(id: number[]): void;
 }
 
-export interface MainThreadDataChannelsShape extends IDisposable {}
+export interface MainThreadDataChannelsShape extends IDisposable {
+	$createLinkPresentationWatcher(
+		handle: number,
+		providerId: string,
+		kind: LinkPresentationKind,
+		resource: UriComponents
+	): void;
+	$disposeLinkPresentationWatcher(handle: number): void;
+	$registerLinkPresentationProvider(handle: number, extensionId: string, providerId: string): void;
+	$unregisterLinkPresentationProvider(handle: number): void;
+	$acceptLinkPresentationProviderData(handle: number, data: unknown): void;
+}
 
 export interface ExtHostDataChannelsShape {
 	$onDidReceiveData(channelId: string, data: unknown): void;
+	$acceptLinkPresentationRules(
+		rules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[]
+	): void;
+	$acceptLinkPresentation(handle: number, data: unknown): void;
+	$createLinkPresentationWatcher(handle: number, providerHandle: number, resource: UriComponents): Promise<unknown>;
+	$disposeLinkPresentationWatcher(handle: number): void;
 }
 
 export interface ExtHostLocalizationShape {

@@ -90,4 +90,5 @@ Legend:
 - [x] External URI openers (`MainThreadUriOpeners` now gets its service and links still open in the browser; an opener must claim a link as Default or Preferred, there is no picker; an extension that claims a link has not been tried)
 - [x] Comments (`MainThreadComments` now gets a headless `commentService` and its console errors are gone: controllers register, threads and ranges are accepted and dropped, there is no comments UI)
 - [~] Browsers (`MainThreadBrowsers` now gets a `browserViewCDPService` that has no browser: tabs list is empty and CDP sessions are refused with an error, there is no integrated browser)
+- [~] Link presentation providers (`MainThreadDataChannels` now has `$registerLinkPresentationProvider` and the watcher calls, ported from VS Code 1.144; only the real extension host uses them, the other host fails loudly if asked for a watcher)
 - [ ] Clippy errors in the native crate tests

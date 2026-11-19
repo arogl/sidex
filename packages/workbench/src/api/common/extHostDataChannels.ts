@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable } from '@sidex/base/common/lifecycle.js';
-import { ExtHostDataChannelsShape } from './extHost.protocol.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { IExtensionDescription } from '@sidex/platform/extensions/common/extensions.js';
 import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
+import type * as vscode from 'vscode';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { ExtHostDataChannelsShape } from './extHost.protocol.js';
 
 export interface IExtHostDataChannels extends ExtHostDataChannelsShape {
 	readonly _serviceBrand: undefined;
@@ -41,6 +41,32 @@ export class ExtHostDataChannels implements IExtHostDataChannels {
 		if (channel) {
 			channel._fireDidReceiveData(data);
 		}
+	}
+
+	// The link presentation extension API (`vscode.linkPresentation`) is not ported to this extension host,
+	// so no extension can create a watcher or register a provider through it. The real extension host
+	// (built from VS Code's own sources) has the full implementation. These exist so the main thread
+	// can be created for either host: the rules are kept, and asking for a watcher fails loudly.
+	private _linkPresentationRules: readonly { id: string; source: string; flags: string; kind: string }[] = [];
+
+	get linkPresentationRules(): readonly { id: string; source: string; flags: string; kind: string }[] {
+		return this._linkPresentationRules;
+	}
+
+	$acceptLinkPresentationRules(rules: readonly { id: string; source: string; flags: string; kind: string }[]): void {
+		this._linkPresentationRules = rules;
+	}
+
+	$acceptLinkPresentation(_handle: number, _data: unknown): void {
+		// No watcher can exist in this extension host, so there is nothing to update.
+	}
+
+	$createLinkPresentationWatcher(_handle: number, _providerHandle: number, _resource: unknown): Promise<unknown> {
+		return Promise.reject(new Error('Link presentation providers are not supported by this extension host.'));
+	}
+
+	$disposeLinkPresentationWatcher(_handle: number): void {
+		// No watcher can exist in this extension host.
 	}
 }
 
