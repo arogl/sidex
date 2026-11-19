@@ -6,7 +6,7 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import type { URI } from '@sidex/base/common/uri.js';
 import type { IEditsReview, IEditsReviewFile } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
-import { editKindIcon, editKindLabel, editsReviewTitle, undoTitle } from './editsReviewLabels.js';
+import { diffTitle, editKindIcon, editKindLabel, editsReviewTitle, undoTitle } from './editsReviewLabels.js';
 
 export interface IEditsReviewAction {
 	readonly reviewId: string;
@@ -19,6 +19,9 @@ export class EditsReview extends Component {
 	readonly onKeep: Event<IEditsReviewAction> = this._onKeep.event;
 	private readonly _onUndo = this._register(new Emitter<IEditsReviewAction>());
 	readonly onUndo: Event<IEditsReviewAction> = this._onUndo.event;
+
+	private readonly _onDiff = this._register(new Emitter<IEditsReviewAction>());
+	readonly onDiff: Event<IEditsReviewAction> = this._onDiff.event;
 
 	private readonly _reviewId: string;
 	private readonly _titleEl: HTMLElement;
@@ -76,16 +79,24 @@ export class EditsReview extends Component {
 
 		for (const file of result.files) {
 			const row = DOM.append(this._listEl, $('div.sc-edits-review-file'));
-			row.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 3px 10px;';
+			row.style.cssText = 'display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 3px 10px;';
 			const icon = DOM.append(row, $(`span.codicon.codicon-${editKindIcon(file.kind)}`));
 			icon.setAttribute('aria-hidden', 'true');
 			const name = DOM.append(row, $('span.sc-edits-review-name'));
-			name.style.cssText = 'flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+			name.style.cssText =
+				'flex: 1 1 8em; min-width: 8em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
 			name.textContent = file.name;
 			name.title = file.uri.fsPath || file.uri.path;
 			const kind = DOM.append(row, $('span.sc-edits-review-kind'));
 			kind.style.cssText = 'color: var(--vscode-descriptionForeground);';
 			kind.textContent = editKindLabel(file.kind);
+			this._addButton(
+				row,
+				'Diff',
+				diffTitle(file.undoable),
+				() => this._onDiff.fire({ reviewId: this._reviewId, uri: file.uri }),
+				!file.undoable
+			);
 			this._addButton(row, 'Keep', `Keep the change to ${file.name}`, () =>
 				this._onKeep.fire({ reviewId: this._reviewId, uri: file.uri })
 			);

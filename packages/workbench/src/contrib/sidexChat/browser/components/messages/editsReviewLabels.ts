@@ -42,3 +42,10 @@ export function editKindIcon(kind: EditChangeKind): string {
 export function undoTitle(undoable: boolean): string {
 	return undoable ? 'Put the file back as it was before the agent changed it' : 'This file is too large to restore';
 }
+
+/** The tooltip for the Diff button of a file, or why it is unavailable. */
+export function diffTitle(available: boolean): string {
+	return available
+		? 'Compare the file with how it was before the agent changed it. You can edit the file, or revert one change at a time, in the diff'
+		: 'This file is too large to compare';
+}
