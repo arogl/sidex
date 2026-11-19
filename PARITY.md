@@ -44,6 +44,7 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 | Issue Reporter | NullWorkbenchIssueService; contrib/issue import is commented out in workbench.web.main.ts | `packages/workbench/src/sidexNullServices.ts` |
 | Notebooks | 8 Null* notebook services; contrib/notebook not directly imported by an entry file | `packages/workbench/src/sidexNullServices.ts` |
 | Settings Sync | NullUserDataSyncWorkbenchService + NullUserDataProfileImportExportService — no cross-device sync or profile import/export |  |
+| Simple Browser | NullBrowserViewCDPService (no integrated browser, CDP sessions are refused); contrib/browserView is a stub and not imported | `packages/workbench/src/contrib/browserView/common/browserView.ts` |
 
 ## Unwired
 
@@ -60,6 +61,5 @@ Feature-area parity with stock VS Code. Regenerate with `bun run parity:gen`;
 | Interactive Window | contrib/interactive not imported |  |
 | MCP | VS Code 1.144 MCP registry, discovery and views are copied but not imported by any entry file. Stdio servers from mcp.json do work through a SideX-native contribution (contrib/chat/browser/tools/mcpTools.contribution.ts) that registers each server tool with the tools service; http/sse, extension-provided servers, OAuth and an MCP view are not done (see TODO.md) |  |
 | Onboarding | VS Code 1.144 onboarding scenarios; copied for the chat port, not imported by any entry file |  |
-| Simple Browser | contrib/browserView is explicitly commented "stub for removed" browser view/CDP service; not imported |  |
 | Speech | VS Code 1.144 speech service and voice providers; copied for the chat port, not imported by any entry file |  |
 | Type Hierarchy | contrib/typeHierarchy has only the common type file — no browser/ peek UI or commands were ported |  |

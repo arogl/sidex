@@ -89,5 +89,5 @@ Legend:
 - [ ] URL scheme for the vscode.dev redirect page
 - [x] External URI openers (`MainThreadUriOpeners` now gets its service and links still open in the browser; an opener must claim a link as Default or Preferred, there is no picker; an extension that claims a link has not been tried)
 - [x] Comments (`MainThreadComments` now gets a headless `commentService` and its console errors are gone: controllers register, threads and ranges are accepted and dropped, there is no comments UI)
-- [ ] Remaining dependency-injection failure (Browsers)
+- [~] Browsers (`MainThreadBrowsers` now gets a `browserViewCDPService` that has no browser: tabs list is empty and CDP sessions are refused with an error, there is no integrated browser)
 - [ ] Clippy errors in the native crate tests
