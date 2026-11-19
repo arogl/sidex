@@ -88,5 +88,6 @@ Legend:
 - [x] Copilot models on WSL: sign-in opens the Windows browser (needs `wslu` installed in the distro), the model list fills in and Auto can be chosen
 - [ ] URL scheme for the vscode.dev redirect page
 - [x] External URI openers (`MainThreadUriOpeners` now gets its service and links still open in the browser; an opener must claim a link as Default or Preferred, there is no picker; an extension that claims a link has not been tried)
-- [ ] Remaining dependency-injection failures (Comments, Browsers)
+- [~] Comments (`MainThreadComments` now gets a headless `commentService`: controllers register, threads and ranges are accepted and dropped, there is no comments UI)
+- [ ] Remaining dependency-injection failure (Browsers)
 - [ ] Clippy errors in the native crate tests
