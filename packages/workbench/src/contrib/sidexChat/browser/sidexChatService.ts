@@ -33,6 +33,7 @@ import { ILanguageModelToolsService } from '../../chat/common/tools/languageMode
 import { IToolActivityService } from '../../chat/common/tools/toolActivityService.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
+import { editDiffResources } from './editReviewUris.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
 import {
@@ -233,6 +234,10 @@ export interface ISidexChatService {
 	keepEdits(reviewId: string, uri?: URI): IEditsReviewResult;
 	/** Puts the files a turn changed back as they were before it. With no `uri`, every file in the review. */
 	undoEdits(reviewId: string, uri?: URI): Promise<IEditsReviewResult>;
+	/** The file as it was before the turn changed it ('' if it did not exist), or undefined once the review is gone. */
+	getEditOriginalText(reviewId: string, uri: URI): string | undefined;
+	/** Opens the diff of a file a turn changed: the saved original on the left, the file on the right. */
+	openEditDiff(reviewId: string, uri: URI): Promise<void>;
 	respondToQuestion(toolCallId: string, selectedIds: string[]): void;
 	revertToMessage(messageIndex: number): void;
 	redoCheckpoint(): void;
@@ -1084,6 +1089,33 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		}
 		const outcomes = await checkpoint.undo(uri);
 		return { ...this._afterReview(reviewId, checkpoint), message: describeUndo(outcomes, basename) };
+	}
+
+	getEditOriginalText(reviewId: string, uri: URI): string | undefined {
+		const checkpoint = this._editReviews.get(reviewId);
+		if (!checkpoint) {
+			return undefined;
+		}
+		const bytes = checkpoint.original(uri);
+		return bytes ? new TextDecoder().decode(bytes) : '';
+	}
+
+	async openEditDiff(reviewId: string, uri: URI): Promise<void> {
+		const change = this._editReviews
+			.get(reviewId)
+			?.changes()
+			.find(c => c.uri.toString() === uri.toString());
+		if (!change) {
+			this._handleChunk({ type: 'notice', content: 'These changes are no longer available.' } as IStreamChunk);
+			return;
+		}
+		const { original, modified } = editDiffResources(reviewId, uri, change.kind);
+		await this.editorService.openEditor({
+			original: { resource: original },
+			modified: { resource: modified },
+			label: `${basename(uri)} (Agent changes)`,
+			options: { pinned: true }
+		});
 	}
 
 	private _afterReview(reviewId: string, checkpoint: TurnEditCheckpoint): IEditsReviewResult {

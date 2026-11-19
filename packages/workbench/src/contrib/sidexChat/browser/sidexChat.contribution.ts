@@ -3,22 +3,22 @@
  *  Registered in the AuxiliaryBar with its own status bar toggle.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '@sidex/base/common/codicons.js';
+import { KeyCode, KeyMod } from '@sidex/base/common/keyCodes.js';
 import * as nls from '@sidex/base/nls.js';
-import { Registry } from '@sidex/platform/registry/common/platform.js';
+import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions.js';
 import { SyncDescriptor } from '@sidex/platform/instantiation/common/descriptors.js';
+import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
+import { Registry } from '@sidex/platform/registry/common/platform.js';
+import { registerIcon } from '@sidex/platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import {
-	Extensions as ViewExtensions,
 	IViewContainersRegistry,
 	IViewsRegistry,
-	ViewContainerLocation
+	ViewContainerLocation,
+	Extensions as ViewExtensions
 } from '../../../common/views.js';
-import { registerIcon } from '@sidex/platform/theme/common/iconRegistry.js';
-import { Codicon } from '@sidex/base/common/codicons.js';
-import { registerAction2, Action2 } from '@sidex/platform/actions/common/actions.js';
-import { KeyMod, KeyCode } from '@sidex/base/common/keyCodes.js';
-import { KeybindingWeight } from '@sidex/platform/keybinding/common/keybindingsRegistry.js';
-import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { SidexChatViewPane } from './sidexChatView.js';
@@ -102,18 +102,19 @@ registerAction2(
 	}
 );
 
+import { IDisposable } from '@sidex/base/common/lifecycle.js';
+import { isCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '@sidex/editor/browser/services/codeEditorService.js';
+import { EditorContextKeys } from '@sidex/editor/common/editorContextKeys.js';
+import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 // Register the status bar entries on startup
 import {
 	IWorkbenchContribution,
 	registerWorkbenchContribution2,
 	WorkbenchPhase
 } from '../../../common/contributions.js';
-import { IDisposable } from '@sidex/base/common/lifecycle.js';
-import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
-import { ICodeEditorService } from '@sidex/editor/browser/services/codeEditorService.js';
+import { EditOriginalContentProvider } from './editOriginalContentProvider.js';
 import { InlineEditController } from './inline/inlineEditController.js';
-import { isCodeEditor } from '@sidex/editor/browser/editorBrowser.js';
-import { EditorContextKeys } from '@sidex/editor/common/editorContextKeys.js';
 
 class SidexStatusBarContribution implements IWorkbenchContribution {
 	static readonly ID = 'sidex.statusbar';
@@ -195,6 +196,11 @@ class SidexStatusBarContribution implements IWorkbenchContribution {
 }
 
 registerWorkbenchContribution2(SidexStatusBarContribution.ID, SidexStatusBarContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(
+	EditOriginalContentProvider.ID,
+	EditOriginalContentProvider,
+	WorkbenchPhase.AfterRestored
+);
 
 // Old Haiku-based inline completion — disabled in favor of Sidex Complete (sidexComplete contribution)
 // class SidexInlineCompletionContribution implements IWorkbenchContribution {

@@ -907,6 +907,7 @@ export class SidexChatViewPane extends ViewPane {
 		this._viewDisposables.add(
 			row.onKeep(action => row.update(this.chatService.keepEdits(action.reviewId, action.uri)))
 		);
+		this._viewDisposables.add(row.onDiff(action => void this.chatService.openEditDiff(action.reviewId, action.uri!)));
 		this._viewDisposables.add(
 			row.onUndo(async action => row.update(await this.chatService.undoEdits(action.reviewId, action.uri)))
 		);
