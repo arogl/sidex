@@ -4,18 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
+import * as marked from '@sidex/base/common/marked/marked.js';
 import { URI } from '@sidex/base/common/uri.js';
-import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
-import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
-import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
-import { WebviewInitInfo } from '../../webview/browser/webview.js';
-import { asWebviewUri } from '../../webview/common/webview.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { WebviewInitInfo } from '../../webview/browser/webview.js';
+import { asWebviewUri } from '../../webview/common/webview.js';
+import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
 import { DEFAULT_MARKDOWN_STYLES } from './markdownDocumentRenderer.js';
-import * as marked from '@sidex/base/common/marked/marked.js';
+import {
+	parseOpenPreviewFiles,
+	shouldForgetPreview,
+	withOpenPreviewFile,
+	withoutOpenPreviewFile
+} from './markdownPreviewState.js';
 
 const MARKDOWN_PREVIEW_VIEW_TYPE = 'sidex.markdown.preview';
 const PREVIEW_OPEN_FILES_KEY = 'markdown.preview.openFiles';
@@ -54,7 +61,8 @@ export class MarkdownPreviewManager extends Disposable {
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILogService private readonly _logService: ILogService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService
 	) {
 		super();
 	}
@@ -91,8 +99,9 @@ export class MarkdownPreviewManager extends Disposable {
 	}
 
 	static wasPreviewOpen(storageService: IStorageService, resource: URI): boolean {
-		const openFiles: string[] = JSON.parse(storageService.get(PREVIEW_OPEN_FILES_KEY, StorageScope.WORKSPACE, '[]'));
-		return openFiles.includes(resource.toString());
+		return parseOpenPreviewFiles(storageService.get(PREVIEW_OPEN_FILES_KEY, StorageScope.WORKSPACE)).includes(
+			resource.toString()
+		);
 	}
 
 	private _createOrUpdateWebview(resource: URI, side?: boolean): void {
@@ -123,6 +132,11 @@ export class MarkdownPreviewManager extends Disposable {
 
 			this._register(
 				this._webviewInput.onWillDispose(() => {
+					// The tab was closed by hand (or by the toggle command): do not open it again at the next start.
+					// A shutdown also disposes the editor, and that must keep the file in the list.
+					if (this._currentResource && shouldForgetPreview(this._lifecycleService.willShutdown)) {
+						this._forgetOpenPreview(this._currentResource);
+					}
 					this._clearDebounceTimer();
 					this._webviewInput = undefined;
 					this._previewDisposables.clear();
@@ -130,13 +144,7 @@ export class MarkdownPreviewManager extends Disposable {
 				})
 			);
 
-			const openFiles: string[] = JSON.parse(
-				this._storageService.get(PREVIEW_OPEN_FILES_KEY, StorageScope.WORKSPACE, '[]')
-			);
-			if (!openFiles.includes(resource.toString())) {
-				openFiles.push(resource.toString());
-				this._storageService.store(PREVIEW_OPEN_FILES_KEY, openFiles, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			}
+			this._storeOpenPreviews(withOpenPreviewFile(this._readOpenPreviews(), resource.toString()));
 		} else {
 			this._webviewInput.setWebviewTitle(title);
 		}
@@ -228,6 +236,18 @@ export class MarkdownPreviewManager extends Disposable {
 		this._webviewInput.webview.setHtml(html);
 	}
 
+	private _readOpenPreviews(): string[] {
+		return parseOpenPreviewFiles(this._storageService.get(PREVIEW_OPEN_FILES_KEY, StorageScope.WORKSPACE));
+	}
+
+	private _storeOpenPreviews(files: string[]): void {
+		this._storageService.store(PREVIEW_OPEN_FILES_KEY, files, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	private _forgetOpenPreview(resource: URI): void {
+		this._storeOpenPreviews(withoutOpenPreviewFile(this._readOpenPreviews(), resource.toString()));
+	}
+
 	private _clearDebounceTimer(): void {
 		if (this._debounceTimer) {
 			clearTimeout(this._debounceTimer);
@@ -238,11 +258,7 @@ export class MarkdownPreviewManager extends Disposable {
 	private _closePreview(): void {
 		if (this._webviewInput) {
 			if (this._currentResource) {
-				const openFiles: string[] = JSON.parse(
-					this._storageService.get(PREVIEW_OPEN_FILES_KEY, StorageScope.WORKSPACE, '[]')
-				);
-				const filtered = openFiles.filter((f: string) => f !== this._currentResource!.toString());
-				this._storageService.store(PREVIEW_OPEN_FILES_KEY, filtered, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this._forgetOpenPreview(this._currentResource);
 			}
 			this._clearDebounceTimer();
 			this._webviewInput.dispose();
