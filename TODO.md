@@ -94,4 +94,5 @@ Legend:
 - [x] Link presentation providers (`MainThreadDataChannels` has `$registerLinkPresentationProvider` and the watcher calls, ported from VS Code 1.144, and the console error is gone; only the real extension host uses them, the other host fails loudly if asked for a watcher; whether Copilot's rich links render has not been checked)
 - [x] Markdown preview reopening at start (it came back after the tab was closed by hand, because only the toggle command removed the file from the saved list; closing the tab now does too, and a shutdown still keeps it)
 - [x] Webviews rendering blank (Markdown preview, extension details): the served `webview-pre` files were from an older VS Code than the webview host, so the service worker reported version 4 against the expected 6 and the handshake lacked `keyEventToken` and `mountId`; synced to 1.144, keeping the SideX CSP, sandbox, protocol and Tauri-origin changes
+- [x] Recently Opened remembering files as well as folders (File > Open File went through the Tauri dialog without recording the file; it now does, and the menu already listed files)
 - [ ] Clippy errors in the native crate tests
