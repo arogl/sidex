@@ -221,6 +221,7 @@ import './contrib/chat/browser/tools/runInTerminalTool.contribution.js';
 import './contrib/chat/browser/tools/todoListTool.contribution.js';
 import './contrib/chat/browser/tools/mcpTools.contribution.js';
 import './contrib/chat/browser/chatGitHubSignIn.contribution.js';
+import './contrib/chat/browser/chatToolApprovals.contribution.js';
 
 // Sidex Complete
 import './contrib/sidexComplete/browser/sidexComplete.contribution.js';

@@ -69,3 +69,27 @@ export function approvalScope(
 	const scope = `${program}${subcommand}`.toLowerCase();
 	return { key: `${toolId}:${scope}`, description: `"${program}${subcommand}" commands` };
 }
+
+/** Where approvals the user chose to keep across sessions are stored (application scope, as a JSON array of scope keys). */
+export const REMEMBERED_APPROVALS_STORAGE_KEY = 'chat.tools.rememberedApprovals';
+
+/** The remembered approval keys in stored text; anything unreadable counts as none. */
+export function parseRememberedApprovals(raw: string | undefined): string[] {
+	if (!raw) {
+		return [];
+	}
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+		return [...new Set(parsed.filter((key): key is string => typeof key === 'string' && key.length > 0))];
+	} catch {
+		return [];
+	}
+}
+
+/** The stored text for the remembered keys with `key` added once. */
+export function addRememberedApproval(raw: string | undefined, key: string): string {
+	return JSON.stringify([...new Set([...parseRememberedApprovals(raw), key])]);
+}

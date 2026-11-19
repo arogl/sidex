@@ -32,11 +32,38 @@ const activity = {
 	}
 };
 
-function createService(confirmed = true, prompts: { message: string }[] = [], checkboxChecked = false) {
+type Choice = 'allow' | 'always' | 'deny';
+type FakePrompt = {
+	message: string;
+	buttons?: { label: string; run: (c: { checkboxChecked?: boolean }) => unknown }[];
+	cancelButton: { run: (c: { checkboxChecked?: boolean }) => unknown };
+};
+
+function createStorage(values = new Map<string, string>()) {
+	return {
+		values,
+		get: (key: string) => values.get(key),
+		store: (key: string, value: string) => {
+			values.set(key, value);
+		},
+		remove: (key: string) => {
+			values.delete(key);
+		}
+	};
+}
+
+function createService(
+	confirmed = true,
+	prompts: { message: string; buttons?: { label: string }[] }[] = [],
+	checkboxChecked = false,
+	storage = createStorage(),
+	choice: Choice = confirmed ? 'allow' : 'deny'
+) {
 	const dialogService = {
-		confirm: async (prompt: { message: string }) => {
+		prompt: async (prompt: FakePrompt) => {
 			prompts.push(prompt);
-			return { confirmed, checkboxChecked };
+			const button = choice === 'deny' ? prompt.cancelButton : prompt.buttons?.[choice === 'allow' ? 0 : 1];
+			return { result: button?.run({ checkboxChecked }), checkboxChecked };
 		}
 	};
 	return new LeanLanguageModelToolsService(
@@ -45,6 +72,7 @@ function createService(confirmed = true, prompts: { message: string }[] = [], ch
 		logService as never,
 		configurationService as never,
 		dialogService as never,
+		storage as never,
 		activity as never
 	);
 }
@@ -197,5 +225,58 @@ describe('LeanLanguageModelToolsService', () => {
 			)
 		).rejects.toThrow('boom');
 		expect(activity.finished.at(-1)).toEqual({ callId: 'bad', output: 'boom', isError: true });
+	});
+
+	it('Always allow keeps the approval for a later session, and Deny never does', async () => {
+		const call = (service: LeanLanguageModelToolsService, callId: string) =>
+			service.invokeTool(
+				{ callId, toolId: 'test_tool', parameters: {}, context: undefined },
+				async () => 0,
+				CancellationToken.None
+			);
+		const impl = {
+			invoke: async () => ({ content: [] }),
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Run it?', message: 'ls' } })
+		};
+		const storage = createStorage();
+		const first: { message: string }[] = [];
+		const one = createService(true, first, false, storage, 'always');
+		one.registerTool(toolData, impl);
+		await call(one, 'a1');
+		expect(first).toHaveLength(1);
+
+		// A new service with the same storage is a new session.
+		const second: { message: string }[] = [];
+		const two = createService(true, second, false, storage, 'allow');
+		two.registerTool(toolData, impl);
+		await call(two, 'a2');
+		expect(second).toHaveLength(0);
+
+		const denied: { message: string }[] = [];
+		const three = createService(false, denied, false, createStorage(), 'deny');
+		three.registerTool(toolData, impl);
+		await expect(call(three, 'a3')).rejects.toThrow();
+		const again = createService(false, denied, false, createStorage(), 'deny');
+		again.registerTool(toolData, impl);
+		await expect(call(again, 'a4')).rejects.toThrow();
+		expect(denied).toHaveLength(2);
+	});
+
+	it('does not offer Always allow for a command that cannot be summed up by its first words', async () => {
+		const shown: { message: string; buttons?: { label: string }[] }[] = [];
+		const service = createService(true, shown);
+		service.registerTool(
+			{ ...toolData, id: 'run_in_terminal' },
+			{
+				invoke: async () => ({ content: [] }),
+				prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Run it?' } })
+			}
+		);
+		await service.invokeTool(
+			{ callId: 'c1', toolId: 'run_in_terminal', parameters: { command: 'git log; rm -rf x' }, context: undefined },
+			async () => 0,
+			CancellationToken.None
+		);
+		expect(shown[0].buttons).toHaveLength(1);
 	});
 });

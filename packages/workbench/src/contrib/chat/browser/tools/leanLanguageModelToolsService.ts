@@ -42,6 +42,7 @@ import * as JSONContributionRegistry from '@sidex/platform/jsonschemas/common/js
 import { ILogService } from '@sidex/platform/log/common/log.js';
 import { observableConfigValue } from '@sidex/platform/observable/common/platformObservableUtils.js';
 import { Registry } from '@sidex/platform/registry/common/platform.js';
+import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import {
@@ -74,7 +75,13 @@ import {
 	VSCodeToolReference
 } from '../../common/tools/languageModelToolsService.js';
 import { IToolActivityService, summarizeToolOutput } from '../../common/tools/toolActivityService.js';
-import { approvalScope, describeToolConfirmation } from '../../common/tools/toolConfirmation.js';
+import {
+	addRememberedApproval,
+	approvalScope,
+	describeToolConfirmation,
+	parseRememberedApprovals,
+	REMEMBERED_APPROVALS_STORAGE_KEY
+} from '../../common/tools/toolConfirmation.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(
 	JSONContributionRegistry.Extensions.JSONContribution
@@ -106,7 +113,7 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 		new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750)
 	);
 	private readonly _tools = new Map<string, IToolEntry>();
-	/** Approvals the user chose to remember; kept for the session only. */
+	/** Approvals the user chose to remember for this session only. */
 	private readonly _approvals = new Set<string>();
 	private readonly _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
@@ -118,6 +125,7 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IToolActivityService private readonly _toolActivityService: IToolActivityService
 	) {
 		super();
@@ -342,6 +350,16 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 		});
 	}
 
+	/** Approved for this session, or kept from an earlier one. */
+	private _isApproved(key: string): boolean {
+		return (
+			this._approvals.has(key) ||
+			parseRememberedApprovals(
+				this._storageService.get(REMEMBERED_APPROVALS_STORAGE_KEY, StorageScope.APPLICATION)
+			).includes(key)
+		);
+	}
+
 	getAllToolsIncludingDisabled(): Iterable<IToolData> {
 		const toolDatas = Iterable.map(this._tools.values(), i => i.data);
 		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
@@ -402,13 +420,23 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 		);
 		const prompt = describeToolConfirmation(prepared?.confirmationMessages);
 		const scope = prompt ? approvalScope(dto.toolId, entry.data.displayName, dto.parameters) : undefined;
-		if (prompt && !(scope && this._approvals.has(scope.key))) {
-			const { confirmed, checkboxChecked } = await this._dialogService.confirm({
+		if (prompt && !(scope && this._isApproved(scope.key))) {
+			const { result, checkboxChecked } = await this._dialogService.prompt<'allow' | 'always' | 'deny'>({
 				type: 'warning',
 				message: prompt.message,
 				detail: prompt.detail,
-				primaryButton: localize('sidex.tools.allow', 'Allow'),
-				cancelButton: localize('sidex.tools.deny', 'Deny'),
+				buttons: [
+					{ label: localize('sidex.tools.allow', 'Allow'), run: () => 'allow' },
+					...(scope
+						? [
+								{
+									label: localize('sidex.tools.alwaysAllow', 'Always allow {0}', scope.description),
+									run: () => 'always' as const
+								}
+							]
+						: [])
+				],
+				cancelButton: { label: localize('sidex.tools.deny', 'Deny'), run: () => 'deny' },
 				checkbox: scope
 					? {
 							label: localize('sidex.tools.remember', "Don't ask again for {0} in this session", scope.description),
@@ -416,10 +444,20 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 						}
 					: undefined
 			});
-			if (!confirmed) {
+			if (result === undefined || result === 'deny') {
 				throw new CancellationError();
 			}
-			if (scope && checkboxChecked) {
+			if (scope && result === 'always') {
+				this._storageService.store(
+					REMEMBERED_APPROVALS_STORAGE_KEY,
+					addRememberedApproval(
+						this._storageService.get(REMEMBERED_APPROVALS_STORAGE_KEY, StorageScope.APPLICATION),
+						scope.key
+					),
+					StorageScope.APPLICATION,
+					StorageTarget.USER
+				);
+			} else if (scope && checkboxChecked) {
 				this._approvals.add(scope.key);
 			}
 		}
