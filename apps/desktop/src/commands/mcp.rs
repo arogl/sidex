@@ -42,6 +42,16 @@ fn with_server_output(error: String, tail: &VecDeque<String>) -> String {
     format!("{error}\nServer output:\n{}", lines.join("\n"))
 }
 
+/// A failed request with the server's output appended when that output likely explains it: the process has
+/// exited, or the request timed out or the pipe closed. An error the server answered with on purpose is left as it is.
+fn failure_context(error: String, alive: bool, tail: &VecDeque<String>) -> String {
+    let silent_failure = error.contains("Timeout") || error.contains("closed connection");
+    if alive && !silent_failure {
+        return error;
+    }
+    with_server_output(error, tail)
+}
+
 /// How long to wait for the response to a request, by method.
 fn response_timeout(method: &str) -> Duration {
     match method {
@@ -459,6 +469,14 @@ impl McpConnection {
         Ok(())
     }
 
+    /// The last lines the server printed to stderr. Only servers started as processes have any.
+    fn server_output(&self) -> Vec<String> {
+        match &self.transport {
+            Transport::Stdio(io) => io.stderr_snapshot().into_iter().collect(),
+            _ => Vec::new(),
+        }
+    }
+
     async fn call_tool(
         &mut self,
         tool_name: &str,
@@ -469,7 +487,17 @@ impl McpConnection {
             "arguments": arguments,
         });
 
-        let response = self.send_request("tools/call", Some(params)).await?;
+        let response = match self.send_request("tools/call", Some(params)).await {
+            Ok(response) => response,
+            Err(error) => {
+                let alive = self.is_alive();
+                let tail = match &self.transport {
+                    Transport::Stdio(io) => io.stderr_snapshot(),
+                    _ => VecDeque::new(),
+                };
+                return Err(failure_context(error, alive, &tail));
+            }
+        };
 
         let response = response.ok_or_else(|| {
             format!(
@@ -714,6 +742,24 @@ pub async fn mcp_list_servers(state: State<'_, McpState>) -> Result<Vec<McpServe
         .collect();
 
     Ok(statuses)
+}
+
+/// What a connected stdio server last printed to stderr (the newest lines, oldest first). Empty for other servers.
+#[tauri::command]
+pub async fn mcp_server_output(
+    state: State<'_, McpState>,
+    server_name: String,
+) -> Result<Vec<String>, String> {
+    let conn_arc = {
+        let servers = state.servers.lock().await;
+        servers
+            .get(&server_name)
+            .map(|entry| Arc::clone(&entry.conn))
+    };
+    match conn_arc {
+        Some(conn) => Ok(conn.lock().await.server_output()),
+        None => Ok(Vec::new()),
+    }
 }
 
 #[tauri::command]
@@ -1357,5 +1403,80 @@ mod remote_tests {
             serde_json::from_str(r#"{"name":"b","transport":"http","url":"https://x/mcp"}"#)
                 .unwrap();
         assert!(remote.command.is_empty() && remote.args.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod failure_context_tests {
+    use super::*;
+
+    fn tail(lines: &[&str]) -> VecDeque<String> {
+        lines.iter().map(|l| (*l).to_string()).collect()
+    }
+
+    #[test]
+    fn a_dead_process_or_a_silent_failure_gets_the_server_output() {
+        let output = tail(&["Error: cannot find module"]);
+        let dead = failure_context("closed".to_string(), false, &output);
+        assert!(
+            dead.ends_with("Server output:\nError: cannot find module"),
+            "{dead}"
+        );
+        let hung = failure_context(
+            "Timeout waiting for response from MCP server 'a'".into(),
+            true,
+            &output,
+        );
+        assert!(hung.contains("Server output:"), "{hung}");
+        let closed = failure_context(
+            "MCP server 'a' closed connection unexpectedly".into(),
+            true,
+            &output,
+        );
+        assert!(closed.contains("Server output:"), "{closed}");
+    }
+
+    #[test]
+    fn an_answer_the_server_gave_on_purpose_is_left_alone() {
+        let output = tail(&["noise"]);
+        let error = "MCP server 'a' error (-32602): bad params".to_string();
+        assert_eq!(failure_context(error.clone(), true, &output), error);
+    }
+
+    #[test]
+    fn nothing_is_added_when_the_server_printed_nothing() {
+        let error = "Timeout waiting for response from MCP server 'a'".to_string();
+        assert_eq!(
+            failure_context(error.clone(), false, &VecDeque::new()),
+            error
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stderr_of_a_running_server_is_kept_and_readable() {
+        let config = McpServerConfig {
+            name: "noisy".to_string(),
+            command: "sh".to_string(),
+            args: vec![
+                "-c".to_string(),
+                "echo first >&2; echo second >&2; sleep 5".to_string(),
+            ],
+            env: HashMap::new(),
+            transport: "stdio".to_string(),
+            url: None,
+            headers: HashMap::new(),
+        };
+        let io = StdioIo::spawn(&config).await.unwrap();
+        let conn = McpConnection::with_transport(&config, Transport::Stdio(io));
+        let mut lines = Vec::new();
+        for _ in 0..50 {
+            lines = conn.server_output();
+            if lines.len() == 2 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        assert_eq!(lines, vec!["first".to_string(), "second".to_string()]);
     }
 }

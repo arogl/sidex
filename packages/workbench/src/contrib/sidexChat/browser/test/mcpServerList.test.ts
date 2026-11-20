@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { errorMessage, newServerConfig, splitCommandLine, toServerRows } from '../settings/sections/mcpServerList.js';
+import {
+	errorMessage,
+	formatServerOutput,
+	newServerConfig,
+	splitCommandLine,
+	toServerRows
+} from '../settings/sections/mcpServerList.js';
 
 describe('toServerRows', () => {
 	test('turns the desktop statuses into rows with a status and a toggle state', () => {
@@ -66,12 +72,24 @@ describe('errorMessage', () => {
 	});
 });
 
+describe('formatServerOutput', () => {
+	test('joins the lines and says so when there are none', () => {
+		expect(formatServerOutput(['a', 'b'])).toBe('a\nb');
+		expect(formatServerOutput([])).toBe('This server has not printed anything.');
+		expect(formatServerOutput(null)).toBe('This server has not printed anything.');
+		expect(formatServerOutput(['a', 4, null])).toBe('a');
+	});
+});
+
 describe('the Plugins section talks to the desktop commands the way they are declared', () => {
 	const src = readFileSync(join(import.meta.dir, '..', 'settings/sections/pluginsSection.ts'), 'utf8');
-	test('connect, disconnect and remove pass serverName, not name', () => {
+	test('connect, disconnect, output and remove pass serverName, not name', () => {
 		expect(src).not.toMatch(/\{ name: server\.name \}/);
-		expect(src.match(/\{ serverName: server\.name \}/g)).toHaveLength(2);
+		expect(src.match(/\{ serverName: server\.name \}/g)).toHaveLength(3);
 		expect(src).toContain("'mcp_remove_server', { serverName: server.name }");
+	});
+	test('the output button reads mcp_server_output with serverName', () => {
+		expect(src).toContain("'mcp_server_output', { serverName: server.name }");
 	});
 	test('adding sends a config object and then connects it', () => {
 		expect(src).toContain("invoke('mcp_add_server', { config })");

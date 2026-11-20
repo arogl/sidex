@@ -1123,6 +1123,7 @@ pub fn run() {
             commands::mcp_list_servers,
             commands::mcp_connect,
             commands::mcp_disconnect,
+            commands::mcp_server_output,
             commands::mcp_list_tools,
             commands::mcp_call_tool,
             commands::mcp_add_server,
