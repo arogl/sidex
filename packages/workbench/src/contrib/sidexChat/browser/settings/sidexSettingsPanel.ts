@@ -6,14 +6,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
-import { ensureSettingsStyles } from './sidexSettingsStyles.js';
+import { ConfigurationSection } from './sections/configurationSection.js';
 import { GeneralSection } from './sections/generalSection.js';
-import { PlanUsageSection } from './sections/planUsageSection.js';
+import { IndexingSection } from './sections/indexingSection.js';
 import { ModelsSection } from './sections/modelsSection.js';
+import { PlanUsageSection } from './sections/planUsageSection.js';
+import { PluginsSection } from './sections/pluginsSection.js';
 import { RulesSection } from './sections/rulesSection.js';
 import { ToolsSection } from './sections/toolsSection.js';
-import { IndexingSection } from './sections/indexingSection.js';
-import { ConfigurationSection } from './sections/configurationSection.js';
+import { ensureSettingsStyles } from './sidexSettingsStyles.js';
 
 export interface NavItem {
 	type?: 'separator';
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
 	{ id: 'models', label: 'Models', icon: 'codicon-circuit-board' },
 	{ id: 'rules', label: 'Customizations', icon: 'codicon-file-text' },
 	{ id: 'tools', label: 'Tools & MCPs', icon: 'codicon-tools' },
+	{ id: 'plugins', label: 'Plugins', icon: 'codicon-extensions' },
 	{ id: 'configuration', label: 'Configuration', icon: 'codicon-gear' },
 	{ type: 'separator' },
 	{ id: 'preferences', label: 'Preferences', icon: 'codicon-settings' },
@@ -690,6 +692,15 @@ export class SidexSettingsPanel extends Disposable {
 		const toolsSec = new ToolsSection(this._getTauriInvoke());
 		toolsSec.render(toolsWrapper);
 		this._sections.push(toolsSec);
+
+		// 5a. Plugins (MCP servers)
+		const pluginsWrapper = document.createElement('div');
+		pluginsWrapper.id = 'section-plugins';
+		pluginsWrapper.className = 'sidex-settings-scroll-section';
+		this._content.appendChild(pluginsWrapper);
+		const pluginsSec = new PluginsSection(this._getTauriInvoke());
+		pluginsSec.render(pluginsWrapper);
+		this._sections.push(pluginsSec);
 
 		// 5b. Configuration
 		const configWrapper = document.createElement('div');
