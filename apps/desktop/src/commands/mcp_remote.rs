@@ -619,7 +619,7 @@ mod tests {
 
     #[test]
     fn an_unfinished_event_is_not_dispatched() {
-        assert!(events(&[b"data: partial\n"]).is_empty());
+        assert_eq!(events(&[b"data: partial\n"]), Vec::<SseEvent>::new());
     }
 
     #[test]
