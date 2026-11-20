@@ -75,7 +75,7 @@ Legend:
 
 - [x] stdio servers from the user and workspace `mcp.json`, offered as chat tools with approval
 - [x] Desktop MCP client waits long enough for a first `npx` download and for slow tool calls
-- [ ] `http` and `sse` servers
+- [~] `http` and `sse` servers (`type: "http"` is Streamable HTTP, `type: "sse"` the older HTTP+SSE transport; a server with only a `url` is `http`, and one that rejects the first POST falls back to `sse`; `headers` are sent on every request; credentials go in `headers` since OAuth is not done; `${input:...}` entries are skipped with a message)
 - [ ] MCP servers provided by extensions
 - [ ] `inputs` variables and OAuth in `mcp.json`
 - [ ] Server stderr shown (it is discarded today)

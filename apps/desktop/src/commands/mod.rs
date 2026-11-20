@@ -96,6 +96,7 @@ pub mod lsp;
     unused_imports
 )] // TODO(ratchet)
 pub mod mcp;
+pub mod mcp_remote;
 pub mod menu;
 pub mod models;
 #[allow(
