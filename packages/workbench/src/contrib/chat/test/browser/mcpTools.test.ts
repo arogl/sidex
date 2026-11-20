@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+	desktopMcpConfig,
 	formatMcpResult,
+	isRemoteServer,
 	mcpInputSchema,
 	mcpToolId,
 	mergeServers,
@@ -26,14 +28,46 @@ describe('parseMcpConfig', () => {
 		const { servers } = parseMcpConfig('{"mcpServers":{"a":{"command":"node","args":["a.js"]}}}');
 		expect(servers.map(s => s.name)).toEqual(['a']);
 	});
-	test('reports http servers and bad entries instead of dropping them silently', () => {
+	test('reads http and sse servers with their headers', () => {
+		const text = `{ "servers": {
+			"web": { "type": "http", "url": "https://x.example/mcp", "headers": { "Authorization": "Bearer t", "N": 1 } },
+			"inferred": { "url": "https://y.example/mcp" },
+			"old": { "type": "sse", "url": "http://localhost:3000/sse" },
+			"alias": { "type": "streamable-http", "url": "https://z.example/mcp/\${workspaceFolder}" }
+		} }`;
+		const { servers, problems } = parseMcpConfig(text, '/w');
+		expect(problems).toEqual([]);
+		expect(servers).toEqual([
+			{ name: 'web', type: 'http', url: 'https://x.example/mcp', headers: { Authorization: 'Bearer t' } },
+			{ name: 'inferred', type: 'http', url: 'https://y.example/mcp', headers: {} },
+			{ name: 'old', type: 'sse', url: 'http://localhost:3000/sse', headers: {} },
+			{ name: 'alias', type: 'http', url: 'https://z.example/mcp//w', headers: {} }
+		]);
+	});
+	test('reports entries it cannot use instead of dropping them silently', () => {
 		const { servers, problems } = parseMcpConfig(
-			'{"servers":{"web":{"type":"http","url":"https://x"},"u":{"url":"https://y"},"n":{"type":"stdio"},"s":"oops"}}'
+			`{"servers":{
+				"bad":{"type":"http","url":"ftp://x"},
+				"none":{"type":"sse"},
+				"inputs":{"url":"https://x/mcp","headers":{"Authorization":"Bearer \${input:token}"}},
+				"odd":{"type":"carrier-pigeon","command":"x"},
+				"n":{"type":"stdio"},
+				"s":"oops"}}`
 		);
 		expect(servers).toEqual([]);
-		expect(problems).toHaveLength(4);
-		expect(problems[0]).toContain("'http' transport");
-		expect(problems[2]).toContain('no command');
+		expect(problems).toEqual([
+			"Server 'bad' needs an http or https url.",
+			"Server 'none' needs an http or https url.",
+			"Server 'inputs' uses ${input:...} variables, which SideX does not support yet.",
+			"Server 'odd' uses the unknown transport 'carrier-pigeon'; use stdio, http or sse.",
+			"Server 'n' has no command.",
+			"Server 's' is not an object."
+		]);
+	});
+	test('stdio servers keep their shape next to remote ones', () => {
+		const { servers } = parseMcpConfig('{"servers":{"a":{"command":"node"},"b":{"url":"https://b/mcp"}}}');
+		expect(servers.map(s => ('url' in s ? 'remote' : 'stdio'))).toEqual(['stdio', 'remote']);
+		expect(servers.map(isRemoteServer)).toEqual([false, true]);
 	});
 	test('reports invalid JSON', () => {
 		expect(parseMcpConfig('{ nope').problems).toEqual(['mcp.json is not valid JSON.']);
@@ -144,5 +178,30 @@ describe('MCP tools wiring', () => {
 		]) {
 			expect(source).toContain(`'${command}'`);
 		}
+	});
+});
+
+describe('desktopMcpConfig', () => {
+	test('a remote server carries its url, headers and transport and no command', () => {
+		expect(desktopMcpConfig({ name: 'w', type: 'sse', url: 'https://x/sse', headers: { A: 'b' } }, true)).toEqual({
+			name: 'w',
+			command: '',
+			args: [],
+			env: {},
+			transport: 'sse',
+			url: 'https://x/sse',
+			headers: { A: 'b' }
+		});
+	});
+	test('a stdio server goes through the Windows shim rule', () => {
+		const server = { name: 'fs', command: 'npx', args: ['-y', 'x'], env: { K: 'v' } };
+		expect(desktopMcpConfig(server, true)).toEqual({
+			name: 'fs',
+			command: 'cmd',
+			args: ['/c', 'npx', '-y', 'x'],
+			env: { K: 'v' },
+			transport: 'stdio'
+		});
+		expect(desktopMcpConfig(server, false).command).toBe('npx');
 	});
 });

@@ -28,15 +28,15 @@ import {
 	IToolResult
 } from '../../common/tools/languageModelToolsService.js';
 import {
+	desktopMcpConfig,
 	formatMcpResult,
-	IMcpStdioServer,
+	IMcpServer,
 	IMcpToolInfo,
 	IMcpToolResult,
 	mcpInputSchema,
 	mcpToolId,
 	mergeServers,
-	parseMcpConfig,
-	stdioInvocation
+	parseMcpConfig
 } from '../../common/tools/mcpTools.js';
 
 const LOG = '[sidex-mcp]';
@@ -90,7 +90,7 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 		return files;
 	}
 
-	private async _readServers(file: URI, workspaceFolder: string | undefined): Promise<IMcpStdioServer[]> {
+	private async _readServers(file: URI, workspaceFolder: string | undefined): Promise<IMcpServer[]> {
 		let text: string;
 		try {
 			text = (await this._fileService.readFile(file)).value.toString();
@@ -159,15 +159,12 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 		);
 	}
 
-	private async _connect(server: IMcpStdioServer): Promise<boolean> {
+	private async _connect(server: IMcpServer): Promise<boolean> {
 		const started = Date.now();
 		try {
 			// The desktop store rejects a name it already has, so replace the entry first.
-			const { command, args } = stdioInvocation(server, isWindows);
 			await invoke('mcp_remove_server', { serverName: server.name });
-			await invoke('mcp_add_server', {
-				config: { name: server.name, command, args, env: server.env, transport: 'stdio' }
-			});
+			await invoke('mcp_add_server', { config: desktopMcpConfig(server, isWindows) });
 			await invoke('mcp_connect', { serverName: server.name });
 			return true;
 		} catch (e) {

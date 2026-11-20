@@ -12,8 +12,23 @@ export interface IMcpStdioServer {
 	readonly env: Readonly<Record<string, string>>;
 }
 
+/** A server reached over the network: `http` is Streamable HTTP, `sse` the older HTTP+SSE transport. */
+export interface IMcpRemoteServer {
+	readonly name: string;
+	readonly type: 'http' | 'sse';
+	readonly url: string;
+	/** Sent with every request, typically `Authorization`. */
+	readonly headers: Readonly<Record<string, string>>;
+}
+
+export type IMcpServer = IMcpStdioServer | IMcpRemoteServer;
+
+export function isRemoteServer(server: IMcpServer): server is IMcpRemoteServer {
+	return 'url' in server;
+}
+
 export interface IMcpConfigResult {
-	readonly servers: IMcpStdioServer[];
+	readonly servers: IMcpServer[];
 	/** Things worth telling the user: invalid JSON, unsupported transports, malformed entries. */
 	readonly problems: string[];
 }
@@ -47,10 +62,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Reads the servers of a `mcp.json` (VS Code's `servers` key, or the `mcpServers` key other clients use).
- * Only stdio servers are returned; a server using another transport is reported as a problem and skipped.
+ * A server with a `url` is `http` unless it says `sse`; one with a `command` is stdio. Entries that cannot be used
+ * (an unknown transport, no command or url, `${input:...}` variables) are reported as problems and skipped.
  */
 export function parseMcpConfig(text: string, workspaceFolder?: string): IMcpConfigResult {
-	const servers: IMcpStdioServer[] = [];
+	const servers: IMcpServer[] = [];
 	const problems: string[] = [];
 	if (!text.trim()) {
 		return { servers, problems };
@@ -67,9 +83,17 @@ export function parseMcpConfig(text: string, workspaceFolder?: string): IMcpConf
 			problems.push(`Server '${name}' is not an object.`);
 			continue;
 		}
-		const type = typeof raw['type'] === 'string' ? raw['type'] : typeof raw['url'] === 'string' ? 'http' : 'stdio';
+		const declared = typeof raw['type'] === 'string' ? raw['type'] : typeof raw['url'] === 'string' ? 'http' : 'stdio';
+		const type = declared === 'streamable-http' || declared === 'streamableHttp' ? 'http' : declared;
+		if (type === 'http' || type === 'sse') {
+			const remote = parseRemote(name, type, raw, workspaceFolder, problems);
+			if (remote) {
+				servers.push(remote);
+			}
+			continue;
+		}
 		if (type !== 'stdio') {
-			problems.push(`Server '${name}' uses the '${type}' transport, which SideX does not support yet.`);
+			problems.push(`Server '${name}' uses the unknown transport '${type}'; use stdio, http or sse.`);
 			continue;
 		}
 		if (typeof raw['command'] !== 'string' || !raw['command'].trim()) {
@@ -92,9 +116,37 @@ export function parseMcpConfig(text: string, workspaceFolder?: string): IMcpConf
 	return { servers, problems };
 }
 
+function parseRemote(
+	name: string,
+	type: 'http' | 'sse',
+	raw: Record<string, unknown>,
+	workspaceFolder: string | undefined,
+	problems: string[]
+): IMcpRemoteServer | undefined {
+	const url = typeof raw['url'] === 'string' ? substitute(raw['url'].trim(), workspaceFolder) : '';
+	if (!/^https?:\/\/\S+$/i.test(url)) {
+		problems.push(`Server '${name}' needs an http or https url.`);
+		return undefined;
+	}
+	const headers: Record<string, string> = {};
+	if (isRecord(raw['headers'])) {
+		for (const [key, value] of Object.entries(raw['headers'])) {
+			if (typeof value === 'string') {
+				headers[key] = substitute(value, workspaceFolder);
+			}
+		}
+	}
+	// A variable that is not filled in would be sent as it is, which fails in a way that is hard to trace.
+	if ([url, ...Object.values(headers)].some(value => value.includes('${input:'))) {
+		problems.push(`Server '${name}' uses \${input:...} variables, which SideX does not support yet.`);
+		return undefined;
+	}
+	return { name, type, url, headers };
+}
+
 /** Later lists win, so pass user servers first and workspace servers second. */
-export function mergeServers(...lists: readonly (readonly IMcpStdioServer[])[]): IMcpStdioServer[] {
-	const byName = new Map<string, IMcpStdioServer>();
+export function mergeServers<T extends { readonly name: string }>(...lists: readonly (readonly T[])[]): T[] {
+	const byName = new Map<string, T>();
 	for (const list of lists) {
 		for (const server of list) {
 			byName.set(server.name, server);
@@ -115,6 +167,33 @@ export function stdioInvocation(
 	return direct
 		? { command: server.command, args: [...server.args] }
 		: { command: 'cmd', args: ['/c', server.command, ...server.args] };
+}
+
+/** The server as the desktop `mcp_add_server` command takes it. */
+export interface IDesktopMcpConfig {
+	readonly name: string;
+	readonly command: string;
+	readonly args: string[];
+	readonly env: Record<string, string>;
+	readonly transport: 'stdio' | 'http' | 'sse';
+	readonly url?: string;
+	readonly headers?: Record<string, string>;
+}
+
+export function desktopMcpConfig(server: IMcpServer, isWindows: boolean): IDesktopMcpConfig {
+	if (isRemoteServer(server)) {
+		return {
+			name: server.name,
+			command: '',
+			args: [],
+			env: {},
+			transport: server.type,
+			url: server.url,
+			headers: { ...server.headers }
+		};
+	}
+	const { command, args } = stdioInvocation(server, isWindows);
+	return { name: server.name, command, args, env: { ...server.env }, transport: 'stdio' };
 }
 
 const MAX_TOOL_ID = 64;
