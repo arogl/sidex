@@ -6,7 +6,7 @@ The VSCode source (MIT License) is the architectural reference. No proprietary c
 
 ## Process Model
 
-```
+```text
 VSCode (Electron)                    SideX (Tauri)
 ─────────────────                    ─────────────
 Electron Main Process        →       Tauri Rust Backend
@@ -27,7 +27,7 @@ Extension Host               →       Sidecar process (in progress)
 
 ## VSCode Layering (Preserved)
 
-```
+```text
 ┌─────────────────────────────────────────────┐
 │  code/        → Application entry (Tauri)   │
 ├─────────────────────────────────────────────┤
@@ -89,6 +89,7 @@ wasm; `bun run build` compiles it, `bun run dev` falls back if the toolchain
 is absent.
 
 **Adding a wasm module:**
+
 1. New crate under `wasm/<name>/` (`crate-type = ["cdylib"]`, `wasm-bindgen`), add it to `wasm/Cargo.toml` members.
 2. Extend `packages/build/src/wasm/build.ts` to emit it to `apps/workbench/public/wasm/<name>/`.
 3. Consumer: dynamic-import `/wasm/<name>/…​.js`, pass the explicit `…_bg.wasm` URL to init, wrap in try/catch with a JS fallback.
@@ -134,6 +135,7 @@ needs `--max-old-space-size=12288`, a V8 flag with no Bun equivalent.
 ## Porting Status by Layer
 
 ### base/ (Foundation)
+
 | Sublayer | Strategy | Status |
 |---|---|---|
 | `common/` | Reuse directly (pure TS) | Done |
@@ -144,6 +146,7 @@ needs `--max-old-space-size=12288`, a V8 flag with no Bun equivalent.
 | `parts/storage` | Rewrite → Rust SQLite | Done |
 
 ### platform/ (Services)
+
 | Service | Strategy | Status |
 |---|---|---|
 | `instantiation` (DI) | Reuse directly | Done |
@@ -163,6 +166,7 @@ needs `--max-old-space-size=12288`, a V8 flag with no Bun equivalent.
 | `encryption` | Rust keyring | Partial |
 
 ### editor/ (Monaco)
+
 | Sublayer | Strategy | Status |
 |---|---|---|
 | `common/` | Reuse directly | Done |
@@ -171,6 +175,7 @@ needs `--max-old-space-size=12288`, a V8 flag with no Bun equivalent.
 | `standalone/` | Removed (not needed in Tauri) | Deleted |
 
 ### workbench/ (IDE Shell)
+
 | Sublayer | Strategy | Status |
 |---|---|---|
 | `browser/layout` | Reuse with mods | Done |
@@ -180,6 +185,7 @@ needs `--max-old-space-size=12288`, a V8 flag with no Bun equivalent.
 | `api/` (Extension host) | Port | In progress |
 
 ### code/ (Application Entry)
+
 | Sublayer | Strategy | Status |
 |---|---|---|
 | `electron-main/` | Full rewrite → Tauri Rust | Done |

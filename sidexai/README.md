@@ -6,9 +6,7 @@ The desktop app builds and supervises this server. You only need this README if 
 
 ## Architecture
 
-## Architecture
-
-```
+```text
 ┌─────────────────┐         WebSocket          ┌──────────────────────┐
 │   sidex (Rust)   │ ◄──────────────────────► │   sidex-server (Go)   │
 │                  │                           │                       │
@@ -131,7 +129,7 @@ sidex --server ws://myserver:7433
 
 ## Project Structure
 
-```
+```text
 sidex-server/
 ├── cmd/server/main.go        # Entry point
 ├── internal/

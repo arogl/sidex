@@ -15,9 +15,27 @@ concurrency:
 
 # No path filters: these jobs are meant to be required checks, and a required
 # check that never starts leaves the PR stuck at "Expected".
+# A docs-only pull request skips the jobs with `if:`; a skipped required check counts as passed.
 jobs:
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: filter
+        uses: ./.github/actions/detect-code-changes
+
   command-wiring:
     name: Command wiring
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -35,6 +53,8 @@ jobs:
 
   runtime-smoke:
     name: Runtime smoke
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

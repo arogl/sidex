@@ -1,0 +1,47 @@
+name: Lint Markdown
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-md-${{ github.ref }}
+  cancel-in-progress: true
+
+# No path filter on the trigger (see smoke.yml); the job skips its steps when no Markdown changed, so the check
+# always reports.
+jobs:
+  markdownlint:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: changes
+        name: Detect Markdown changes
+        uses: ./.github/actions/detect-changes
+        with:
+          pattern: '(\.md$|^\.markdownlint-cli2\.jsonc$|^\.github/workflows/lint-md\.yml$|^package\.json$)'
+
+      - name: Setup Bun
+        if: steps.changes.outputs.changed == 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+
+      # Pinned in package.json's lint:md script; nothing is installed into the workspace.
+      - name: Lint Markdown
+        if: steps.changes.outputs.changed == 'true'
+        run: bun run lint:md
+
+      - name: Skip
+        if: steps.changes.outputs.changed != 'true'
+        run: echo "No Markdown changes in this pull request; nothing to do."

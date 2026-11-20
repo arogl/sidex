@@ -131,7 +131,7 @@ The app looks for a binary at that path automatically when running from a source
 > **Both Bun and Node.js are required.** Bun is the package manager, script
 > runner, and test runner. Node.js executes Vite, because the production build
 > needs `--max-old-space-size=12288` — a V8 flag with no Bun equivalent.
-
+>
 > **wasm-pack is needed for production builds.** The tfidf search-scoring
 > module is compiled from Rust to WebAssembly. Install once:
 > `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
@@ -182,7 +182,7 @@ The TypeScript frontend is a direct port of VSCode's workbench. The Rust backend
 
 ### Project Layout
 
-```
+```text
 sidex/
 ├── apps/
 │   ├── workbench/          # TypeScript workbench frontend (ported from VSCode)
@@ -243,13 +243,14 @@ This was released early to get outside contributors involved.
 - TypeScript imports use `.js` extensions (ES module convention)
 - Services use VSCode's `@inject` dependency injection decorators
 - New Rust commands go in `apps/desktop/src/commands/` and register in `lib.rs`
+
 ---
 
 ## Community
 
 - **Discord:** [Join the SideX server](https://discord.gg/8CUCnEAC4J)
 - **X / Twitter:** [@ImRazshy](https://x.com/ImRazshy)
-- **Email:** kendall@siden.ai
+- **Email:** <kendall@siden.ai>
 
 ---
 

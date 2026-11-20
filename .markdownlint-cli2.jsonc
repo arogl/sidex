@@ -1,0 +1,25 @@
+{
+	// Rules turned off because they fight how the project writes docs: long single-line paragraphs and
+	// table rows (TODO.md, PARITY.md), tab-indented code blocks (the code uses tabs), inline HTML, table
+	// pipe spacing, and READMEs that do not open with a top-level heading.
+	"config": {
+		"default": true,
+		"MD010": false,
+		"MD013": false,
+		"MD033": false,
+		"MD041": false,
+		"MD060": false
+	},
+	"globs": ["**/*.md"],
+	"ignores": [
+		"**/node_modules/**",
+		// Generated and vendored content is not edited by hand.
+		"extensions/**",
+		"PARITY.md",
+		"packages/vscode-dts/**",
+		"packages/base/src/browser/ui/codicons/codicon/README.md",
+		"packages/editor/src/contrib/snippet/browser/snippet.md",
+		// Planning notes written while building features; they are history, not maintained docs.
+		"docs/superpowers/**"
+	]
+}
