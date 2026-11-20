@@ -117,6 +117,20 @@ pub fn remove(path: String, recursive: bool) -> Result<(), String> {
     ws::remove(Path::new(&path), recursive).map_err(|e| io_err(&path, &e))
 }
 
+/// Moves a file or folder to the OS trash (the Recycle Bin on Windows). A folder goes as a whole.
+pub fn trash_path(path: &str) -> Result<(), String> {
+    validate_path(path)?;
+    trash::delete(path).map_err(|e| format!("{path}: {e}"))
+}
+
+/// The shell can take a while on a large folder, so this runs off the main thread.
+#[tauri::command]
+pub async fn move_to_trash(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || trash_path(&path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 pub fn rename(old_path: String, new_path: String) -> Result<(), String> {

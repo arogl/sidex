@@ -4,25 +4,25 @@
  *  Rust backend via `invoke()` from @tauri-apps/api/core.
  *--------------------------------------------------------------------------------------------*/
 
-import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { URI } from '@sidex/base/common/uri.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '@sidex/base/common/lifecycle.js';
+import { URI } from '@sidex/base/common/uri.js';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
+	createFileSystemProviderError,
 	FileChangeType,
+	FilePermission,
 	FileSystemProviderCapabilities,
 	FileSystemProviderErrorCode,
 	FileType,
-	createFileSystemProviderError,
 	IFileChange,
 	IFileDeleteOptions,
 	IFileOverwriteOptions,
+	IFileSystemProviderWithFileReadWriteCapability,
 	IFileWriteOptions,
 	IStat,
-	IWatchOptions,
-	IFileSystemProviderWithFileReadWriteCapability,
-	FilePermission
+	IWatchOptions
 } from '../common/files.js';
 
 interface TauriFileStat {
@@ -58,7 +58,9 @@ interface TauriWatchBatch {
 
 export class TauriFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 	readonly capabilities: FileSystemProviderCapabilities =
-		FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.PathCaseSensitive;
+		FileSystemProviderCapabilities.FileReadWrite |
+		FileSystemProviderCapabilities.PathCaseSensitive |
+		FileSystemProviderCapabilities.Trash;
 
 	readonly onDidChangeCapabilities = Event.None;
 
@@ -211,6 +213,15 @@ export class TauriFileSystemProvider extends Disposable implements IFileSystemPr
 
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		const path = TauriFileSystemProvider.toPath(resource);
+		if (opts.useTrash) {
+			try {
+				await invoke('move_to_trash', { path });
+			} catch (err) {
+				// Not "file not found": the caller offers to delete permanently when the trash cannot take it.
+				throw TauriFileSystemProvider.toError(err, resource, FileSystemProviderErrorCode.Unknown);
+			}
+			return;
+		}
 		try {
 			await invoke('remove', { path, recursive: opts.recursive });
 		} catch (err) {

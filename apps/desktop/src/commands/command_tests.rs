@@ -70,6 +70,9 @@ fn fs_commands_reject_bad_paths_before_touching_the_disk() {
         assert!(fs::remove(bad.into(), true).is_err());
         assert!(fs::exists(bad.into()).is_err());
     }
+    for bad in ["", "a\0b", traversal.as_str()] {
+        assert!(fs::trash_path(bad).is_err(), "trash_path {bad:?}");
+    }
     let dir = TempDir::new("fs-rename-bad");
     assert!(fs::rename(traversal.clone(), dir.join("x")).is_err());
     assert!(fs::rename(dir.join("x"), traversal).is_err());
