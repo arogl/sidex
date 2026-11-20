@@ -57,7 +57,7 @@ Legend:
 - [ ] `treeData`, `multiDiffData`, `codeCitation`, `task` and `warning` styling
 - [ ] `notebookEdit` and `externalEdits`
 - [x] File deletes in an agent's patch are performed and reported (permanent: see trash below)
-- [ ] Trash or recycle bin support for the desktop file provider, so agent deletes are recoverable
+- [~] Trash or recycle bin support for the desktop file provider, so agent deletes are recoverable (the provider declares the Trash capability and a `move_to_trash` command uses the OS trash; Explorer "Move to Trash", workspace edits and the extension API `useTrash` go through it; `files.enableTrash` turns it off; if the trash cannot take a file the Explorer offers Delete Permanently; shell `rm` run by an agent is not covered)
 - [~] The error banner is titled "Something went wrong" unless the error is about reaching the model
 - [~] Keep and Undo for the files an agent turn changed (each file is copied before the turn first edits it; a row after the turn lists the files with Keep and Undo, per file and for all; a file the user changed since is left alone; kept in memory only, so it is gone after a restart)
 - [~] Diff view for the files an agent turn changed (a Diff button on each file in that row opens the saved original beside the file; the file can be edited and single changes reverted in the diff editor; the original is kept in memory, so a diff tab restored after a restart cannot load it)

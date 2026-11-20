@@ -83,6 +83,9 @@ crossbeam = "0.8"
 tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 futures-util = "0.3"
 
+# Moving files to the OS trash (Recycle Bin on Windows)
+trash = "5.4"
+
 # Extension API helpers
 arboard = "3"
 open = "5"

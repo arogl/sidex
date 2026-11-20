@@ -743,6 +743,7 @@ pub fn run() {
             commands::stat,
             commands::mkdir,
             commands::remove,
+            commands::move_to_trash,
             commands::rename,
             commands::exists,
             // Path operations
