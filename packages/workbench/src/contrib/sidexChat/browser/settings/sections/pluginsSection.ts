@@ -291,15 +291,20 @@ export class PluginsSection implements SettingsSection {
 		const invoke = this._invoke;
 		this._showFormError(undefined);
 		invoke('mcp_add_server', { config })
-			.then(() => invoke('mcp_connect', { serverName: config.name }))
-			.then(() => {
-				inputs.forEach(input => ((input as HTMLInputElement).value = ''));
-			})
-			.catch(error => {
-				// Added but not running (or not added at all): say why, and show the list as it is now.
-				this._errors.set(config.name, errorMessage(error));
-				this._showFormError(errorMessage(error));
-			})
+			.then(
+				() => {
+					inputs.forEach(input => ((input as HTMLInputElement).value = ''));
+					// Added; if it will not start, the reason belongs to its own row.
+					return invoke('mcp_connect', { serverName: config.name }).catch(error => {
+						this._errors.set(config.name, errorMessage(error));
+					});
+				},
+				error => {
+					// Not added (for instance the name is taken). The row with that name is another server,
+					// so the reason is shown in the form and never on that row.
+					this._showFormError(errorMessage(error));
+				}
+			)
 			.finally(() => this._refreshServers());
 	}
 
