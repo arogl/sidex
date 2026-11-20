@@ -3,23 +3,21 @@
  *  Browser automation settings and installed MCP server management.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWindows } from '@sidex/base/common/platform.js';
 import type { SettingsSection } from '../sidexSettingsPanel.js';
 import { createCustomDropdown } from '../sidexSettingsStyles.js';
+import { errorMessage, type IMcpServerRow, newServerConfig, toServerRows } from './mcpServerList.js';
 
 type TauriInvoke = ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null;
-
-interface McpServer {
-	name: string;
-	status: 'running' | 'stopped' | 'error';
-	toolCount: number;
-	enabled: boolean;
-}
 
 export class PluginsSection implements SettingsSection {
 	private _container: HTMLElement | null = null;
 	private _invoke: TauriInvoke;
 	private _mcpListEl: HTMLElement | null = null;
 	private _addFormVisible = false;
+	/** Why the last connect or add of a server failed, shown under its name until the next try. */
+	private readonly _errors = new Map<string, string>();
+	private _formErrorEl: HTMLElement | null = null;
 
 	constructor(invoke: TauriInvoke) {
 		this._invoke = invoke;
@@ -96,22 +94,22 @@ export class PluginsSection implements SettingsSection {
 		this._mcpListEl.className = 'sidex-settings-card';
 		container.appendChild(this._mcpListEl);
 
-		let servers: McpServer[] = [];
+		await this._refreshServers();
+	}
+
+	private async _refreshServers(): Promise<void> {
+		let servers: IMcpServerRow[] = [];
 		if (this._invoke) {
 			try {
-				const data = (await this._invoke('mcp_list_servers')) as McpServer[] | null;
-				if (data) {
-					servers = data;
-				}
-			} catch {
-				/* use empty */
+				servers = toServerRows(await this._invoke('mcp_list_servers'));
+			} catch (error) {
+				console.warn('[sidex-mcp] could not list servers', error);
 			}
 		}
-
 		this._renderServerList(servers);
 	}
 
-	private _renderServerList(servers: McpServer[]): void {
+	private _renderServerList(servers: IMcpServerRow[]): void {
 		if (!this._mcpListEl) {
 			return;
 		}
@@ -133,7 +131,7 @@ export class PluginsSection implements SettingsSection {
 			left.style.cssText = 'display:flex;align-items:center;gap:8px;';
 
 			const statusDot = document.createElement('span');
-			statusDot.style.cssText = `width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${server.status === 'running' ? 'var(--vscode-testing-iconPassed)' : server.status === 'error' ? 'var(--vscode-testing-iconFailed)' : 'var(--vscode-descriptionForeground)'};`;
+			statusDot.style.cssText = `width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${server.status === 'running' ? 'var(--vscode-testing-iconPassed)' : this._errors.has(server.name) ? 'var(--vscode-testing-iconFailed)' : 'var(--vscode-descriptionForeground)'};`;
 			left.appendChild(statusDot);
 
 			const info = document.createElement('div');
@@ -144,7 +142,13 @@ export class PluginsSection implements SettingsSection {
 
 			const toolsEl = document.createElement('div');
 			toolsEl.className = 'sidex-settings-row-description';
-			toolsEl.textContent = `${server.toolCount} tool${server.toolCount !== 1 ? 's' : ''} · ${server.status}`;
+			const failure = this._errors.get(server.name);
+			toolsEl.textContent = failure
+				? failure
+				: `${server.toolCount} tool${server.toolCount !== 1 ? 's' : ''} · ${server.status} · ${server.transport}`;
+			if (failure) {
+				toolsEl.style.color = 'var(--vscode-errorForeground)';
+			}
 			info.appendChild(toolsEl);
 			left.appendChild(info);
 
@@ -161,7 +165,10 @@ export class PluginsSection implements SettingsSection {
 				const enabled = toggle.classList.contains('on');
 				if (this._invoke) {
 					const cmd = enabled ? 'mcp_connect' : 'mcp_disconnect';
-					this._invoke(cmd, { name: server.name }).catch(() => {});
+					this._errors.delete(server.name);
+					this._invoke(cmd, { serverName: server.name })
+						.catch(error => this._errors.set(server.name, errorMessage(error)))
+						.finally(() => this._refreshServers());
 				}
 			});
 			action.appendChild(toggle);
@@ -172,14 +179,10 @@ export class PluginsSection implements SettingsSection {
 			removeBtn.title = 'Remove server';
 			removeBtn.addEventListener('click', () => {
 				if (this._invoke) {
-					this._invoke('mcp_remove_server', { name: server.name })
-						.then(() => {
-							if (this._container) {
-								this._container.innerHTML = '';
-								this.render(this._container);
-							}
-						})
-						.catch(() => {});
+					this._invoke('mcp_remove_server', { serverName: server.name })
+						.then(() => this._errors.delete(server.name))
+						.catch(error => this._errors.set(server.name, errorMessage(error)))
+						.finally(() => this._refreshServers());
 				}
 			});
 			action.appendChild(removeBtn);
@@ -239,6 +242,19 @@ export class PluginsSection implements SettingsSection {
 		btnRow.appendChild(saveBtn);
 
 		formCard.appendChild(btnRow);
+
+		this._formErrorEl = document.createElement('div');
+		this._formErrorEl.style.cssText =
+			'padding:4px 0;font-size:12px;color:var(--vscode-errorForeground);white-space:pre-wrap;display:none;';
+		formCard.appendChild(this._formErrorEl);
+	}
+
+	private _showFormError(message: string | undefined): void {
+		if (!this._formErrorEl) {
+			return;
+		}
+		this._formErrorEl.textContent = message ?? '';
+		this._formErrorEl.style.display = message ? '' : 'none';
 	}
 
 	private _toggleAddForm(): void {
@@ -261,24 +277,30 @@ export class PluginsSection implements SettingsSection {
 			values[el.dataset.field!] = el.value.trim();
 		});
 
-		if (!values.name || !values.command) {
+		const config = newServerConfig(
+			{ name: values.name ?? '', command: values.command ?? '', args: values.args ?? '' },
+			isWindows
+		);
+		if (!config) {
+			this._showFormError('Enter a server name and a command.');
 			return;
 		}
-
-		if (this._invoke) {
-			this._invoke('mcp_add_server', {
-				name: values.name,
-				command: values.command,
-				args: values.args || ''
-			})
-				.then(() => {
-					if (this._container) {
-						this._container.innerHTML = '';
-						this.render(this._container);
-					}
-				})
-				.catch(() => {});
+		if (!this._invoke) {
+			return;
 		}
+		const invoke = this._invoke;
+		this._showFormError(undefined);
+		invoke('mcp_add_server', { config })
+			.then(() => invoke('mcp_connect', { serverName: config.name }))
+			.then(() => {
+				inputs.forEach(input => ((input as HTMLInputElement).value = ''));
+			})
+			.catch(error => {
+				// Added but not running (or not added at all): say why, and show the list as it is now.
+				this._errors.set(config.name, errorMessage(error));
+				this._showFormError(errorMessage(error));
+			})
+			.finally(() => this._refreshServers());
 	}
 
 	private _createRow(parent: HTMLElement, label: string, description?: string): HTMLElement {
