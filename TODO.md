@@ -31,7 +31,7 @@ Legend:
 - [x] The default terminal profile setting lists the detected shells (Git Bash, PowerShell, Command Prompt), so one can be chosen
 - [x] `manage_todo_list` is offered and called (the model often only reads the list)
 - [x] The model writes a todo list instead of only reading it (an empty read says how to create one; confirmed in one four-step run, model behaviour can vary)
-- [~] Remember approvals across sessions (the tool prompt has an "Always allow" button next to Allow, kept for the same scope as the session box: the tool, or a shell program and subcommand such as `git log`; stored at application level; `SideX: Reset Remembered Tool Approvals` forgets them all; there is no list to review or remove single entries yet)
+- [x] Remember approvals across sessions (the tool prompt has an "Always allow" button next to Allow, kept for the same scope as the session box: the tool, or a shell program and subcommand such as `git log`; stored at application level; `SideX: Reset Remembered Tool Approvals` forgets them all; there is no list to review or remove single entries yet)
 - [ ] Tool picker (choose which tools the model is offered)
 - [x] Terminal output and kill tools (`run_in_terminal` `mode: "async"`, `get_terminal_output`, `kill_terminal`)
 - [ ] Task tools
