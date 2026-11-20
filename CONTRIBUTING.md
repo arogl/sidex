@@ -34,23 +34,27 @@ Check [Issues](https://github.com/Sidenai/sidex/issues) for open tasks. If you d
 ## Code Guidelines
 
 ### TypeScript
+
 - Follow the existing VSCode patterns in the codebase
 - Use `.js` extensions on imports (ES modules)
 - Use VSCode's DI pattern with `@inject` decorators
 
 ### Rust
+
 - Commands go in `apps/desktop/src/commands/`
 - Register new commands in `apps/desktop/src/lib.rs`
 - Use `Result<T, String>` for command return types
 - Use `tokio` for async work
 
 ### Go (`sidexai/sidex-server`)
+
 - This is the agent server: agent loop, tools, MCP, memory, context compression
 - Build with `go build -tags fts5 -o sidex-server ./cmd/server` from `sidexai/sidex-server`
 - It must keep working with no account and no hosted service — credentials come from its process environment only (`SIDEX_PROVIDER_<PROVIDER>_KEY` / `_BASE_URL` / `_AUTH`), never a config file
 - Test against a provider you have your own credentials for; there's no shared or hosted backend to test against
 
 ### General
+
 - Keep PRs focused — one feature or fix per PR when possible
 - If you're making a big architectural change, open an issue first to discuss
 
@@ -96,7 +100,7 @@ boundary, run `bun run tauri dev` and confirm the "Done" capabilities end-to-end
 
 Join the Discord if you need help getting set up or want to coordinate: [discord.gg/8CUCnEAC4J](https://discord.gg/8CUCnEAC4J)
 
-You can also reach out at kendall@siden.ai or [@ImRazshy](https://x.com/ImRazshy) on X.
+You can also reach out at <kendall@siden.ai> or [@ImRazshy](https://x.com/ImRazshy) on X.
 
 ## License
 

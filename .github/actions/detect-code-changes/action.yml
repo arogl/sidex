@@ -1,0 +1,33 @@
+name: Detect code changes
+description: >-
+  Reports whether a pull request changes anything other than documentation (Markdown files and the Markdown
+  lint setup). Workflows use it to skip jobs that cannot be affected by a docs-only change. Fails open: when the
+  changed files cannot be determined, the list is empty, or the event is not a pull request, the result is true.
+
+outputs:
+  code:
+    description: "'true' when a changed file is not documentation, or when this could not be determined; otherwise 'false'."
+    value: ${{ steps.filter.outputs.code }}
+
+runs:
+  using: composite
+  steps:
+    - id: filter
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # Files that only the Markdown lint job looks at.
+        DOCS_PATTERN: '(\.md$|^\.markdownlint-cli2\.jsonc$|^\.github/workflows/lint-md\.yml$)'
+      run: |
+        code=true  # fail open: any error below leaves the work running
+        if [ -n "$BASE_SHA" ] && git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+          if files=$(git diff --name-only "$BASE_SHA" HEAD) && [ -n "$files" ]; then
+            if printf '%s\n' "$files" | grep -qvE "$DOCS_PATTERN"; then
+              code=true
+            else
+              code=false
+            fi
+          fi
+        fi
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+        echo "Non-documentation changes: $code"
