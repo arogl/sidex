@@ -866,6 +866,11 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+/* A reply that has been voted on keeps its bar visible, so the vote can be seen without hovering. */
+.sc-msg-actions:has(.sc-msg-action--active) {
+	opacity: 1;
+}
+
 /* Trying again only makes sense for the newest reply. */
 .sc-msg-retry {
 	display: none;
