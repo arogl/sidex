@@ -6,6 +6,7 @@ import {
 	formatMcpResult,
 	isRemoteServer,
 	mcpInputSchema,
+	mcpResultParts,
 	mcpToolId,
 	mergeServers,
 	parseMcpConfig,
@@ -203,5 +204,45 @@ describe('desktopMcpConfig', () => {
 			transport: 'stdio'
 		});
 		expect(desktopMcpConfig(server, false).command).toBe('npx');
+	});
+});
+
+describe('mcpResultParts', () => {
+	test('keeps images as images and text as one text part around them', () => {
+		expect(
+			mcpResultParts({
+				isError: false,
+				content: [
+					{ type: 'text', text: 'one' },
+					{ type: 'text', text: 'two' },
+					{ type: 'image', mimeType: 'image/png', data: 'QUJD' },
+					{ type: 'text', text: 'three' }
+				]
+			})
+		).toEqual([
+			{ kind: 'text', value: 'one\ntwo' },
+			{ kind: 'image', mimeType: 'image/png', base64: 'QUJD' },
+			{ kind: 'text', value: 'three' }
+		]);
+	});
+	test('turns audio, blobs and images without data into a placeholder', () => {
+		const parts = mcpResultParts({
+			isError: false,
+			content: [
+				{ type: 'audio', mimeType: 'audio/wav', data: 'QUJD' },
+				{ type: 'image', mimeType: 'image/png' }
+			]
+		});
+		expect(parts).toEqual([
+			{ kind: 'text', value: '[audio content (audio/wav) not shown]\n[image content (image/png) not shown]' }
+		]);
+	});
+	test('shows embedded resource text and never returns nothing', () => {
+		expect(
+			mcpResultParts({ isError: false, content: [{ type: 'resource', text: 'hello', mimeType: 'text/plain' }] })
+		).toEqual([{ kind: 'text', value: 'hello' }]);
+		expect(mcpResultParts({ isError: false, content: [] })).toEqual([
+			{ kind: 'text', value: 'The tool returned no output.' }
+		]);
 	});
 });
