@@ -82,6 +82,7 @@ import {
 	parseRememberedApprovals,
 	REMEMBERED_APPROVALS_STORAGE_KEY
 } from '../../common/tools/toolConfirmation.js';
+import { toolResultResources } from '../../common/tools/toolResultResources.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(
 	JSONContributionRegistry.Extensions.JSONContribution
@@ -479,6 +480,16 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 			});
 			throw error;
 		}
+		result.content.forEach((part, index) => {
+			if (part.kind === 'data') {
+				// The model names the call by the id of the chat stream when there is one.
+				for (const id of new Set([dto.callId, dto.chatStreamToolCallId])) {
+					if (id) {
+						toolResultResources.store(id, index, part.value.data.buffer);
+					}
+				}
+			}
+		});
 		this._toolActivityService.finish({
 			callId: dto.callId,
 			output: summarizeToolOutput(result.content),
