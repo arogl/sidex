@@ -2,7 +2,7 @@ import type { IToolCallInfo } from '../../sidexChatService.js';
 
 /** What decides whether a row must be drawn again: its status and how much of its input and output has arrived. */
 export function toolCallSignature(tc: IToolCallInfo): string {
-	return `${tc.status}|${tc.name}|${tc.input?.length ?? 0}|${tc.output?.length ?? 0}|${tc.images?.length ?? 0}`;
+	return `${tc.status}|${tc.name}|${tc.input?.length ?? 0}|${tc.output?.length ?? 0}|${tc.segments?.length ?? 0}`;
 }
 
 export type ToolRowStep = { readonly call: IToolCallInfo; readonly action: 'keep' | 'replace' | 'add' };
