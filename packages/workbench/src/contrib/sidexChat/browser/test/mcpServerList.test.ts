@@ -78,3 +78,14 @@ describe('the Plugins section talks to the desktop commands the way they are dec
 		expect(src).toContain("invoke('mcp_connect', { serverName: config.name })");
 	});
 });
+
+describe('adding a server whose name is taken', () => {
+	test('reports the failure in the form, not on the existing server row', () => {
+		const src = readFileSync(join(import.meta.dir, '../settings/sections/pluginsSection.ts'), 'utf8');
+		const add = src.slice(src.indexOf("invoke('mcp_add_server'"), src.indexOf('private _createRow'));
+		expect(add).toContain('this._showFormError(errorMessage(error))');
+		// Only the connect step may record an error against the server's own row.
+		expect(add.match(/this\._errors\.set/g)).toHaveLength(1);
+		expect(add.indexOf('this._errors.set')).toBeGreaterThan(add.indexOf("invoke('mcp_connect'"));
+	});
+});
