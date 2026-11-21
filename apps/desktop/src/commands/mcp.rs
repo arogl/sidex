@@ -39,7 +39,18 @@ fn with_server_output(error: String, tail: &VecDeque<String>) -> String {
         return error;
     }
     let lines: Vec<&str> = tail.iter().map(String::as_str).collect();
-    format!("{error}\nServer output:\n{}", lines.join("\n"))
+    format!("{error}{OUTPUT_MARKER}{}", lines.join("\n"))
+}
+
+const OUTPUT_MARKER: &str = "\nServer output:\n";
+
+/// The server output that `with_server_output` put at the end of an error, so a server that failed to start
+/// can still show it after the connection (and its stderr buffer) is gone.
+fn output_in_error(error: &str) -> Vec<String> {
+    error
+        .split_once(OUTPUT_MARKER)
+        .map(|(_, output)| output.lines().map(String::from).collect())
+        .unwrap_or_default()
 }
 
 /// A failed request with the server's output appended when that output likely explains it: the process has
@@ -654,6 +665,8 @@ pub struct McpState {
     servers: Mutex<HashMap<String, McpServerEntry>>,
     configs: Mutex<Vec<McpServerConfig>>,
     config_path: Mutex<String>,
+    /// What a server printed the last time it failed to start; it has no connection to read it from.
+    failed_output: Mutex<HashMap<String, Vec<String>>>,
 }
 
 impl McpState {
@@ -667,6 +680,7 @@ impl McpState {
             servers: Mutex::new(HashMap::new()),
             configs: Mutex::new(Vec::new()),
             config_path: Mutex::new(config_path),
+            failed_output: Mutex::new(HashMap::new()),
         }
     }
 
@@ -758,7 +772,13 @@ pub async fn mcp_server_output(
     };
     match conn_arc {
         Some(conn) => Ok(conn.lock().await.server_output()),
-        None => Ok(Vec::new()),
+        None => Ok(state
+            .failed_output
+            .lock()
+            .await
+            .get(&server_name)
+            .cloned()
+            .unwrap_or_default()),
     }
 }
 
@@ -783,7 +803,18 @@ pub async fn mcp_connect(
         entry.conn.lock().await.shutdown().await;
     }
 
-    let conn = McpConnection::spawn(&config).await?;
+    let conn = match McpConnection::spawn(&config).await {
+        Ok(conn) => conn,
+        Err(error) => {
+            state
+                .failed_output
+                .lock()
+                .await
+                .insert(server_name, output_in_error(&error));
+            return Err(error);
+        }
+    };
+    state.failed_output.lock().await.remove(&server_name);
     let tools = conn.tools.clone();
     let tool_count = tools.len();
 
@@ -907,6 +938,7 @@ pub async fn mcp_remove_server(
         entry.conn.lock().await.shutdown().await;
     }
 
+    state.failed_output.lock().await.remove(&server_name);
     let mut configs = state.configs.lock().await;
     configs.retain(|c| c.name != server_name);
     drop(configs);
@@ -1478,5 +1510,22 @@ mod failure_context_tests {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         assert_eq!(lines, vec!["first".to_string(), "second".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod failed_output_tests {
+    use super::*;
+
+    #[test]
+    fn output_is_read_back_from_the_error_it_was_appended_to() {
+        let tail: VecDeque<String> = ["one", "two"].iter().map(|l| l.to_string()).collect();
+        let error = with_server_output("closed connection".into(), &tail);
+        assert_eq!(output_in_error(&error), vec!["one", "two"]);
+    }
+
+    #[test]
+    fn an_error_without_output_has_none() {
+        assert_eq!(output_in_error("closed connection"), Vec::<String>::new());
     }
 }
