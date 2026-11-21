@@ -831,28 +831,48 @@
 }
 
 /* ===== Message Actions ===== */
-/* ===== Message Menu (three dots, right side) ===== */
-.sc-msg-menu {
+/* ===== Reply actions (copy, retry, vote), shown on hover ===== */
+.sc-msg-actions {
 	display: flex;
 	justify-content: flex-end;
+	gap: 2px;
 	padding: 2px 0;
 	opacity: 0;
 	transition: opacity 0.1s ease;
 }
 
-.sc-msg-menu-btn {
+.composer-rendered-message:hover .sc-msg-actions,
+.sc-msg-actions:focus-within {
+	opacity: 1;
+}
+
+.sc-msg-action {
 	background: none;
 	border: none;
 	color: var(--vscode-descriptionForeground);
-	font-size: 16px;
-	letter-spacing: 1px;
 	cursor: pointer;
 	padding: 2px 4px;
 	line-height: 1;
+	border-radius: 4px;
 }
 
-.sc-msg-menu-btn:hover {
+.sc-msg-action:hover {
 	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.sc-msg-action--active,
+.sc-msg-action--done {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Trying again only makes sense for the newest reply. */
+.sc-msg-retry {
+	display: none;
+}
+
+.composer-rendered-message:last-child .sc-msg-retry {
+	display: inline-block;
 }
 
 /* ===== Input Area ===== */

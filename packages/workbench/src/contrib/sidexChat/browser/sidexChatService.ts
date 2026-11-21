@@ -59,6 +59,7 @@ import {
 	TurnEditCheckpoint
 } from './participantEditCheckpoint.js';
 import { extractEditOps } from './participantEditOps.js';
+import { findRetryTarget } from './replyActions.js';
 import {
 	buildSubagentPrompt,
 	getAllowedTools,
@@ -86,6 +87,8 @@ export interface IChatMessage {
 	toolCalls?: IToolCallInfo[];
 	timestamp: number;
 	checkpointLabel?: string;
+	/** The user's vote on this reply. Kept for the session only; nothing sends it anywhere. */
+	vote?: 'up' | 'down';
 }
 
 export interface IToolCallInfo {
@@ -245,6 +248,9 @@ export interface ISidexChatService {
 	openEditDiff(reviewId: string, uri: URI): Promise<void>;
 	respondToQuestion(toolCallId: string, selectedIds: string[]): void;
 	revertToMessage(messageIndex: number): void;
+	/** Answers the last user message again, dropping the reply (and the file changes it made). */
+	retryLastReply(): void;
+	setReplyVote(messageIndex: number, vote: 'up' | 'down' | undefined): void;
 	redoCheckpoint(): void;
 	getSavedSessions(): Array<{
 		id: string;
@@ -1186,6 +1192,32 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					keep_user_messages: keepUserMessages
 				})
 			);
+		}
+	}
+
+	retryLastReply(): void {
+		if (this._isStreaming) {
+			return;
+		}
+		const target = findRetryTarget(this._messages);
+		if (!target) {
+			return;
+		}
+		if (this._messages[target.userIndex].checkpointLabel) {
+			this.revertToMessage(target.userIndex);
+		} else {
+			this._messages = this._messages.slice(0, target.userIndex + 1);
+			this._currentAssistantMessage = null;
+			this._onDidChangeMessages.fire(this._messages);
+		}
+		// The user message is still last, so sending it again does not add it twice.
+		this.sendMessage(target.text);
+	}
+
+	setReplyVote(messageIndex: number, vote: 'up' | 'down' | undefined): void {
+		const msg = this._messages[messageIndex];
+		if (msg?.role === 'assistant') {
+			msg.vote = vote;
 		}
 	}
 

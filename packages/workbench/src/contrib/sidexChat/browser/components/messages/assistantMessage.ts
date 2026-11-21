@@ -3,6 +3,7 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
+import { nextVote, type ReplyVote } from '../../replyActions.js';
 import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
 import { Collapsible } from '../collapsible/collapsible.js';
@@ -127,6 +128,53 @@ export class AssistantMessage extends Component {
 		this._checklist.update(todos);
 	}
 
+	/** Copy, retry (last reply only, by CSS) and thumbs up/down under a reply. Shown on hover. */
+	private _renderActions(
+		msg: IChatMessage,
+		onRetry: (() => void) | undefined,
+		onVote: ((vote: ReplyVote | undefined) => void) | undefined
+	): void {
+		const bar = this.append('div', 'sc-msg-actions');
+		const button = (cls: string, title: string, icon: ThemeIcon): HTMLButtonElement => {
+			const btn = DOM.append(bar, $(`button.sc-msg-action.${cls}`)) as HTMLButtonElement;
+			btn.type = 'button';
+			btn.title = title;
+			btn.setAttribute('aria-label', title);
+			const glyph = document.createElement('span');
+			glyph.classList.add(...ThemeIcon.asClassNameArray(icon));
+			btn.appendChild(glyph);
+			return btn;
+		};
+
+		const copy = button('sc-msg-copy', 'Copy', Codicon.copy);
+		this.on(copy, 'click', () => {
+			// The reply may still have been streaming when the row was made, so read it when clicked.
+			this._onCopy.fire(msg.content);
+			copy.classList.add('sc-msg-action--done');
+			setTimeout(() => copy.classList.remove('sc-msg-action--done'), 1200);
+		});
+
+		const retry = button('sc-msg-retry', 'Try again', Codicon.refresh);
+		this.on(retry, 'click', () => onRetry?.());
+
+		const up = button('sc-msg-vote-up', 'Good reply', Codicon.thumbsup);
+		const down = button('sc-msg-vote-down', 'Bad reply', Codicon.thumbsdown);
+		const showVote = () => {
+			up.classList.toggle('sc-msg-action--active', msg.vote === 'up');
+			down.classList.toggle('sc-msg-action--active', msg.vote === 'down');
+			up.setAttribute('aria-pressed', String(msg.vote === 'up'));
+			down.setAttribute('aria-pressed', String(msg.vote === 'down'));
+		};
+		const vote = (clicked: ReplyVote) => {
+			msg.vote = nextVote(msg.vote, clicked);
+			showVote();
+			onVote?.(msg.vote);
+		};
+		this.on(up, 'click', () => vote('up'));
+		this.on(down, 'click', () => vote('down'));
+		showVote();
+	}
+
 	constructor(
 		msg: IChatMessage,
 		turnDurationMs?: number,
@@ -134,7 +182,9 @@ export class AssistantMessage extends Component {
 		isThinking?: boolean,
 		allMessages?: readonly IChatMessage[],
 		languageService?: ILanguageService,
-		modelService?: IModelService
+		modelService?: IModelService,
+		onRetry?: () => void,
+		onVote?: (vote: ReplyVote | undefined) => void
 	) {
 		super('div', 'composer-rendered-message');
 		this.element.style.cssText =
@@ -205,25 +255,7 @@ export class AssistantMessage extends Component {
 			}
 		}
 
-		// Three-dot menu — only show when there's text content to copy
-		if (msg.content) {
-			const menuBtn = this.append('div', 'sc-msg-menu');
-			const dots = DOM.append(menuBtn, $('button.sc-msg-menu-btn'));
-			dots.title = 'Copy';
-			const dotsIcon = document.createElement('span');
-			dotsIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.ellipsis));
-			dots.appendChild(dotsIcon);
-			this.on(dots, 'click', () => {
-				navigator.clipboard.writeText(msg.content).catch(() => {
-					/* */
-				});
-				dots.textContent = '✓';
-				setTimeout(() => {
-					dots.textContent = '';
-					dots.appendChild(dotsIcon);
-				}, 1200);
-			});
-		}
+		this._renderActions(msg, onRetry, onVote);
 
 		this.updateProgress(msg);
 	}

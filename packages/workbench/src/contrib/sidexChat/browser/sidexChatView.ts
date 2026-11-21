@@ -701,7 +701,9 @@ export class SidexChatViewPane extends ViewPane {
 					isThinking,
 					messages,
 					this.languageService,
-					this.modelService
+					this.modelService,
+					() => this.chatService.retryLastReply(),
+					vote => this.chatService.setReplyVote(i, vote)
 				);
 				comp.appendTo(this._messagesEl);
 				this._viewDisposables.add(comp);
