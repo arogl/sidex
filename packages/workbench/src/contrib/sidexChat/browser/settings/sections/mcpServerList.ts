@@ -98,3 +98,9 @@ export function errorMessage(error: unknown): string {
 	}
 	return String(error);
 }
+
+/** The server's last stderr lines for display; a server that printed nothing, or one that is not a process, says so. */
+export function formatServerOutput(lines: unknown): string {
+	const text = Array.isArray(lines) ? lines.filter(line => typeof line === 'string').join('\n') : '';
+	return text || 'This server has not printed anything.';
+}

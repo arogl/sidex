@@ -6,7 +6,13 @@
 import { isWindows } from '@sidex/base/common/platform.js';
 import type { SettingsSection } from '../sidexSettingsPanel.js';
 import { createCustomDropdown } from '../sidexSettingsStyles.js';
-import { errorMessage, type IMcpServerRow, newServerConfig, toServerRows } from './mcpServerList.js';
+import {
+	errorMessage,
+	formatServerOutput,
+	type IMcpServerRow,
+	newServerConfig,
+	toServerRows
+} from './mcpServerList.js';
 
 type TauriInvoke = ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null;
 
@@ -150,6 +156,11 @@ export class PluginsSection implements SettingsSection {
 				toolsEl.style.color = 'var(--vscode-errorForeground)';
 			}
 			info.appendChild(toolsEl);
+
+			const outputEl = document.createElement('pre');
+			outputEl.style.cssText =
+				'display:none;margin:6px 0 0;padding:6px 8px;max-width:420px;max-height:160px;overflow:auto;font-size:11px;white-space:pre-wrap;border-radius:3px;background:var(--vscode-textCodeBlock-background);';
+			info.appendChild(outputEl);
 			left.appendChild(info);
 
 			item.appendChild(left);
@@ -157,6 +168,29 @@ export class PluginsSection implements SettingsSection {
 			const action = document.createElement('div');
 			action.className = 'sidex-settings-row-action';
 			action.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+			if (server.transport === 'stdio') {
+				const outputBtn = document.createElement('span');
+				outputBtn.className = 'codicon codicon-output';
+				outputBtn.style.cssText = 'cursor:pointer;color:var(--vscode-descriptionForeground);';
+				outputBtn.title = 'Show what this server printed to stderr';
+				outputBtn.addEventListener('click', () => {
+					if (outputEl.style.display !== 'none') {
+						outputEl.style.display = 'none';
+						return;
+					}
+					outputEl.textContent = 'Loading…';
+					outputEl.style.display = 'block';
+					const read = this._invoke
+						? this._invoke('mcp_server_output', { serverName: server.name })
+						: Promise.resolve([]);
+					read.then(
+						lines => (outputEl.textContent = formatServerOutput(lines)),
+						error => (outputEl.textContent = errorMessage(error))
+					);
+				});
+				action.appendChild(outputBtn);
+			}
 
 			const toggle = document.createElement('div');
 			toggle.className = 'sidex-settings-toggle' + (server.enabled ? ' on' : '');
