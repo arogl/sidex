@@ -53,6 +53,86 @@ fn output_in_error(error: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// A server that keeps returning cursors would otherwise keep us asking forever.
+const MAX_TOOL_PAGES: usize = 100;
+
+/// The cursor for the next page of a `tools/list` response, if the server sent one.
+fn next_cursor(response: &serde_json::Value) -> Option<String> {
+    response
+        .get("nextCursor")
+        .and_then(|c| c.as_str())
+        .filter(|c| !c.is_empty())
+        .map(String::from)
+}
+
+fn parse_tools(server: &str, response: &serde_json::Value) -> Vec<McpTool> {
+    response
+        .get("tools")
+        .and_then(|t| t.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|t| {
+            let name = t.get("name")?.as_str()?.to_string();
+            Some(McpTool {
+                server: server.to_string(),
+                name,
+                description: t
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("")
+                    .to_string(),
+                input_schema: t
+                    .get("inputSchema")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new())),
+            })
+        })
+        .collect()
+}
+
+/// Turns the `content` of a `tools/call` result into text and binary parts. Images and audio carry
+/// `data` and `mimeType`; an embedded resource carries `text` or a base64 `blob`; a resource link
+/// has only a uri, which is passed on as text so the model at least sees what it points to.
+fn parse_content(response: &serde_json::Value) -> Vec<McpContent> {
+    let str_of =
+        |v: &serde_json::Value, key: &str| v.get(key).and_then(|x| x.as_str()).map(String::from);
+
+    response
+        .get("content")
+        .and_then(|c| c.as_array())
+        .into_iter()
+        .flatten()
+        .map(|c| {
+            let kind = str_of(c, "type").unwrap_or_else(|| "text".to_string());
+            match kind.as_str() {
+                "resource" => {
+                    let resource = c.get("resource").unwrap_or(c);
+                    McpContent {
+                        text: str_of(resource, "text").or_else(|| {
+                            str_of(resource, "uri").filter(|_| resource.get("blob").is_none())
+                        }),
+                        data: str_of(resource, "blob"),
+                        mime_type: str_of(resource, "mimeType"),
+                        r#type: kind,
+                    }
+                }
+                "resource_link" => McpContent {
+                    text: str_of(c, "uri"),
+                    data: None,
+                    mime_type: str_of(c, "mimeType"),
+                    r#type: kind,
+                },
+                _ => McpContent {
+                    text: str_of(c, "text"),
+                    data: str_of(c, "data"),
+                    mime_type: str_of(c, "mimeType"),
+                    r#type: kind,
+                },
+            }
+        })
+        .collect()
+}
+
 /// A failed request with the server's output appended when that output likely explains it: the process has
 /// exited, or the request timed out or the pipe closed. An error the server answered with on purpose is left as it is.
 fn failure_context(error: String, alive: bool, tail: &VecDeque<String>) -> String {
@@ -443,40 +523,25 @@ impl McpConnection {
     }
 
     async fn discover_tools(&mut self) -> Result<(), String> {
-        let response = self
-            .send_request("tools/list", None)
-            .await?
-            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+        let mut tools = Vec::new();
+        let mut cursor: Option<String> = None;
 
-        let tools_array = response
-            .get("tools")
-            .and_then(|t| t.as_array())
-            .cloned()
-            .unwrap_or_default();
+        for _ in 0..MAX_TOOL_PAGES {
+            let params = cursor.as_ref().map(|c| serde_json::json!({ "cursor": c }));
+            let response = self
+                .send_request("tools/list", params)
+                .await?
+                .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-        self.tools = tools_array
-            .into_iter()
-            .filter_map(|t| {
-                let name = t.get("name")?.as_str()?.to_string();
-                let description = t
-                    .get("description")
-                    .and_then(|d| d.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let input_schema = t
-                    .get("inputSchema")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+            tools.extend(parse_tools(&self.config.name, &response));
 
-                Some(McpTool {
-                    server: self.config.name.clone(),
-                    name,
-                    description,
-                    input_schema,
-                })
-            })
-            .collect();
+            cursor = next_cursor(&response);
+            if cursor.is_none() {
+                break;
+            }
+        }
 
+        self.tools = tools;
         Ok(())
     }
 
@@ -522,25 +587,7 @@ impl McpConnection {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let content_array = response
-            .get("content")
-            .and_then(|c| c.as_array())
-            .cloned()
-            .unwrap_or_default();
-
-        let content = content_array
-            .into_iter()
-            .map(|c| McpContent {
-                r#type: c
-                    .get("type")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("text")
-                    .to_string(),
-                text: c.get("text").and_then(|t| t.as_str()).map(String::from),
-                data: c.get("data").and_then(|d| d.as_str()).map(String::from),
-                mime_type: c.get("mimeType").and_then(|m| m.as_str()).map(String::from),
-            })
-            .collect();
+        let content = parse_content(&response);
 
         Ok(McpToolResult { content, is_error })
     }
@@ -1527,5 +1574,55 @@ mod failed_output_tests {
     #[test]
     fn an_error_without_output_has_none() {
         assert_eq!(output_in_error("closed connection"), Vec::<String>::new());
+    }
+}
+
+#[cfg(test)]
+mod pagination_and_content_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn cursor_is_read_only_when_non_empty() {
+        assert_eq!(
+            next_cursor(&json!({"nextCursor": "abc"})),
+            Some("abc".into())
+        );
+        assert_eq!(next_cursor(&json!({"nextCursor": ""})), None);
+        assert_eq!(next_cursor(&json!({"tools": []})), None);
+    }
+
+    #[test]
+    fn tools_without_a_name_are_skipped() {
+        let tools = parse_tools(
+            "s",
+            &json!({"tools": [{"name": "a", "description": "d"}, {"description": "x"}]}),
+        );
+        assert_eq!(tools.len(), 1);
+        assert_eq!(tools[0].server, "s");
+        assert_eq!(tools[0].description, "d");
+    }
+
+    #[test]
+    fn image_content_keeps_data_and_mime_type() {
+        let parts = parse_content(
+            &json!({"content": [{"type": "image", "data": "QUJD", "mimeType": "image/png"}]}),
+        );
+        assert_eq!(parts[0].data.as_deref(), Some("QUJD"));
+        assert_eq!(parts[0].mime_type.as_deref(), Some("image/png"));
+        assert_eq!(parts[0].text, None);
+    }
+
+    #[test]
+    fn embedded_resources_surface_text_or_blob() {
+        let parts = parse_content(&json!({"content": [
+            {"type": "resource", "resource": {"uri": "file:///a", "text": "hello", "mimeType": "text/plain"}},
+            {"type": "resource", "resource": {"uri": "file:///b", "blob": "QUJD", "mimeType": "image/png"}},
+            {"type": "resource_link", "uri": "file:///c"}
+        ]}));
+        assert_eq!(parts[0].text.as_deref(), Some("hello"));
+        assert_eq!(parts[1].data.as_deref(), Some("QUJD"));
+        assert_eq!(parts[1].text, None);
+        assert_eq!(parts[2].text.as_deref(), Some("file:///c"));
     }
 }
