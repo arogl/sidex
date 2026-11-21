@@ -230,15 +230,52 @@ export function mcpInputSchema(
 	return { type: 'object', properties: {} };
 }
 
-/** The text the model sees: text parts as they are, anything else as a short placeholder. */
-export function formatMcpResult(result: IMcpToolResult): string {
-	const parts = result.content.map(part => {
-		if (part.type === 'text' && typeof part.text === 'string') {
-			return part.text;
+/** A part of a tool result: text, or an image as base64 (turned into bytes where the chat needs them). */
+export type McpResultPart = { kind: 'text'; value: string } | { kind: 'image'; mimeType: string; base64: string };
+
+/**
+ * The parts the model and the chat get. Text parts and embedded text stay text, images are kept as
+ * images, and other binary parts (audio, blobs) become a short placeholder. Text is joined into a single
+ * part so a result of only text looks as it always has.
+ */
+export function mcpResultParts(result: IMcpToolResult): McpResultPart[] {
+	const parts: McpResultPart[] = [];
+	const text: string[] = [];
+	const flush = () => {
+		const value = text.join('\n').trim();
+		text.length = 0;
+		if (value) {
+			parts.push({ kind: 'text', value });
 		}
-		const mime = part.mimeType ? ` (${part.mimeType})` : '';
-		return `[${part.type} content${mime} not shown]`;
-	});
-	const text = parts.join('\n').trim();
+	};
+	for (const part of result.content) {
+		if (part.type === 'image' && typeof part.data === 'string' && part.data && part.mimeType?.startsWith('image/')) {
+			flush();
+			parts.push({ kind: 'image', mimeType: part.mimeType, base64: part.data });
+		} else {
+			text.push(formatMcpPart(part));
+		}
+	}
+	flush();
+	if (parts.length === 0) {
+		parts.push({
+			kind: 'text',
+			value: result.isError ? 'The tool reported an error with no details.' : 'The tool returned no output.'
+		});
+	}
+	return parts;
+}
+
+function formatMcpPart(part: IMcpToolResult['content'][number]): string {
+	if (typeof part.text === 'string' && part.type !== 'image') {
+		return part.text;
+	}
+	const mime = part.mimeType ? ` (${part.mimeType})` : '';
+	return `[${part.type} content${mime} not shown]`;
+}
+
+/** The text the model sees when it cannot be given images: text parts as they are, anything else as a placeholder. */
+export function formatMcpResult(result: IMcpToolResult): string {
+	const text = result.content.map(formatMcpPart).join('\n').trim();
 	return text || (result.isError ? 'The tool reported an error with no details.' : 'The tool returned no output.');
 }

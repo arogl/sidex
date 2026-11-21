@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '@sidex/base/common/async.js';
+import { decodeBase64 } from '@sidex/base/common/buffer.js';
 import { CancellationToken } from '@sidex/base/common/cancellation.js';
 import { Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { isWindows } from '@sidex/base/common/platform.js';
@@ -34,6 +35,7 @@ import {
 	IMcpToolInfo,
 	IMcpToolResult,
 	mcpInputSchema,
+	mcpResultParts,
 	mcpToolId,
 	mergeServers,
 	parseMcpConfig
@@ -218,7 +220,13 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 		if (result.isError) {
 			throw new Error(text);
 		}
-		return { content: [{ kind: 'text', value: text }] };
+		return {
+			content: mcpResultParts(result).map(part =>
+				part.kind === 'image'
+					? { kind: 'data' as const, value: { mimeType: part.mimeType, data: decodeBase64(part.base64) } }
+					: { kind: 'text' as const, value: part.value }
+			)
+		};
 	}
 }
 
