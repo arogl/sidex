@@ -35,6 +35,16 @@ describe('findRetryTarget', () => {
 	});
 });
 
+describe('retry', () => {
+	test('does not keep the dropped reply to offer it back', () => {
+		const service = readFileSync(join(import.meta.dir, '../sidexChatService.ts'), 'utf8');
+		const start = service.indexOf('retryLastReply(): void {');
+		const retry = service.slice(start, service.indexOf('setReplyVote(', start));
+		expect(retry.indexOf('this._revertedMessages = []')).toBeGreaterThan(retry.indexOf('this.revertToMessage('));
+		expect(retry.indexOf('this._revertedMessages = []')).toBeLessThan(retry.indexOf('this.sendMessage('));
+	});
+});
+
 describe('wiring', () => {
 	const read = (rel: string) => readFileSync(join(import.meta.dir, rel), 'utf8');
 	test('the view passes retry and vote to the reply, and the service ignores a retry while streaming', () => {

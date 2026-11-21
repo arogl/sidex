@@ -135,6 +135,7 @@ export class AssistantMessage extends Component {
 		onVote: ((vote: ReplyVote | undefined) => void) | undefined
 	): void {
 		const bar = this.append('div', 'sc-msg-actions');
+		const glyphs = new Map<HTMLButtonElement, HTMLElement>();
 		const button = (cls: string, title: string, icon: ThemeIcon): HTMLButtonElement => {
 			const btn = DOM.append(bar, $(`button.sc-msg-action.${cls}`)) as HTMLButtonElement;
 			btn.type = 'button';
@@ -143,7 +144,16 @@ export class AssistantMessage extends Component {
 			const glyph = document.createElement('span');
 			glyph.classList.add(...ThemeIcon.asClassNameArray(icon));
 			btn.appendChild(glyph);
+			glyphs.set(btn, glyph);
 			return btn;
+		};
+		// A vote that is set shows as the filled icon, so it reads at a glance and not only by colour.
+		const setGlyph = (btn: HTMLButtonElement, icon: ThemeIcon) => {
+			const glyph = glyphs.get(btn);
+			if (glyph) {
+				glyph.className = '';
+				glyph.classList.add(...ThemeIcon.asClassNameArray(icon));
+			}
 		};
 
 		const copy = button('sc-msg-copy', 'Copy', Codicon.copy);
@@ -162,6 +172,8 @@ export class AssistantMessage extends Component {
 		const showVote = () => {
 			up.classList.toggle('sc-msg-action--active', msg.vote === 'up');
 			down.classList.toggle('sc-msg-action--active', msg.vote === 'down');
+			setGlyph(up, msg.vote === 'up' ? Codicon.thumbsupFilled : Codicon.thumbsup);
+			setGlyph(down, msg.vote === 'down' ? Codicon.thumbsdownFilled : Codicon.thumbsdown);
 			up.setAttribute('aria-pressed', String(msg.vote === 'up'));
 			down.setAttribute('aria-pressed', String(msg.vote === 'down'));
 		};

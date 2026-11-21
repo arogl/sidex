@@ -1210,6 +1210,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			this._currentAssistantMessage = null;
 			this._onDidChangeMessages.fire(this._messages);
 		}
+		// A retry replaces the reply, so the dropped one is not offered back (the view shows those dimmed, with
+		// a redo link, and would show the old reply under the new one).
+		this._revertedMessages = [];
 		// The user message is still last, so sending it again does not add it twice.
 		this.sendMessage(target.text);
 	}
@@ -1218,6 +1221,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		const msg = this._messages[messageIndex];
 		if (msg?.role === 'assistant') {
 			msg.vote = vote;
+			console.info(`[sidex-chat] reply ${messageIndex} vote: ${vote ?? 'cleared'}`);
 		}
 	}
 
