@@ -8,7 +8,9 @@ import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions
 import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { INotificationService } from '@sidex/platform/notification/common/notification.js';
 import { IStorageService, StorageScope } from '@sidex/platform/storage/common/storage.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { parseRememberedApprovals, REMEMBERED_APPROVALS_STORAGE_KEY } from '../common/tools/toolConfirmation.js';
+import { ToolResultResourceFileSystemProvider } from './toolResultResourceFileSystemProvider.js';
 
 /** Tool approvals chosen with "Always allow" are kept across sessions, so there has to be a way to take them back. */
 registerAction2(
@@ -39,4 +41,10 @@ registerAction2(
 			);
 		}
 	}
+);
+
+registerWorkbenchContribution2(
+	ToolResultResourceFileSystemProvider.ID,
+	ToolResultResourceFileSystemProvider,
+	WorkbenchPhase.BlockRestore // registration only
 );
