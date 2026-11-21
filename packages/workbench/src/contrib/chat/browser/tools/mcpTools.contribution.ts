@@ -13,6 +13,7 @@ import { URI } from '@sidex/base/common/uri.js';
 import { localize } from '@sidex/base/nls.js';
 import { IFileService } from '@sidex/platform/files/common/files.js';
 import { ILogService } from '@sidex/platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
 import { IUserDataProfilesService } from '@sidex/platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { invoke } from '@tauri-apps/api/core';
@@ -38,18 +39,24 @@ import {
 	mcpResultParts,
 	mcpToolId,
 	mergeServers,
-	parseMcpConfig
+	parseMcpConfig,
+	parseStoredNames,
+	staleWorkspaceServers,
+	workspaceOnlyNames
 } from '../../common/tools/mcpTools.js';
 
 const LOG = '[sidex-mcp]';
+
+/** Names of the servers taken from a workspace's mcp.json, so they can be dropped once it no longer asks for them. */
+const WORKSPACE_SERVERS_KEY = 'sidex.mcp.workspaceServers';
 
 /**
  * Runs the MCP servers listed in the user's and the workspace's `mcp.json` and offers their tools to the chat.
  * The desktop `mcp_*` commands own the server processes and the protocol; this side reads the configuration,
  * hands it over, and registers one tool per server tool so the model can call it after the user approves.
  *
- * Servers are handed to the desktop store (`mcp-servers.json`), so a server from a workspace's `mcp.json`
- * also stays listed there afterwards.
+ * Servers are handed to the desktop store (`mcp-servers.json`). A server that came only from a workspace's
+ * `mcp.json` is removed from it again once that workspace (or file entry) is gone, also after a restart.
  */
 class McpToolsContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sidex.mcpTools';
@@ -65,6 +72,7 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IUserDataProfilesService private readonly _profilesService: IUserDataProfilesService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -139,6 +147,8 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 		// The desktop store is not read at startup, and saving without reading would drop servers saved earlier.
 		await invoke('mcp_reload_config').catch((e: unknown) => console.warn(`${LOG} could not load saved servers`, e));
 
+		await this._removeStaleWorkspaceServers(servers, workspaceOnlyNames(user, workspace));
+
 		const connected = await Promise.all(servers.map(server => this._connect(server)));
 		const tools = await invoke<IMcpToolInfo[]>('mcp_list_tools').catch((e: unknown) => {
 			console.error(`${LOG} could not list tools`, e);
@@ -158,6 +168,29 @@ class McpToolsContribution extends Disposable implements IWorkbenchContribution 
 		console.info(
 			`${LOG} ${servers.length} server(s) configured, ${live.size} connected, ${count} tool(s) registered` +
 				(reloading ? ' (reloaded)' : '')
+		);
+	}
+
+	private async _removeStaleWorkspaceServers(
+		current: readonly IMcpServer[],
+		workspaceNames: readonly string[]
+	): Promise<void> {
+		const previous = parseStoredNames(this._storageService.get(WORKSPACE_SERVERS_KEY, StorageScope.APPLICATION));
+		const stale = staleWorkspaceServers(previous, current);
+		const failed: string[] = [];
+		for (const name of stale) {
+			try {
+				await invoke('mcp_remove_server', { serverName: name });
+			} catch (e) {
+				failed.push(name); // try again on the next load
+				console.warn(`${LOG} could not remove '${name}'`, e);
+			}
+		}
+		this._storageService.store(
+			WORKSPACE_SERVERS_KEY,
+			JSON.stringify([...workspaceNames, ...failed]),
+			StorageScope.APPLICATION,
+			StorageTarget.MACHINE
 		);
 	}
 

@@ -155,6 +155,31 @@ export function mergeServers<T extends { readonly name: string }>(...lists: read
 	return [...byName.values()];
 }
 
+/** The names saved by an earlier run, tolerating anything unexpected in storage. */
+export function parseStoredNames(raw: string | undefined): string[] {
+	try {
+		const value: unknown = raw ? JSON.parse(raw) : [];
+		return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+	} catch {
+		return [];
+	}
+}
+
+/** The servers only a workspace asks for: one that is also in the user's file belongs to the user, not the workspace. */
+export function workspaceOnlyNames(
+	user: readonly { name: string }[],
+	workspace: readonly { name: string }[]
+): string[] {
+	const owned = new Set(user.map(s => s.name));
+	return [...new Set(workspace.map(s => s.name).filter(name => !owned.has(name)))];
+}
+
+/** Servers an earlier run took from a workspace that the configuration no longer asks for. */
+export function staleWorkspaceServers(previous: readonly string[], current: readonly { name: string }[]): string[] {
+	const wanted = new Set(current.map(s => s.name));
+	return previous.filter(name => !wanted.has(name));
+}
+
 /**
  * On Windows `npx`, `uvx` and similar are `.cmd` shims, which a process cannot start by name without a shell,
  * so they run through `cmd /c`. A path or an `.exe` is started directly.

@@ -10,7 +10,10 @@ import {
 	mcpToolId,
 	mergeServers,
 	parseMcpConfig,
-	stdioInvocation
+	parseStoredNames,
+	staleWorkspaceServers,
+	stdioInvocation,
+	workspaceOnlyNames
 } from '../../common/tools/mcpTools.js';
 
 describe('parseMcpConfig', () => {
@@ -244,5 +247,21 @@ describe('mcpResultParts', () => {
 		expect(mcpResultParts({ isError: false, content: [] })).toEqual([
 			{ kind: 'text', value: 'The tool returned no output.' }
 		]);
+	});
+});
+
+describe('workspace server cleanup', () => {
+	test('a workspace server is stale once the configuration no longer has it', () => {
+		expect(staleWorkspaceServers(['a', 'b'], [{ name: 'b' }, { name: 'c' }])).toEqual(['a']);
+		expect(staleWorkspaceServers([], [{ name: 'b' }])).toEqual([]);
+	});
+	test("a server also in the user file is not tracked as the workspace's", () => {
+		expect(workspaceOnlyNames([{ name: 'u' }, { name: 'both' }], [{ name: 'both' }, { name: 'w' }])).toEqual(['w']);
+	});
+	test('stored names tolerate missing or damaged storage', () => {
+		expect(parseStoredNames(undefined)).toEqual([]);
+		expect(parseStoredNames('{nope')).toEqual([]);
+		expect(parseStoredNames('{"a":1}')).toEqual([]);
+		expect(parseStoredNames('["a",3,"b"]')).toEqual(['a', 'b']);
 	});
 });
