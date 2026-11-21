@@ -150,6 +150,13 @@ export class ToolCallItem extends Component {
 				DOM.$('span.ui-shell-tool-call__output.ui-shell-tool-call__output-preview-text')
 			);
 			outputText.textContent = tc.output || '...';
+			for (const url of tc.images ?? []) {
+				const image = DOM.append(body, DOM.$('img.sidex-tool-result-image')) as HTMLImageElement;
+				image.src = url;
+				image.alt = 'Image returned by the tool';
+				image.style.cssText =
+					'display: block; max-width: 100%; max-height: 240px; margin-top: 8px; border-radius: 4px;';
+			}
 
 			if (todos) {
 				// A todo list is the point of the call, so show it as a checklist and open by default.

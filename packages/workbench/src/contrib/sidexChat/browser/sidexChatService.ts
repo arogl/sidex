@@ -92,6 +92,8 @@ export interface IToolCallInfo {
 	name: string;
 	input: string;
 	output?: string;
+	/** Images the tool returned, as data URLs. */
+	images?: string[];
 	status: 'running' | 'done' | 'error';
 }
 
@@ -133,6 +135,8 @@ export interface IStreamChunk {
 		function: { name: string; arguments: string };
 	}>;
 	tool_call_id?: string;
+	/** Images of a tool result (data URLs). */
+	images?: string[];
 	tokens_used?: {
 		prompt_tokens?: number;
 		completion_tokens?: number;
@@ -517,7 +521,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					this._handleChunk({
 						type: 'tool_result',
 						tool_call_id: activity.callId,
-						content: activity.isError ? `Error: ${activity.output}` : activity.output
+						content: activity.isError ? `Error: ${activity.output}` : activity.output,
+						images: activity.images && activity.images.length > 0 ? [...activity.images] : undefined
 					});
 				}
 			})
@@ -2406,6 +2411,7 @@ ${prompt}`,
 						const tc = this._currentAssistantMessage.toolCalls.find(t => t.id === chunk.tool_call_id);
 						if (tc) {
 							tc.output = chunk.content;
+							tc.images = chunk.images;
 							tc.status = 'done';
 							found = true;
 						}
@@ -2417,6 +2423,7 @@ ${prompt}`,
 								const tc = msg.toolCalls.find(t => t.id === chunk.tool_call_id);
 								if (tc) {
 									tc.output = chunk.content;
+									tc.images = chunk.images;
 									tc.status = 'done';
 									found = true;
 									break;
