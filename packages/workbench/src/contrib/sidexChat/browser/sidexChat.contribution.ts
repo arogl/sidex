@@ -23,6 +23,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { SidexChatViewPane } from './sidexChatView.js';
 import './sidexChatService.js';
+import './chatToolPicker.contribution.js';
 
 export const SIDEX_CHAT_CONTAINER_ID = 'workbench.view.sidexChat';
 export const SIDEX_CHAT_VIEW_ID = 'workbench.view.sidexChat.main';

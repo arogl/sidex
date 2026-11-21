@@ -15,6 +15,7 @@ import { IFileService } from '@sidex/platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
 import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
+import { IStorageService, StorageScope } from '@sidex/platform/storage/common/storage.js';
 import { IUpdateService } from '@sidex/platform/update/common/update.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -34,6 +35,7 @@ import type { ToolResultSegment } from '../../chat/common/tools/toolActivityServ
 import { IToolActivityService } from '../../chat/common/tools/toolActivityService.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
+import { DISABLED_TOOLS_STORAGE_KEY, enablementMap, parseDisabledTools } from './chatToolSelection.js';
 import { editDiffResources } from './editReviewUris.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
@@ -472,7 +474,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IToolActivityService toolActivityService: IToolActivityService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService
+		@ITextFileService textFileService: ITextFileService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		// A file edit that fails is shown as a notice, not an error chunk: an error chunk ends the turn.
@@ -940,18 +943,16 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		return this._currentMode === 'agent' ? 'agent' : 'ask';
 	}
 
-	/** In Agent mode every available tool is enabled for the participant. */
+	/** In Agent mode every available tool is enabled for the participant, except the ones turned off in the tool picker. */
 	private _userSelectedTools(): Record<string, boolean> | undefined {
 		if (this._participantMode() !== 'agent') {
 			return undefined;
 		}
-		const tools: Record<string, boolean> = {};
-		for (const tool of this.toolsService.getTools(undefined)) {
-			tools[tool.id] = true;
-		}
-		const ids = Object.keys(tools);
+		const disabled = parseDisabledTools(this.storageService.get(DISABLED_TOOLS_STORAGE_KEY, StorageScope.APPLICATION));
+		const ids = Array.from(this.toolsService.getTools(undefined), tool => tool.id);
+		const tools = enablementMap(ids, disabled);
 		console.info(
-			`[sidex-chat] offering ${ids.length} tools; terminal/shell: ${JSON.stringify(ids.filter(id => /terminal|shell|run/i.test(id)))}`
+			`[sidex-chat] offering ${ids.length - ids.filter(id => disabled.has(id)).length} of ${ids.length} tools; terminal/shell: ${JSON.stringify(ids.filter(id => /terminal|shell|run/i.test(id)))}`
 		);
 		return tools;
 	}

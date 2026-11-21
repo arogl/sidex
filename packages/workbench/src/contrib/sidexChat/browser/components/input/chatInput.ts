@@ -59,6 +59,9 @@ export class ChatInput extends Component {
 	private readonly _onSendWithMentions = this._register(new Emitter<{ text: string; mentions: ResolvedMention[] }>());
 	readonly onSendWithMentions: Event<{ text: string; mentions: ResolvedMention[] }> = this._onSendWithMentions.event;
 
+	private readonly _onConfigureTools = this._register(new Emitter<void>());
+	readonly onConfigureTools: Event<void> = this._onConfigureTools.event;
+
 	private readonly _onStop = this._register(new Emitter<void>());
 	readonly onStop: Event<void> = this._onStop.event;
 
@@ -632,6 +635,12 @@ export class ChatInput extends Component {
 				})
 			);
 		}
+
+		// Tools button — which tools the model is offered
+		const toolsBtn = DOM.append(right, $('button.sc-input-icon-btn'));
+		toolsBtn.title = 'Configure tools';
+		toolsBtn.appendChild(codicon(Codicon.tools));
+		this.on(toolsBtn, 'click', () => this._onConfigureTools.fire());
 
 		// Attach button — folder icon
 		const attachBtn = DOM.append(right, $('button.sc-input-icon-btn'));
