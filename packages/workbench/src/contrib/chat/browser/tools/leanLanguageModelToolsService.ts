@@ -74,7 +74,11 @@ import {
 	toolMatchesModel,
 	VSCodeToolReference
 } from '../../common/tools/languageModelToolsService.js';
-import { IToolActivityService, summarizeToolOutput } from '../../common/tools/toolActivityService.js';
+import {
+	IToolActivityService,
+	summarizeToolOutput,
+	toolImageDataUrls
+} from '../../common/tools/toolActivityService.js';
 import {
 	addRememberedApproval,
 	approvalScope,
@@ -490,9 +494,11 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 				}
 			}
 		});
+		const images = toolImageDataUrls(result.content);
 		this._toolActivityService.finish({
 			callId: dto.callId,
 			output: summarizeToolOutput(result.content),
+			images: images.length > 0 ? images : undefined,
 			isError: false
 		});
 		this._onDidInvokeTool.fire({
