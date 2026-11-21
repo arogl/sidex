@@ -150,12 +150,28 @@ export class ToolCallItem extends Component {
 				DOM.$('span.ui-shell-tool-call__output.ui-shell-tool-call__output-preview-text')
 			);
 			outputText.textContent = tc.output || '...';
-			for (const url of tc.images ?? []) {
-				const image = DOM.append(body, DOM.$('img.sidex-tool-result-image')) as HTMLImageElement;
-				image.src = url;
-				image.alt = 'Image returned by the tool';
-				image.style.cssText =
-					'display: block; max-width: 100%; max-height: 240px; margin-top: 8px; border-radius: 4px;';
+			if (tc.segments?.length) {
+				// The picture is the point of the call, so show the result as the tool gave it (text and images in
+				// order) and open the row without making the user do it.
+				preview.remove();
+				body.style.whiteSpace = 'normal';
+				body.style.wordBreak = 'normal';
+				body.style.display = 'block';
+				body.style.maxHeight = 'none';
+				hoverIcon.classList.replace('codicon-chevron-right', 'codicon-chevron-down');
+				for (const segment of tc.segments) {
+					if (segment.kind === 'text') {
+						const line = DOM.append(body, DOM.$('div'));
+						line.style.whiteSpace = 'pre-wrap';
+						line.textContent = segment.text;
+					} else {
+						const image = DOM.append(body, DOM.$('img.sidex-tool-result-image')) as HTMLImageElement;
+						image.src = segment.url;
+						image.alt = 'Image returned by the tool';
+						image.style.cssText =
+							'display: block; max-width: 100%; max-height: 240px; margin: 8px 0; border-radius: 4px;';
+					}
+				}
 			}
 
 			if (todos) {

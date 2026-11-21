@@ -77,7 +77,7 @@ import {
 import {
 	IToolActivityService,
 	summarizeToolOutput,
-	toolImageDataUrls
+	toolResultSegments
 } from '../../common/tools/toolActivityService.js';
 import {
 	addRememberedApproval,
@@ -494,11 +494,11 @@ export class LeanLanguageModelToolsService extends Disposable implements ILangua
 				}
 			}
 		});
-		const images = toolImageDataUrls(result.content);
+		const segments = toolResultSegments(result.content);
 		this._toolActivityService.finish({
 			callId: dto.callId,
 			output: summarizeToolOutput(result.content),
-			images: images.length > 0 ? images : undefined,
+			segments: segments.length > 0 ? segments : undefined,
 			isError: false
 		});
 		this._onDidInvokeTool.fire({

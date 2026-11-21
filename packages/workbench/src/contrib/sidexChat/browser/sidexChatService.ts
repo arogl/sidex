@@ -30,6 +30,7 @@ import {
 	IChatAgentService
 } from '../../chat/common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
+import type { ToolResultSegment } from '../../chat/common/tools/toolActivityService.js';
 import { IToolActivityService } from '../../chat/common/tools/toolActivityService.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
@@ -92,8 +93,8 @@ export interface IToolCallInfo {
 	name: string;
 	input: string;
 	output?: string;
-	/** Images the tool returned, as data URLs. */
-	images?: string[];
+	/** The result's text and images in order, when it has an image. */
+	segments?: ToolResultSegment[];
 	status: 'running' | 'done' | 'error';
 }
 
@@ -135,8 +136,8 @@ export interface IStreamChunk {
 		function: { name: string; arguments: string };
 	}>;
 	tool_call_id?: string;
-	/** Images of a tool result (data URLs). */
-	images?: string[];
+	/** Text and images of a tool result, in order. */
+	segments?: ToolResultSegment[];
 	tokens_used?: {
 		prompt_tokens?: number;
 		completion_tokens?: number;
@@ -522,7 +523,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 						type: 'tool_result',
 						tool_call_id: activity.callId,
 						content: activity.isError ? `Error: ${activity.output}` : activity.output,
-						images: activity.images && activity.images.length > 0 ? [...activity.images] : undefined
+						segments: activity.segments ? [...activity.segments] : undefined
 					});
 				}
 			})
@@ -2411,7 +2412,7 @@ ${prompt}`,
 						const tc = this._currentAssistantMessage.toolCalls.find(t => t.id === chunk.tool_call_id);
 						if (tc) {
 							tc.output = chunk.content;
-							tc.images = chunk.images;
+							tc.segments = chunk.segments;
 							tc.status = 'done';
 							found = true;
 						}
@@ -2423,7 +2424,7 @@ ${prompt}`,
 								const tc = msg.toolCalls.find(t => t.id === chunk.tool_call_id);
 								if (tc) {
 									tc.output = chunk.content;
-									tc.images = chunk.images;
+									tc.segments = chunk.segments;
 									tc.status = 'done';
 									found = true;
 									break;

@@ -8,6 +8,10 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
 import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
 
+export type ToolResultSegment =
+	| { readonly kind: 'text'; readonly text: string }
+	| { readonly kind: 'image'; readonly url: string };
+
 export interface IToolActivityStart {
 	readonly callId: string;
 	readonly toolId: string;
@@ -19,8 +23,8 @@ export interface IToolActivityFinish {
 	readonly callId: string;
 	readonly output: string;
 	readonly isError: boolean;
-	/** Images the tool returned, as data URLs the chat view can show. */
-	readonly images?: readonly string[];
+	/** The result in order, text and images (as data URLs), when it has an image the chat view can show. */
+	readonly segments?: readonly ToolResultSegment[];
 }
 
 export const IToolActivityService = createDecorator<IToolActivityService>('toolActivityService');
@@ -49,25 +53,49 @@ const SHOWN_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'imag
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-/**
- * Data URLs for the images in a tool result. Only common raster types are shown (SVG can carry script), and
- * a large image or a long run of images is left out rather than loaded into the chat view.
- */
-export function toolImageDataUrls(content: readonly { kind: string; value?: unknown }[]): string[] {
-	const urls: string[] = [];
-	for (const part of content) {
-		if (part.kind !== 'data' || urls.length === MAX_IMAGES) {
-			continue;
-		}
-		const value = part.value as { mimeType?: string; data?: VSBuffer } | undefined;
-		const mimeType = value?.mimeType?.toLowerCase();
-		const data = value?.data;
-		if (!mimeType || !SHOWN_IMAGE_TYPES.has(mimeType) || !data || data.byteLength > MAX_IMAGE_BYTES) {
-			continue;
-		}
-		urls.push(`data:${mimeType};base64,${encodeBase64(data)}`);
+function imageDataUrl(part: { kind: string; value?: unknown }): string | undefined {
+	const value = part.value as { mimeType?: string; data?: VSBuffer } | undefined;
+	const mimeType = value?.mimeType?.toLowerCase();
+	const data = value?.data;
+	if (
+		part.kind !== 'data' ||
+		!mimeType ||
+		!SHOWN_IMAGE_TYPES.has(mimeType) ||
+		!data ||
+		data.byteLength > MAX_IMAGE_BYTES
+	) {
+		return undefined;
 	}
-	return urls;
+	return `data:${mimeType};base64,${encodeBase64(data)}`;
+}
+
+/**
+ * A tool result as text and images in the order the tool gave them, so a picture sits where the tool put it.
+ * Only common raster types are shown (SVG can carry script), and a large image or a long run of images is
+ * left out rather than loaded into the chat view. Empty when there is no image to show.
+ */
+export function toolResultSegments(content: readonly { kind: string; value?: unknown }[]): ToolResultSegment[] {
+	const segments: ToolResultSegment[] = [];
+	let images = 0;
+	let chars = 0;
+	for (const part of content) {
+		if (part.kind === 'text' && typeof part.value === 'string' && part.value.trim()) {
+			const room = MAX_OUTPUT_CHARS - chars;
+			if (room <= 0) {
+				continue;
+			}
+			const text = part.value.length > room ? `${part.value.slice(0, room)}\n… (truncated)` : part.value;
+			chars += part.value.length;
+			segments.push({ kind: 'text', text });
+			continue;
+		}
+		const url = images < MAX_IMAGES ? imageDataUrl(part) : undefined;
+		if (url) {
+			images++;
+			segments.push({ kind: 'image', url });
+		}
+	}
+	return images > 0 ? segments : [];
 }
 
 class ToolActivityService implements IToolActivityService {

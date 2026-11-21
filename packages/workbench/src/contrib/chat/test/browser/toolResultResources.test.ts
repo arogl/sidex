@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { VSBuffer } from '@sidex/base/common/buffer.js';
-import { toolImageDataUrls } from '../../common/tools/toolActivityService.js';
+import { toolResultSegments } from '../../common/tools/toolActivityService.js';
 import { parseToolResultPath, ToolResultResources } from '../../common/tools/toolResultResources.js';
 
 describe('parseToolResultPath', () => {
@@ -44,18 +44,26 @@ describe('wiring', () => {
 	});
 });
 
-describe('toolImageDataUrls', () => {
+describe('toolResultSegments', () => {
 	const image = (mimeType: string, bytes = [65, 66, 67]) => ({
 		kind: 'data',
 		value: { mimeType, data: VSBuffer.wrap(new Uint8Array(bytes)) }
 	});
-	test('turns raster images into data URLs and ignores text', () => {
-		expect(toolImageDataUrls([{ kind: 'text', value: 'hi' }, image('image/png')])).toEqual([
-			'data:image/png;base64,QUJD'
+	test('keeps text and images in the order the tool gave them', () => {
+		expect(
+			toolResultSegments([{ kind: 'text', value: 'before' }, image('image/png'), { kind: 'text', value: 'after' }])
+		).toEqual([
+			{ kind: 'text', text: 'before' },
+			{ kind: 'image', url: 'data:image/png;base64,QUJD' },
+			{ kind: 'text', text: 'after' }
 		]);
 	});
-	test('leaves out SVG, other types, empty types and more than four images', () => {
-		expect(toolImageDataUrls([image('image/svg+xml'), image('audio/wav'), image('')])).toEqual([]);
-		expect(toolImageDataUrls(Array.from({ length: 6 }, () => image('image/jpeg')))).toHaveLength(4);
+	test('is empty when there is no image to show', () => {
+		expect(toolResultSegments([{ kind: 'text', value: 'hi' }])).toEqual([]);
+		expect(toolResultSegments([{ kind: 'text', value: 'hi' }, image('image/svg+xml'), image('audio/wav')])).toEqual([]);
+	});
+	test('shows at most four images', () => {
+		const segments = toolResultSegments(Array.from({ length: 6 }, () => image('image/jpeg')));
+		expect(segments.filter(s => s.kind === 'image')).toHaveLength(4);
 	});
 });
