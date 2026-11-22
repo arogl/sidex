@@ -32,7 +32,7 @@ Legend:
 - [x] `manage_todo_list` is offered and called (the model often only reads the list)
 - [x] The model writes a todo list instead of only reading it (an empty read says how to create one; confirmed in one four-step run, model behaviour can vary)
 - [x] Remember approvals across sessions (the tool prompt has an "Always allow" button next to Allow, kept for the same scope as the session box: the tool, or a shell program and subcommand such as `git log`; stored at application level; `SideX: Reset Remembered Tool Approvals` forgets them all; there is no list to review or remove single entries yet)
-- [ ] Tool picker (choose which tools the model is offered)
+- [x] Tool picker (`SideX: Configure Tools`, or the tools button in the chat input, turns tools off by source; the set that is off is stored at application level so new tools are on; Agent mode only; no per-workspace selection or tool sets)
 - [x] Terminal output and kill tools (`run_in_terminal` `mode: "async"`, `get_terminal_output`, `kill_terminal`)
 - [ ] Task tools
 - [ ] Subagent tool
@@ -67,7 +67,7 @@ Legend:
 - [ ] Attachments and `#file`, `#selection`, `#codebase` context variables
 - [ ] Slash-command and participant completion in the input
 - [ ] Follow-up suggestions
-- [ ] Vote, copy and retry actions on replies
+- [x] Copy, retry and vote actions on replies (a bar on hover; retry is for the newest reply and rolls back its file changes; votes show as a filled thumb and are kept for the session only, nothing is sent)
 - [x] Chat history across restarts (chats are saved to the local database per workspace; after a restart the chat starts fresh and earlier chats are in the history search, in full)
 - [ ] Edit and resend an earlier message
 
@@ -78,10 +78,12 @@ Legend:
 - [~] `http` and `sse` servers (`type: "http"` is Streamable HTTP, `type: "sse"` the older HTTP+SSE transport; a server with only a `url` is `http`, and one that rejects the first POST falls back to `sse`; `headers` are sent on every request; credentials go in `headers` since OAuth is not done; `${input:...}` entries are skipped with a message)
 - [ ] MCP servers provided by extensions
 - [ ] `inputs` variables and OAuth in `mcp.json`
-- [ ] Server stderr shown (it is discarded today)
-- [ ] Paginated `tools/list`; non-text tool results (images, resources)
-- [ ] MCP management view (the Settings > Plugins list passes `name` where the desktop commands expect `serverName`)
-- [ ] Workspace servers are not left behind in `mcp-servers.json` after the workspace closes
+- [x] Server stderr shown (an output button on stdio servers in Settings > Plugins; a server that failed to start keeps what it printed; failed tool calls include it)
+- [x] Paginated `tools/list` (follows `nextCursor`, at most 100 pages)
+- [x] Embedded resources and resource links in MCP tool results reach the model
+- [x] Images in MCP tool results reach the model and show in the tool call's row, in the order the tool gave them (png, jpeg, gif and webp, up to four of at most 5 MB; SVG, audio and other binary parts show a placeholder)
+- [x] MCP management view (Settings > Plugins: add, connect, disconnect and remove servers; a failed add is reported in the form, not on the server that has the name)
+- [x] Workspace servers are removed from `mcp-servers.json` once the workspace no longer asks for them, also after a restart (servers added in the view or in the user `mcp.json` are kept)
 
 ## Build and platform
 
