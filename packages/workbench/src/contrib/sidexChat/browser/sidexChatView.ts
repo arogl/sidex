@@ -2,6 +2,7 @@
  *  Sidex Chat View — Composes component classes into the chat panel
  *--------------------------------------------------------------------------------------------*/
 
+import { CONFIGURE_TOOLS_COMMAND_ID } from './chatToolPicker.contribution.js';
 import './media/sidexChatView.css';
 import * as DOM from '@sidex/base/browser/dom.js';
 import { DisposableStore } from '@sidex/base/common/lifecycle.js';
@@ -259,6 +260,9 @@ export class SidexChatViewPane extends ViewPane {
 			})
 		);
 		this._viewDisposables.add(this._input.onStop(() => this.chatService.stopStreaming()));
+		this._viewDisposables.add(
+			this._input.onConfigureTools(() => void this.commandService.executeCommand(CONFIGURE_TOOLS_COMMAND_ID))
+		);
 		this._viewDisposables.add(this._input.onModeChange(mode => this.chatService.setMode(mode)));
 		this._viewDisposables.add(this._input.onMaxModeChange(on => this.chatService.setMaxMode(on)));
 		this._viewDisposables.add(
