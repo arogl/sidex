@@ -87,23 +87,6 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
-      - name: Import Apple signing certificate
-        if: runner.os == 'macOS' && !contains(matrix.platform, 'self-hosted')
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-keychain-settings -lut 21600 build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-          security list-keychain -d user -s build.keychain login.keychain
-          rm certificate.p12
-
       - name: Install create-dmg
         if: runner.os == 'macOS'
         run: |
@@ -135,21 +118,9 @@ jobs:
           esac
           node scripts/ext-host/stage-runtime-deps.mjs $args
 
-      - name: Unlock keychain before signing
-        if: runner.os == 'macOS'
-        env:
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-
       - name: Build Tauri app
         timeout-minutes: 40
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npx tauri build --target ${{ matrix.target }} --config apps/desktop/tauri.release.conf.json
+        run: npx tauri build --target ${{ matrix.target }}
 
       - name: Collect macOS artifacts
         if: runner.os == 'macOS'
@@ -189,8 +160,9 @@ jobs:
           \) -exec cp {} dist-artifacts/ \; 2>/dev/null || true
           ls -la dist-artifacts/
 
+      # Disabled until this fork has its own Azure Trusted Signing account and secrets.
       - name: Sign Windows installers (Azure Trusted Signing)
-        if: runner.os == 'Windows'
+        if: false && runner.os == 'Windows'
         uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -213,7 +185,10 @@ jobs:
           retention-days: 7
 
   # ── Deploy to Cloudflare R2 ──────────────────────────────────────────────────
+  # Disabled until this fork has its own R2 bucket, secrets and CDN domain (it targets Siden's
+  # `siden-assets` bucket and cdn.siden.ai).
   deploy:
+    if: false
     needs: build
     runs-on: ubuntu-latest
 
@@ -295,7 +270,7 @@ jobs:
 
   # ── GitHub Release ───────────────────────────────────────────────────────────
   release:
-    needs: deploy
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
