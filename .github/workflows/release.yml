@@ -119,6 +119,22 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=12288"
         run: bun run build
 
+      - name: Build extension host and stage ripgrep
+        shell: bash
+        run: |
+          bun packages/build/src/vscode-sync/cli.ts prepare "$(cat .vscode-version)"
+          bun run build:ext-host
+          case "${{ matrix.target }}" in
+            universal-apple-darwin) args="--os darwin --arch arm64,x64" ;;
+            aarch64-apple-darwin) args="--os darwin --arch arm64" ;;
+            x86_64-apple-darwin) args="--os darwin --arch x64" ;;
+            x86_64-pc-windows-msvc) args="--os win32 --arch x64" ;;
+            aarch64-pc-windows-msvc) args="--os win32 --arch arm64" ;;
+            x86_64-unknown-linux-gnu) args="--os linux --arch x64" ;;
+            *) echo "unknown target ${{ matrix.target }}"; exit 1 ;;
+          esac
+          node scripts/ext-host/stage-runtime-deps.mjs $args
+
       - name: Unlock keychain before signing
         if: runner.os == 'macOS'
         env:
