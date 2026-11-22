@@ -131,6 +131,9 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 			case 'inlineReference': {
 				// A file or symbol mentioned inside the text; without this the name would be missing from the sentence.
 				const label = inlineReferenceLabel(part['inlineReference'], part['name']);
+				console.info(
+					`[sidex-chat] inline reference: ${JSON.stringify({ reference: part['inlineReference'], name: part['name'] })}`
+				);
 				if (label) {
 					const link = inlineReferenceLink(part['inlineReference']);
 					chunks.push({ type: 'text', content: link ? `[${label.replace(/[[\]]/g, '')}](${link})` : `\`${label}\`` });
