@@ -443,9 +443,9 @@ mod tests {
     #[test]
     fn resolved_bindings_have_sources() {
         let resolver = KeybindingResolver::new();
-        let resolved = resolver.resolved_bindings();
-        assert!(!resolved.is_empty());
-        assert!(resolved.iter().all(|r| r.is_default));
+        let bindings = resolver.resolved_bindings();
+        assert!(!bindings.is_empty());
+        assert!(bindings.iter().all(|r| r.is_default));
     }
 
     #[test]
@@ -467,8 +467,8 @@ mod tests {
         let combo = KeyCombo::new(Key::F1, Modifiers::ALT);
         assert_eq!(resolver.resolve(&combo, &ctx), Some("rust-analyzer.run"));
 
-        let resolved = resolver.resolved_bindings();
-        let ext = resolved
+        let bindings = resolver.resolved_bindings();
+        let ext = bindings
             .iter()
             .find(|r| r.command == "rust-analyzer.run")
             .unwrap();

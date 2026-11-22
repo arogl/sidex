@@ -30,11 +30,11 @@ fn bench_chunk_sidex_agent_crate() {
     }
 
     eprintln!("=== sidex-agent benchmark ===");
-    eprintln!("  Time:       {:?}", elapsed);
+    eprintln!("  Time:       {elapsed:?}");
     eprintln!("  Chunks:     {}", chunks.len());
-    eprintln!("  Total lines covered: {}", total_lines);
-    eprintln!("  Languages:  {:?}", lang_counts);
-    eprintln!("  Kinds:      {:?}", kind_counts);
+    eprintln!("  Total lines covered: {total_lines}");
+    eprintln!("  Languages:  {lang_counts:?}");
+    eprintln!("  Kinds:      {kind_counts:?}");
     eprintln!(
         "  Files:      {}",
         chunks
@@ -78,9 +78,9 @@ fn bench_chunk_go_server() {
     }
 
     eprintln!("=== Go server benchmark ===");
-    eprintln!("  Time:       {:?}", elapsed);
+    eprintln!("  Time:       {elapsed:?}");
     eprintln!("  Chunks:     {}", chunks.len());
-    eprintln!("  Kinds:      {:?}", kind_counts);
+    eprintln!("  Kinds:      {kind_counts:?}");
     eprintln!(
         "  Files:      {}",
         chunks

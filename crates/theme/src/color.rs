@@ -190,6 +190,12 @@ pub fn darken(color: &Color, amount: f32) -> Color {
 
 #[cfg(test)]
 mod tests {
+    fn assert_rgba_eq(actual: [f32; 4], expected: [f32; 4]) {
+        for (a, e) in actual.iter().zip(expected) {
+            assert!((a - e).abs() < f32::EPSILON, "{actual:?} != {expected:?}");
+        }
+    }
+
     use super::*;
 
     #[test]
@@ -229,13 +235,13 @@ mod tests {
     #[test]
     fn to_rgba_f32_white() {
         let f = Color::WHITE.to_rgba_f32();
-        assert_eq!(f, [1.0, 1.0, 1.0, 1.0]);
+        assert_rgba_eq(f, [1.0, 1.0, 1.0, 1.0]);
     }
 
     #[test]
     fn to_rgba_f32_black() {
         let f = Color::BLACK.to_rgba_f32();
-        assert_eq!(f, [0.0, 0.0, 0.0, 1.0]);
+        assert_rgba_eq(f, [0.0, 0.0, 0.0, 1.0]);
     }
 
     #[test]

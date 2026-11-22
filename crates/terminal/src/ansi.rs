@@ -517,7 +517,7 @@ mod tests {
         } = &actions[0]
         {
             assert_eq!(params, &[25]);
-            assert_eq!(intermediates, &[b'?']);
+            assert_eq!(intermediates, b"?");
             assert_eq!(*action, 'l');
         }
     }

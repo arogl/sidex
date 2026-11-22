@@ -628,7 +628,7 @@ mod tests {
         let s = combo.to_string();
         assert!(s.contains("Ctrl"));
         assert!(s.contains("Shift"));
-        assert!(s.contains("S"));
+        assert!(s.contains('S'));
     }
 
     #[test]

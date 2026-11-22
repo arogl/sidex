@@ -1006,8 +1006,10 @@ mod tests {
 
     #[test]
     fn cell_attributes_bitflags() {
-        let mut cell = Cell::default();
-        cell.attrs = CellAttributes::BOLD | CellAttributes::ITALIC;
+        let cell = Cell {
+            attrs: CellAttributes::BOLD | CellAttributes::ITALIC,
+            ..Cell::default()
+        };
         assert!(cell.bold());
         assert!(cell.italic());
         assert!(!cell.underline());

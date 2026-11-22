@@ -295,8 +295,8 @@ mod tests {
         assert_eq!(resolver.pending_count(), 1);
         assert!(resolver.has_conflict(Path::new("/test.rs")));
 
-        let resolved = resolver.resolve(Path::new("/test.rs"), ConflictResolution::ReloadFromDisk);
-        assert!(resolved.is_some());
+        let outcome = resolver.resolve(Path::new("/test.rs"), ConflictResolution::ReloadFromDisk);
+        assert!(outcome.is_some());
         assert_eq!(resolver.pending_count(), 0);
     }
 

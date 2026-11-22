@@ -260,7 +260,7 @@ mod tests {
                 .map(|(l, doc)| ParameterInfo {
                     label: l.to_owned(),
                     label_kind: ParameterLabel::Simple(l.to_owned()),
-                    documentation: doc.map(|d| d.to_owned()),
+                    documentation: doc.map(std::borrow::ToOwned::to_owned),
                 })
                 .collect(),
             active_parameter: 0,

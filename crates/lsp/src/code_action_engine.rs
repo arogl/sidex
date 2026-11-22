@@ -218,23 +218,21 @@ mod tests {
 
     #[test]
     fn convert_code_action_with_edit() {
-        let mut raw_changes = std::collections::HashMap::new();
-        raw_changes.insert(
-            "file:///test.rs".parse::<Uri>().unwrap(),
-            vec![lsp_types::TextEdit {
-                range: lsp_types::Range::new(
-                    lsp_types::Position::new(0, 0),
-                    lsp_types::Position::new(0, 0),
-                ),
-                new_text: "use std::collections::HashMap;\n".into(),
-            }],
-        );
+        let edits = vec![lsp_types::TextEdit {
+            range: lsp_types::Range::new(
+                lsp_types::Position::new(0, 0),
+                lsp_types::Position::new(0, 0),
+            ),
+            new_text: "use std::collections::HashMap;\n".into(),
+        }];
         let action = CodeActionOrCommand::CodeAction(lsp_types::CodeAction {
             title: "Import HashMap".into(),
             kind: Some(lsp_types::CodeActionKind::QUICKFIX),
             diagnostics: None,
             edit: Some(lsp_types::WorkspaceEdit {
-                changes: Some(raw_changes),
+                changes: Some(
+                    std::iter::once(("file:///test.rs".parse::<Uri>().unwrap(), edits)).collect(),
+                ),
                 document_changes: None,
                 change_annotations: None,
             }),

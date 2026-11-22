@@ -416,7 +416,7 @@ mod tests {
         save_local_snapshot(&file_path, "v2", history_dir).unwrap();
 
         let entries = get_local_history(&file_path, history_dir).unwrap();
-        assert!(entries.len() >= 1);
+        assert!(!entries.is_empty());
         assert!(entries
             .iter()
             .all(|e| e.source == TimelineSource::LocalHistory));

@@ -616,19 +616,18 @@ mod tests {
             "hello world".into(),
             1,
         )];
-        let mut changes = HashMap::new();
-        changes.insert(
-            "file:///a.rs".parse::<lsp_types::Uri>().unwrap(),
-            vec![lsp_types::TextEdit {
-                range: lsp_types::Range::new(
-                    lsp_types::Position::new(0, 0),
-                    lsp_types::Position::new(0, 5),
-                ),
-                new_text: "goodbye".into(),
-            }],
-        );
+        let edits = vec![lsp_types::TextEdit {
+            range: lsp_types::Range::new(
+                lsp_types::Position::new(0, 0),
+                lsp_types::Position::new(0, 5),
+            ),
+            new_text: "goodbye".into(),
+        }];
         let edit = lsp_types::WorkspaceEdit {
-            changes: Some(changes),
+            changes: Some(
+                std::iter::once(("file:///a.rs".parse::<lsp_types::Uri>().unwrap(), edits))
+                    .collect(),
+            ),
             document_changes: None,
             change_annotations: None,
         };

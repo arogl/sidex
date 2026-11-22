@@ -1325,7 +1325,7 @@ Host *.example.com
     #[test]
     fn pool_creation() {
         let pool = SshConnectionPool::new(300);
-        assert_eq!(pool.max_idle, Duration::from_secs(300));
+        assert_eq!(pool.max_idle, Duration::from_mins(5));
     }
 
     // -----------------------------------------------------------------------

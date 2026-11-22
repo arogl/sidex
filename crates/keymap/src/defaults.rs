@@ -998,12 +998,12 @@ mod tests {
             .collect();
         for i in 0..no_when.len() {
             for j in (i + 1)..no_when.len() {
-                if no_when[i].key == no_when[j].key && no_when[i].command == no_when[j].command {
-                    panic!(
-                        "duplicate binding without when clause: {} -> {}",
-                        no_when[i].key, no_when[i].command
-                    );
-                }
+                assert!(
+                    !(no_when[i].key == no_when[j].key && no_when[i].command == no_when[j].command),
+                    "duplicate binding without when clause: {} -> {}",
+                    no_when[i].key,
+                    no_when[i].command
+                );
             }
         }
     }

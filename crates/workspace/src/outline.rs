@@ -370,113 +370,62 @@ fn find_breadcrumb_path(sym: &DocumentSymbol, target: &str, path: &mut Vec<Strin
 mod tests {
     use super::*;
 
+    fn range(start_line: u32, start_char: u32, end_line: u32, end_char: u32) -> Range {
+        Range {
+            start: Position {
+                line: start_line,
+                character: start_char,
+            },
+            end: Position {
+                line: end_line,
+                character: end_char,
+            },
+        }
+    }
+
+    fn symbol(
+        (name, detail, kind): (&str, Option<&str>, SymbolKind),
+        range: Range,
+        selection_range: Range,
+        children: Vec<DocumentSymbol>,
+    ) -> DocumentSymbol {
+        DocumentSymbol {
+            name: name.into(),
+            detail: detail.map(Into::into),
+            kind,
+            range,
+            selection_range,
+            children,
+        }
+    }
+
     fn sample_symbols() -> Vec<DocumentSymbol> {
         vec![
-            DocumentSymbol {
-                name: "MyStruct".into(),
-                detail: None,
-                kind: SymbolKind::Struct,
-                range: Range {
-                    start: Position {
-                        line: 0,
-                        character: 0,
-                    },
-                    end: Position {
-                        line: 20,
-                        character: 0,
-                    },
-                },
-                selection_range: Range {
-                    start: Position {
-                        line: 0,
-                        character: 4,
-                    },
-                    end: Position {
-                        line: 0,
-                        character: 12,
-                    },
-                },
-                children: vec![
-                    DocumentSymbol {
-                        name: "new".into(),
-                        detail: Some("fn() -> Self".into()),
-                        kind: SymbolKind::Method,
-                        range: Range {
-                            start: Position {
-                                line: 2,
-                                character: 0,
-                            },
-                            end: Position {
-                                line: 5,
-                                character: 0,
-                            },
-                        },
-                        selection_range: Range {
-                            start: Position {
-                                line: 2,
-                                character: 7,
-                            },
-                            end: Position {
-                                line: 2,
-                                character: 10,
-                            },
-                        },
-                        children: vec![],
-                    },
-                    DocumentSymbol {
-                        name: "process".into(),
-                        detail: Some("fn(&self)".into()),
-                        kind: SymbolKind::Method,
-                        range: Range {
-                            start: Position {
-                                line: 7,
-                                character: 0,
-                            },
-                            end: Position {
-                                line: 15,
-                                character: 0,
-                            },
-                        },
-                        selection_range: Range {
-                            start: Position {
-                                line: 7,
-                                character: 7,
-                            },
-                            end: Position {
-                                line: 7,
-                                character: 14,
-                            },
-                        },
-                        children: vec![],
-                    },
+            symbol(
+                ("MyStruct", None, SymbolKind::Struct),
+                range(0, 0, 20, 0),
+                range(0, 4, 0, 12),
+                vec![
+                    symbol(
+                        ("new", Some("fn() -> Self"), SymbolKind::Method),
+                        range(2, 0, 5, 0),
+                        range(2, 7, 2, 10),
+                        vec![],
+                    ),
+                    symbol(
+                        ("process", Some("fn(&self)"), SymbolKind::Method),
+                        range(7, 0, 15, 0),
+                        range(7, 7, 7, 14),
+                        vec![],
+                    ),
                 ],
-            },
-            DocumentSymbol {
-                name: "main".into(),
-                detail: None,
-                kind: SymbolKind::Function,
-                range: Range {
-                    start: Position {
-                        line: 22,
-                        character: 0,
-                    },
-                    end: Position {
-                        line: 30,
-                        character: 0,
-                    },
-                },
-                selection_range: Range {
-                    start: Position {
-                        line: 22,
-                        character: 3,
-                    },
-                    end: Position {
-                        line: 22,
-                        character: 7,
-                    },
-                },
-                children: vec![],
-            },
+            ),
+            symbol(
+                ("main", None, SymbolKind::Function),
+                range(22, 0, 30, 0),
+                range(22, 3, 22, 7),
+                vec![],
+            ),
         ]
     }
 

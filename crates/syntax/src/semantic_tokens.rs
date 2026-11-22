@@ -725,7 +725,8 @@ mod tests {
             .token_types
             .iter()
             .position(|t| t == "function")
-            .unwrap() as u32;
+            .unwrap();
+        let func_idx = u32::try_from(func_idx).unwrap();
         let semantic = vec![SemanticToken {
             line: 0,
             start: 0,
