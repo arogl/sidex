@@ -1003,8 +1003,8 @@ mod tests {
     #[test]
     fn highlight_config_capture_names() {
         let config = rust_config_with_query(
-            r#"(line_comment) @comment
-(string_literal) @string"#,
+            r"(line_comment) @comment
+(string_literal) @string",
         );
         assert!(config.capture_names().contains(&"comment".to_string()));
         assert!(config.capture_names().contains(&"string".to_string()));
@@ -1048,7 +1048,9 @@ mod tests {
         let config = rust_config_with_query("(line_comment) @comment");
         let source = "let x = 1;\n// second\nlet y = 2;\n";
         let mut hl = Highlighter::new();
-        let events = hl.highlight(&config, source, Some(&[11..21])).unwrap();
+        let events = hl
+            .highlight(&config, source, Some(std::slice::from_ref(&(11..21))))
+            .unwrap();
 
         let has_comment = events
             .iter()

@@ -1006,7 +1006,7 @@ mod tests {
     fn builtin_unique_names() {
         let configs = builtin_language_configs();
         let mut names: Vec<&str> = configs.iter().map(|c| c.name.as_str()).collect();
-        names.sort();
+        names.sort_unstable();
         names.dedup();
         assert_eq!(
             names.len(),

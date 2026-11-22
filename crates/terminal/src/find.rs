@@ -193,10 +193,13 @@ mod tests {
 
     fn grid_with(lines: &[&str]) -> TerminalGrid {
         let cols = lines.iter().map(|l| l.len()).max().unwrap_or(20).max(20);
-        let mut g = TerminalGrid::new(lines.len().max(4) as u16, cols as u16);
+        let mut g = TerminalGrid::new(
+            u16::try_from(lines.len().max(4)).unwrap(),
+            u16::try_from(cols).unwrap(),
+        );
         let t = Cell::default();
         for (i, l) in lines.iter().enumerate() {
-            g.set_cursor(i as u16, 0);
+            g.set_cursor(u16::try_from(i).unwrap(), 0);
             l.chars().for_each(|ch| g.write_char(ch, &t));
         }
         g

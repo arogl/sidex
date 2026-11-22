@@ -590,7 +590,7 @@ mod tests {
     #[test]
     fn fuzzy_empty_pattern() {
         let s = fuzzy_score("", "hello").unwrap();
-        assert_eq!(s, 0.0);
+        assert!(s.abs() < f64::EPSILON);
     }
 
     #[test]

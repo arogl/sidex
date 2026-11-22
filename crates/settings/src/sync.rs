@@ -769,7 +769,7 @@ mod tests {
 
         let result = sync.import(&remote, &mut provider).unwrap();
         assert_eq!(result.resources_synced.len(), 1);
-        assert!(provider.data.get(&SyncResource::Keybindings).is_none());
+        assert!(!provider.data.contains_key(&SyncResource::Keybindings));
     }
 
     #[test]

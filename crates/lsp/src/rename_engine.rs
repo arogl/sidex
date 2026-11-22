@@ -432,19 +432,17 @@ mod tests {
 
     #[test]
     fn convert_workspace_edit_from_changes() {
-        let mut raw_changes = HashMap::new();
-        raw_changes.insert(
-            "file:///test.rs".parse::<Uri>().unwrap(),
-            vec![lsp_types::TextEdit {
-                range: lsp_types::Range::new(
-                    lsp_types::Position::new(1, 0),
-                    lsp_types::Position::new(1, 5),
-                ),
-                new_text: "new_name".into(),
-            }],
-        );
+        let edits = vec![lsp_types::TextEdit {
+            range: lsp_types::Range::new(
+                lsp_types::Position::new(1, 0),
+                lsp_types::Position::new(1, 5),
+            ),
+            new_text: "new_name".into(),
+        }];
         let lsp_edit = lsp_types::WorkspaceEdit {
-            changes: Some(raw_changes),
+            changes: Some(
+                std::iter::once(("file:///test.rs".parse::<Uri>().unwrap(), edits)).collect(),
+            ),
             document_changes: None,
             change_annotations: None,
         };

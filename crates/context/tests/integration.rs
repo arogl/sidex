@@ -21,7 +21,7 @@ fn sidex_agent_dir() -> std::path::PathBuf {
 #[test]
 fn index_sidex_agent_crate() {
     let dir = sidex_agent_dir();
-    assert!(dir.exists(), "sidex-agent crate must exist at {:?}", dir);
+    assert!(dir.exists(), "sidex-agent crate must exist at {dir:?}");
 
     let chunks = chunk_directory(&dir, &dir).unwrap();
     let files: HashSet<&str> = chunks.iter().map(|c| c.file_path.as_str()).collect();

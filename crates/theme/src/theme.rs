@@ -232,21 +232,21 @@ mod tests {
 
     #[test]
     fn theme_kind_default_is_dark() {
-        let json = r##"{ "name": "Bare" }"##;
+        let json = r#"{ "name": "Bare" }"#;
         let theme = Theme::from_json(json).unwrap();
         assert_eq!(theme.kind, ThemeKind::Dark);
     }
 
     #[test]
     fn theme_kind_light() {
-        let json = r##"{ "name": "L", "type": "light" }"##;
+        let json = r#"{ "name": "L", "type": "light" }"#;
         let theme = Theme::from_json(json).unwrap();
         assert_eq!(theme.kind, ThemeKind::Light);
     }
 
     #[test]
     fn theme_kind_hc() {
-        let json = r##"{ "name": "HC", "type": "hc" }"##;
+        let json = r#"{ "name": "HC", "type": "hc" }"#;
         let theme = Theme::from_json(json).unwrap();
         assert_eq!(theme.kind, ThemeKind::HighContrast);
     }

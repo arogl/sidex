@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn parse_simple_makefile() {
-        let makefile = r#"
+        let makefile = r"
 CC=gcc
 CFLAGS=-Wall
 
@@ -117,7 +117,7 @@ test: all
 	./run_tests.sh
 
 .PHONY: all clean test
-"#;
+";
         let tasks = parse_makefile(makefile).unwrap();
         assert!(tasks.iter().any(|t| t.name == "make: all"));
         assert!(tasks.iter().any(|t| t.name == "make: clean"));

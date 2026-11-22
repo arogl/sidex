@@ -486,7 +486,7 @@ mod tests {
             hints: 0,
         };
         let text = counts.icon_status_text();
-        assert!(text.contains("3"));
+        assert!(text.contains('3'));
         assert!(text.contains("12"));
     }
 
