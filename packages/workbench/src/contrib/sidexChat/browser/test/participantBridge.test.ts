@@ -227,7 +227,7 @@ describe('inline references', () => {
 			])
 		).toEqual([
 			{ type: 'text', content: 'Created ' },
-			{ type: 'text', content: '`text.txt`' },
+			{ type: 'text', content: '[text.txt](file:///e:/Git/app/text.txt)' },
 			{ type: 'text', content: ' in the workspace root.' }
 		]);
 	});

@@ -707,7 +707,13 @@ export class SidexChatViewPane extends ViewPane {
 					this.languageService,
 					this.modelService,
 					() => this.chatService.retryLastReply(),
-					vote => this.chatService.setReplyVote(i, vote)
+					vote => this.chatService.setReplyVote(i, vote),
+					href => {
+						// A `file:` link carries the line as #L12, which the editor opener understands.
+						this.openerService.open(URI.parse(href), { fromUserGesture: true }).then(undefined, () => {
+							/* ignore */
+						});
+					}
 				);
 				comp.appendTo(this._messagesEl);
 				this._viewDisposables.add(comp);

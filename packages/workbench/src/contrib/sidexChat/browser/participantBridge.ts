@@ -132,7 +132,8 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 				// A file or symbol mentioned inside the text; without this the name would be missing from the sentence.
 				const label = inlineReferenceLabel(part['inlineReference'], part['name']);
 				if (label) {
-					chunks.push({ type: 'text', content: `\`${label}\`` });
+					const link = inlineReferenceLink(part['inlineReference']);
+					chunks.push({ type: 'text', content: link ? `[${label.replace(/[[\]]/g, '')}](${link})` : `\`${label}\`` });
 				}
 				break;
 			}
@@ -302,6 +303,41 @@ export function inlineReferenceLabel(reference: unknown, name: unknown): string 
 		return ref.name;
 	}
 	return lastSegment(ref.path) || lastSegment(ref.uri?.path) || lastSegment(ref.location?.uri?.path);
+}
+
+/**
+ * A `file:` link for an inline reference, with `#L<line>` when it points at a line, so clicking it opens the file
+ * there. Undefined for anything that is not a local file, which stays plain text.
+ */
+export function inlineReferenceLink(reference: unknown): string | undefined {
+	const ref = reference as
+		| {
+				path?: unknown;
+				scheme?: unknown;
+				uri?: { path?: unknown; scheme?: unknown };
+				range?: { startLineNumber?: unknown };
+				location?: { uri?: { path?: unknown; scheme?: unknown }; range?: { startLineNumber?: unknown } };
+		  }
+		| undefined;
+	if (!ref) {
+		return undefined;
+	}
+	const target = ref.location?.uri ?? ref.uri ?? ref;
+	const scheme = target.scheme;
+	const rawPath = target.path;
+	if (typeof rawPath !== 'string' || !rawPath || (scheme !== undefined && scheme !== 'file')) {
+		return undefined;
+	}
+	let path = rawPath.replace(/\\/g, '/');
+	if (/^[a-zA-Z]:\//.test(path)) {
+		path = `/${path}`;
+	} else if (!path.startsWith('/')) {
+		return undefined;
+	}
+	// Parentheses would end the markdown link early.
+	const encoded = encodeURI(path).replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/#/g, '%23');
+	const line = ref.location?.range?.startLineNumber ?? ref.range?.startLineNumber;
+	return `file://${encoded}${typeof line === 'number' && line > 0 ? `#L${line}` : ''}`;
 }
 
 /**
