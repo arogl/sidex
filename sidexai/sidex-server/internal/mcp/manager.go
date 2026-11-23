@@ -42,7 +42,7 @@ type MCPManager struct {
 
 	// ElicitHandler is called when an MCP server requests user input.
 	// Set this before using servers that may require elicitation.
-	ElicitHandler ElicitationHandler
+	ElicitHandler ElicitationHandler `json:"-"`
 }
 
 // NewManager creates an empty MCPManager.
