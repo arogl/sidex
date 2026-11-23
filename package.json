@@ -18,6 +18,7 @@
     "setup": "bun run packages/build/src/extension-meta/cli.ts",
     "setup:full": "bash scripts/setup-extensions.sh && bun run packages/build/src/extension-meta/cli.ts",
     "build:ext-host": "node scripts/ext-host/build.mjs",
+    "build:node": "node scripts/ext-host/stage-node.mjs",
     "build:wasm": "bun run packages/build/src/wasm/build.ts",
     "build:wasm:test": "bun run packages/build/src/wasm/build-test-fixture.ts",
     "server:build": "node scripts/build-server.mjs --dev",

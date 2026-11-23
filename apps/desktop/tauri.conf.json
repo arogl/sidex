@@ -50,6 +50,7 @@
     "resources": [
       "extension-host/**/*",
       "server/*",
+      "node/**/*",
       "shell-integration/*"
     ],
     "icon": [

@@ -153,3 +153,7 @@ apps/desktop/extension-host/real-host.cjs
 # Built agent server (bun run build:server)
 apps/desktop/server/sidex-server
 apps/desktop/server/sidex-server.exe
+
+# Bundled Node runtime (bun run build:node)
+apps/desktop/node/node.exe
+apps/desktop/node/bin/
