@@ -24,14 +24,14 @@ type QuotaWindow struct {
 
 // ExtraCredits is the optional pay-as-you-go pool on a Claude/Codex plan.
 type ExtraCredits struct {
-	Enabled     bool    `json:"enabled"`
-	Used        float64 `json:"used"`
-	Limit       float64 `json:"limit"`
-	UsedPercent float64 `json:"usedPercent"`
-	Balance           string  `json:"balance,omitempty"`
-	Currency          string  `json:"currency,omitempty"`
-	CreditsRemaining  float64 `json:"creditsRemaining,omitempty"`
-	UsdRemaining      float64 `json:"usdRemaining,omitempty"`
+	Enabled          bool    `json:"enabled"`
+	Used             float64 `json:"used"`
+	Limit            float64 `json:"limit"`
+	UsedPercent      float64 `json:"usedPercent"`
+	Balance          string  `json:"balance,omitempty"`
+	Currency         string  `json:"currency,omitempty"`
+	CreditsRemaining float64 `json:"creditsRemaining,omitempty"`
+	UsdRemaining     float64 `json:"usdRemaining,omitempty"`
 }
 
 // SubscriptionQuota is live plan usage from the provider, not SideX's local token log.

@@ -1,0 +1,7 @@
+version: "2"
+
+# golangci-lint's default linters (errcheck, govet, ineffassign, staticcheck, unused) plus the
+# formatter check. No findings are excluded.
+formatters:
+  enable:
+    - gofmt

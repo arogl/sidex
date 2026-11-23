@@ -1,0 +1,88 @@
+name: Lint Go
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/lint-go.yml"
+      - "sidexai/sidex-server/**"
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: lint-go-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect Go changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          go=true  # fail open: any error below leaves the Go jobs running
+          if [ -n "$BASE_SHA" ] && git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+            if files=$(git diff --name-only "$BASE_SHA" HEAD); then
+              if echo "$files" | grep -qE '^(\.github/workflows/lint-go\.yml|sidexai/sidex-server/)'; then
+                go=true
+              else
+                go=false
+              fi
+            fi
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+          echo "Go changes: $go"
+
+  golangci-lint:
+    name: golangci-lint
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: sidexai/sidex-server/go.mod
+          cache-dependency-path: sidexai/sidex-server/go.sum
+
+      - name: golangci-lint (lint and gofmt)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          working-directory: sidexai/sidex-server
+          args: --build-tags fts5
+
+  test:
+    name: Go test
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: sidexai/sidex-server/go.mod
+          cache-dependency-path: sidexai/sidex-server/go.sum
+
+      - name: go test
+        working-directory: sidexai/sidex-server
+        run: go test -tags fts5 ./...
