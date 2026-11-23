@@ -1059,10 +1059,20 @@ export class ChatInput extends Component {
 		}
 
 		this._mentionTracking = { active: true, startPos: atIndex };
-		this._debouncedSearch(query);
+		// Participants only route at the start of a message, so only offer them there.
+		const participants: MentionItem[] =
+			atIndex === 0
+				? this._chatService.getParticipants(query).map(p => ({
+						type: 'participant' as const,
+						label: p.name,
+						detail: p.description,
+						iconClass: 'codicon-mention'
+					}))
+				: [];
+		this._debouncedSearch(query, false, participants);
 	}
 
-	private _debouncedSearch(query: string, variables = false): void {
+	private _debouncedSearch(query: string, variables = false, leading: MentionItem[] = []): void {
 		if (this._debounceTimer) {
 			clearTimeout(this._debounceTimer);
 		}
@@ -1076,7 +1086,7 @@ export class ChatInput extends Component {
 				}
 
 				const anchorRect = this._getCaretRect();
-				this._mentionPopup.show(suggestions, anchorRect);
+				this._mentionPopup.show([...leading, ...suggestions], anchorRect);
 			} catch {
 				this._mentionPopup.hide();
 			}
@@ -1114,6 +1124,12 @@ export class ChatInput extends Component {
 		const before = value.substring(0, this._mentionTracking.startPos);
 		const after = value.substring(cursorPos);
 
+		// `@participant` goes into the text as typed; the `/command` popup follows.
+		if (item.type === 'participant') {
+			this._setTextAround(before, `@${item.label} `, after);
+			this._handleMentionInput();
+			return;
+		}
 		// `/command` goes into the text, followed by a space, and the message is sent to the participant.
 		if (item.type === 'command') {
 			this._setTextAround(before, `/${item.label} `, after);
