@@ -225,9 +225,13 @@ fn free_port() -> Result<u16, String> {
 /// `tauri dev` working without an install step.
 fn find_server_binary(app: &AppHandle) -> Option<PathBuf> {
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let bundled = resource_dir.join(SERVER_BIN);
-        if bundled.is_file() {
-            return Some(bundled);
+        for bundled in [
+            resource_dir.join("server").join(SERVER_BIN),
+            resource_dir.join(SERVER_BIN),
+        ] {
+            if bundled.is_file() {
+                return Some(bundled);
+            }
         }
     }
 
