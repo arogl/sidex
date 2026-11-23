@@ -52,6 +52,7 @@ import {
 import { editDiffResources } from './editReviewUris.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
+import { filterEnabledModels, parseEnabledModels } from './modelFilter.js';
 import {
 	buildParticipantHistory,
 	findParticipant,
@@ -3055,10 +3056,11 @@ ${prompt}`,
 				}
 			}
 
-			// The server list is live from each connected provider (Claude,
-			// Codex, Ollama, …). Do not filter it down to a hardcoded ID
-			// allowlist — that hides new snapshots the moment a provider
-			// ships them. Custom IDs the user typed are already merged above.
+			// The server list is live from each connected provider (Claude, Codex, Ollama, …), so there is no
+			// hardcoded ID allowlist; what narrows it is the user's own on/off list below.
+			// The picker shows the models switched on in Settings -> Models, not everything a provider serves
+			// (a gateway can list dozens). With nothing saved yet, everything stays.
+			models = filterEnabledModels(models, parseEnabledModels(enabledRaw));
 			this._serverModels = models;
 			this._availableModels = mergePickerModels(this._serverModels, this._participantModels);
 			this._onDidChangeModels.fire(this._availableModels);
