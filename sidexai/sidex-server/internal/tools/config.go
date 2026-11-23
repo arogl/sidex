@@ -43,7 +43,7 @@ func (r *Registry) config(args map[string]interface{}) ExecutionResult {
 			return ExecutionResult{Output: fmt.Sprintf("%s: (not set)", key)}
 		}
 		var cfg map[string]interface{}
-		json.Unmarshal(data, &cfg)
+		_ = json.Unmarshal(data, &cfg)
 		v, ok := cfg[key]
 		if !ok {
 			return ExecutionResult{Output: fmt.Sprintf("%s: (not set)", key)}
@@ -55,13 +55,13 @@ func (r *Registry) config(args map[string]interface{}) ExecutionResult {
 		value := str(args, "value")
 		var cfg map[string]interface{}
 		if data, err := os.ReadFile(configPath); err == nil {
-			json.Unmarshal(data, &cfg)
+			_ = json.Unmarshal(data, &cfg)
 		}
 		if cfg == nil {
 			cfg = make(map[string]interface{})
 		}
 		cfg[key] = value
-		os.MkdirAll(filepath.Dir(configPath), 0755)
+		_ = os.MkdirAll(filepath.Dir(configPath), 0755)
 		data, _ := json.MarshalIndent(cfg, "", "  ")
 		if err := os.WriteFile(configPath, data, 0644); err != nil {
 			return ExecutionResult{Error: err.Error()}

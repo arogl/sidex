@@ -266,9 +266,9 @@ func TestStreamAnthropicHTTPContract(t *testing.T) {
 				_ = json.NewDecoder(r.Body).Decode(&gotBody)
 
 				w.Header().Set("Content-Type", "text/event-stream")
-				fmt.Fprint(w, "data: {\"type\":\"content_block_delta\",\"index\":0,"+
+				_, _ = fmt.Fprint(w, "data: {\"type\":\"content_block_delta\",\"index\":0,"+
 					"\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n")
-				fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n")
+				_, _ = fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n")
 			}))
 			defer srv.Close()
 
@@ -402,7 +402,7 @@ func TestOAuthDropsMCPManagementTools(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n")
+		_, _ = fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n")
 	}))
 	defer srv.Close()
 
@@ -444,7 +444,7 @@ func TestAPIKeyKeepsMCPManagementTools(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n")
+		_, _ = fmt.Fprint(w, "data: {\"type\":\"message_stop\"}\n")
 	}))
 	defer srv.Close()
 

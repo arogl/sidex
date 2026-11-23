@@ -63,7 +63,7 @@ func (m *MCPManager) AddServer(name, command string, args, env []string) error {
 
 	tools, err := client.ListTools()
 	if err != nil {
-		client.Close()
+		_ = client.Close()
 		return fmt.Errorf("mcp manager: list tools from %q: %w", name, err)
 	}
 
@@ -96,7 +96,7 @@ func (m *MCPManager) AddHTTPServer(name string, cfg HTTPClientConfig, lazy bool)
 
 	tools, err := client.ListTools()
 	if err != nil {
-		client.Close()
+		_ = client.Close()
 		return fmt.Errorf("mcp manager: list tools from http %q: %w", name, err)
 	}
 
@@ -127,7 +127,7 @@ func (m *MCPManager) AddHTTPServer(name string, cfg HTTPClientConfig, lazy bool)
 // removeServerLocked removes an existing server entry (must hold write lock).
 func (m *MCPManager) removeServerLocked(name string) {
 	if old, exists := m.clients[name]; exists {
-		old.Close()
+		_ = old.Close()
 		for toolName, ref := range m.tools {
 			if ref.ServerName == name {
 				delete(m.tools, toolName)

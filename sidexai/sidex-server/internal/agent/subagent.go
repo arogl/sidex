@@ -83,11 +83,11 @@ func HandleSpawnAgents(conn Conn, parentCWD string, tc ai.ToolCall, aiClient *ai
 	})
 
 	var summary strings.Builder
-	summary.WriteString(fmt.Sprintf("=== %d Subagent Results ===\n\n", len(results)))
+	fmt.Fprintf(&summary, "=== %d Subagent Results ===\n\n", len(results))
 	for _, r := range results {
-		summary.WriteString(fmt.Sprintf("--- [%s] %s ---\n", r.ID, r.Description))
+		fmt.Fprintf(&summary, "--- [%s] %s ---\n", r.ID, r.Description)
 		if r.Error != "" {
-			summary.WriteString(fmt.Sprintf("ERROR: %s\n", r.Error))
+			fmt.Fprintf(&summary, "ERROR: %s\n", r.Error)
 		} else {
 			out := r.Output
 			if len(out) > 2000 {
@@ -95,7 +95,7 @@ func HandleSpawnAgents(conn Conn, parentCWD string, tc ai.ToolCall, aiClient *ai
 			}
 			summary.WriteString(out)
 		}
-		summary.WriteString(fmt.Sprintf("\n(tools: %d, turns: %d)\n\n", r.ToolCalls, r.Turns))
+		fmt.Fprintf(&summary, "\n(tools: %d, turns: %d)\n\n", r.ToolCalls, r.Turns)
 	}
 
 	return summary.String()
@@ -364,13 +364,13 @@ func HandleAgentStatus(tc ai.ToolCall, activeAgents map[string]*ActiveSubAgent) 
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%d subagent(s):\n", len(activeAgents)))
+	fmt.Fprintf(&sb, "%d subagent(s):\n", len(activeAgents))
 	for id, agent := range activeAgents {
 		status := "idle"
 		if agent.Done {
 			status = "done"
 		}
-		sb.WriteString(fmt.Sprintf("  [%s] %s (type=%s, status=%s)\n", id, agent.Task.Description, agent.Task.Type, status))
+		fmt.Fprintf(&sb, "  [%s] %s (type=%s, status=%s)\n", id, agent.Task.Description, agent.Task.Type, status)
 	}
 	return sb.String()
 }

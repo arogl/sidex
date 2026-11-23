@@ -179,7 +179,7 @@ func (r *Registry) mcpConnect(args map[string]interface{}) ExecutionResult {
 		},
 	})
 	if err != nil {
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return ExecutionResult{Error: "mcp_connect: initialize: " + err.Error()}
 	}
 
@@ -189,7 +189,7 @@ func (r *Registry) mcpConnect(args map[string]interface{}) ExecutionResult {
 	// List available tools.
 	toolsResult, err := conn.call("tools/list", nil)
 	if err != nil {
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return ExecutionResult{Error: "mcp_connect: tools/list: " + err.Error()}
 	}
 
@@ -197,7 +197,7 @@ func (r *Registry) mcpConnect(args map[string]interface{}) ExecutionResult {
 		Tools []mcpToolDef `json:"tools"`
 	}
 	if err := json.Unmarshal(toolsResult, &toolsResp); err != nil {
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return ExecutionResult{Error: "mcp_connect: parse tools: " + err.Error()}
 	}
 	conn.tools = toolsResp.Tools
@@ -234,9 +234,9 @@ func (r *Registry) mcpListTools(args map[string]interface{}) ExecutionResult {
 
 	var sb strings.Builder
 	for name, conn := range conns {
-		sb.WriteString(fmt.Sprintf("## Server: %s (%d tools)\n", name, len(conn.tools)))
+		fmt.Fprintf(&sb, "## Server: %s (%d tools)\n", name, len(conn.tools))
 		for _, t := range conn.tools {
-			sb.WriteString(fmt.Sprintf("  - %s: %s\n", t.Name, t.Description))
+			fmt.Fprintf(&sb, "  - %s: %s\n", t.Name, t.Description)
 		}
 		sb.WriteString("\n")
 	}
@@ -377,9 +377,9 @@ func (c *mcpStdioConn) close() {
 	defer c.mu.Unlock()
 
 	c.alive = false
-	c.stdin.Close()
+	_ = c.stdin.Close()
 	if c.cmd.Process != nil {
-		c.cmd.Process.Kill()
+		_ = c.cmd.Process.Kill()
 	}
 	c.cmd.Wait() //nolint:errcheck
 }

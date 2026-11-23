@@ -289,14 +289,14 @@ func (r *Registry) contextSearchFallback(args map[string]interface{}) ExecutionR
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Found %d results for: %s\n\n", len(results), query))
+	fmt.Fprintf(&sb, "Found %d results for: %s\n\n", len(results), query)
 	included := 0
 	for i, res := range results {
 		var entry strings.Builder
-		entry.WriteString(fmt.Sprintf("--- Result %d (score: %.2f) ---\n", i+1, res.Score))
-		entry.WriteString(fmt.Sprintf("File: %s:%d-%d", res.File, res.StartLine, res.EndLine))
+		fmt.Fprintf(&entry, "--- Result %d (score: %.2f) ---\n", i+1, res.Score)
+		fmt.Fprintf(&entry, "File: %s:%d-%d", res.File, res.StartLine, res.EndLine)
 		if res.Symbol != "" {
-			entry.WriteString(fmt.Sprintf(" (%s)", res.Symbol))
+			fmt.Fprintf(&entry, " (%s)", res.Symbol)
 		}
 		entry.WriteString("\n")
 		if res.Snippet != "" {
@@ -308,9 +308,9 @@ func (r *Registry) contextSearchFallback(args map[string]interface{}) ExecutionR
 		if sb.Len()+entry.Len() > budgetChars {
 			// Budget spent: lower-ranked results are dropped, not truncated
 			// mid-snippet. Tell the model what was omitted.
-			sb.WriteString(fmt.Sprintf(
+			fmt.Fprintf(&sb,
 				"[%d more results omitted by the %d-token budget — refine the query or raise `budget` to see them]\n",
-				len(results)-included, budgetTokens))
+				len(results)-included, budgetTokens)
 			break
 		}
 		sb.WriteString(entry.String())

@@ -146,7 +146,7 @@ func (e *Embedder) embedVoyageBatch(texts []string, inputType string) ([][]float
 			}
 
 			respBody, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if err != nil {
 				lastErr = err
 				continue

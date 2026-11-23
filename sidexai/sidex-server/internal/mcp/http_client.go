@@ -87,7 +87,7 @@ func (c *HTTPClient) initialize() error {
 		SessionID string `json:"sessionId"`
 	}
 	if resp.Result != nil {
-		json.Unmarshal(resp.Result, &initResult)
+		_ = json.Unmarshal(resp.Result, &initResult)
 	}
 	if initResult.SessionID != "" {
 		c.sessionID = initResult.SessionID
@@ -138,7 +138,7 @@ func (c *HTTPClient) sendRequest(ctx context.Context, method string, params inte
 	if err != nil {
 		return nil, fmt.Errorf("mcp http: request failed: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	if httpResp.StatusCode == http.StatusUnauthorized {
 		return nil, fmt.Errorf("mcp http: authentication failed (401)")
@@ -255,7 +255,7 @@ func (c *HTTPClient) sendNotification(ctx context.Context, method string, params
 	if err != nil {
 		return nil, err
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	return resp, nil
 }
 
@@ -351,7 +351,7 @@ func (c *HTTPClient) Close() error {
 			c.setAuth(req)
 			resp, err := c.httpClient.Do(req)
 			if err == nil {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 		}
 	}

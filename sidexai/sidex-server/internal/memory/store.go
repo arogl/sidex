@@ -56,7 +56,7 @@ func NewBoltStore(path string) (*Store, error) {
 		return nil
 	})
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 
@@ -92,7 +92,7 @@ func (s *Store) GetMemory(id string) (*MemoryEntry, error) {
 		return nil, err
 	}
 
-	s.db.Update(func(tx *bolt.Tx) error {
+	_ = s.db.Update(func(tx *bolt.Tx) error {
 		entry.AccessCnt++
 		b := tx.Bucket(bucketMemory)
 		data, _ := json.Marshal(entry)

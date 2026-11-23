@@ -62,7 +62,7 @@ func NewService(dbPath string) (*Service, error) {
 	}
 
 	if err := migrate(db); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("usage: migration failed: %w", err)
 	}
 
@@ -137,7 +137,7 @@ func tableHasColumn(db *sql.DB, table, column string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		var cid int
 		var name, ctype string
@@ -240,7 +240,7 @@ func (s *Service) Record(record UsageRecord) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.Exec(
 		`INSERT INTO usage_records (id, user_id, session_id, model, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost, request_type, created_at)
@@ -357,7 +357,7 @@ func (s *Service) GetDailyBreakdown(userID string, days int) ([]DailyUsage, erro
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []DailyUsage
 	for rows.Next() {
@@ -382,7 +382,7 @@ func (s *Service) GetModelBreakdown(userID string, periodStart time.Time) ([]Mod
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var results []ModelUsage
 	for rows.Next() {

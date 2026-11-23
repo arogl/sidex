@@ -105,7 +105,7 @@ func (h *Handler) SaveAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"provider": req.Provider,
 		"status":   "saved",
 	})
@@ -121,7 +121,7 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 
 	if h.usageService == nil {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]APIKeyEntry{})
+		_ = json.NewEncoder(w).Encode([]APIKeyEntry{})
 		return
 	}
 
@@ -134,7 +134,7 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(`{"error":"query failed: %s"}`, err), http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []APIKeyEntry
 	for rows.Next() {
@@ -157,7 +157,7 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(entries)
+	_ = json.NewEncoder(w).Encode(entries)
 }
 
 // DeleteAPIKey removes a stored API key for a provider.

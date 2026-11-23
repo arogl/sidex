@@ -222,7 +222,6 @@ func runSingleAttempt(
 		}
 
 		if text != "" && !hadCalls {
-			messages = append(messages, ai.Message{Role: ai.RoleAssistant, Content: text})
 			lastText = text
 			break
 		}
@@ -351,14 +350,14 @@ func FormatComparison(results []BestOfNResult) string {
 		if !r.Success {
 			status = fmt.Sprintf("Failed (%s)", truncateError(r.Error, 40))
 		}
-		sb.WriteString(fmt.Sprintf("| %d | %s | %s | %s | $%.4f | %s |\n",
+		fmt.Fprintf(&sb, "| %d | %s | %s | %s | $%.4f | %s |\n",
 			i+1,
 			r.ModelName,
 			r.Duration.Round(time.Millisecond).String(),
 			formatTokens(r.TokensUsed),
 			r.Cost,
 			status,
-		))
+		)
 
 		if r.Success {
 			score := scoreResult(r)
@@ -373,8 +372,8 @@ func FormatComparison(results []BestOfNResult) string {
 
 	if bestScore >= 0 {
 		best := results[bestIdx]
-		sb.WriteString(fmt.Sprintf("**Recommendation:** %s produced the best result (completed in %s for $%.4f).\n\n",
-			best.ModelName, best.Duration.Round(time.Millisecond), best.Cost))
+		fmt.Fprintf(&sb, "**Recommendation:** %s produced the best result (completed in %s for $%.4f).\n\n",
+			best.ModelName, best.Duration.Round(time.Millisecond), best.Cost)
 
 		sb.WriteString("### Worktree branches\n\n")
 		for i, r := range results {
@@ -383,14 +382,14 @@ func FormatComparison(results []BestOfNResult) string {
 				if i == bestIdx {
 					action = "**recommended**"
 				}
-				sb.WriteString(fmt.Sprintf("- `%s` (%s) — %s\n", r.Branch, r.ModelName, action))
+				fmt.Fprintf(&sb, "- `%s` (%s) — %s\n", r.Branch, r.ModelName, action)
 			}
 		}
 
 		sb.WriteString("\n### Diffs\n\n")
 		for _, r := range results {
 			if r.Diff != "" {
-				sb.WriteString(fmt.Sprintf("<details><summary>%s diff</summary>\n\n```diff\n%s\n```\n\n</details>\n\n", r.ModelName, truncateDiff(r.Diff, 5000)))
+				fmt.Fprintf(&sb, "<details><summary>%s diff</summary>\n\n```diff\n%s\n```\n\n</details>\n\n", r.ModelName, truncateDiff(r.Diff, 5000))
 			}
 		}
 	} else {

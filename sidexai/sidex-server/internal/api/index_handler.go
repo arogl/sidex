@@ -93,7 +93,7 @@ func (h *IndexHandler) Sync(w http.ResponseWriter, r *http.Request) {
 	serverTree := h.svc.State().Get(storedNamespace)
 	if serverTree != nil && req.RootHash != "" && serverTree.RootHash() == req.RootHash {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(syncResponse{
+		_ = json.NewEncoder(w).Encode(syncResponse{
 			Indexed:  0,
 			Skipped:  len(files),
 			RootHash: serverTree.RootHash(),
@@ -131,7 +131,7 @@ func (h *IndexHandler) Sync(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(syncResponse{
+	_ = json.NewEncoder(w).Encode(syncResponse{
 		Indexed:  indexed,
 		Skipped:  skipped,
 		RootHash: clientTree.RootHash(),
@@ -182,7 +182,7 @@ func (h *IndexHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(searchResponseJSON{Results: out})
+	_ = json.NewEncoder(w).Encode(searchResponseJSON{Results: out})
 }
 
 // Status handles GET /v1/index/status — returns indexing status for a namespace.
@@ -201,7 +201,7 @@ func (h *IndexHandler) Status(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(statusResponse{
+	_ = json.NewEncoder(w).Encode(statusResponse{
 		Namespace:   namespace,
 		TotalChunks: state.GetChunks(storedNamespace),
 		LastSynced:  state.GetLastSynced(storedNamespace),
@@ -248,5 +248,5 @@ func (h *IndexHandler) RegisterRoutes(r *mux.Router) {
 func writeIndexError(w http.ResponseWriter, msg string, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }

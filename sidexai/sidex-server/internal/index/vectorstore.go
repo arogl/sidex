@@ -259,7 +259,7 @@ func (vs *VectorStore) doRequest(method, url string, body interface{}) ([]byte, 
 		}
 
 		respBody, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			lastErr = fmt.Errorf("turbopuffer: read response failed: %w", err)
 			continue

@@ -288,7 +288,7 @@ func (a *localExecAdapter) RunViaClient(tc ai.ToolCall) (string, string) {
 // --- HTTP handlers ---
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":  "ok",
 		"version": "0.5.0",
 		"model":   h.aiClient.Model(),
@@ -330,7 +330,7 @@ func (h *Handler) GetUsage(w http.ResponseWriter, r *http.Request) {
 	models, _ := h.usageService.GetModelBreakdown(userID, periodStart)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"summary":  summary,
 		"daily":    daily,
 		"by_model": models,
@@ -348,7 +348,7 @@ func (h *Handler) GetPlan(w http.ResponseWriter, r *http.Request) {
 	limits := plan.GetLimits(tier)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"tier":   string(tier),
 		"email":  user.Email,
 		"limits": limits,
@@ -363,7 +363,7 @@ func (h *Handler) GetPlan(w http.ResponseWriter, r *http.Request) {
 // nothing is configured or a live fetch fails.
 func (h *Handler) ListModels(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(reachableModels())
+	_ = json.NewEncoder(w).Encode(reachableModels())
 }
 
 func reachableModels() []cost.ModelInfo {
@@ -410,7 +410,7 @@ func reachableModels() []cost.ModelInfo {
 
 func (h *Handler) ListTools(w http.ResponseWriter, r *http.Request) {
 	reg := h.sm.Create(".").Tools
-	json.NewEncoder(w).Encode(reg.List())
+	_ = json.NewEncoder(w).Encode(reg.List())
 }
 
 func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
@@ -437,13 +437,14 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 	if currentMode == "" {
 		currentMode = agent.ModeAgent
 	}
-	if currentMode == agent.ModePlan {
+	switch currentMode {
+	case agent.ModePlan:
 		sysPrompt += agent.PlanModePromptSuffix()
-	} else if currentMode == agent.ModeAsk {
+	case agent.ModeAsk:
 		sysPrompt += agent.AskModePromptSuffix()
-	} else if currentMode == agent.ModeProactive {
+	case agent.ModeProactive:
 		sysPrompt += agent.ProactivePromptSuffix()
-	} else if currentMode == agent.ModeDebug {
+	case agent.ModeDebug:
 		if bugDesc, ok := agent.ParseDebug(req.Message); ok {
 			sysPrompt += agent.DebugModePromptSuffix(bugDesc)
 		}
@@ -461,7 +462,7 @@ func (h *Handler) Chat(w http.ResponseWriter, r *http.Request) {
 	sess.AddMessage(ai.Message{Role: ai.RoleAssistant, Content: fullResponse})
 	h.autoTitleAndSave(sess)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"session_id": sess.ID, "response": fullResponse})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"session_id": sess.ID, "response": fullResponse})
 }
 
 // --- WebSocket streaming handler ---
@@ -472,7 +473,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 		log.Printf("websocket upgrade failed: %v", err)
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	sc := &safeConn{conn: conn, broker: localexec.NewBroker(), permBroker: agent.NewPermissionBroker(), elicitBroker: newElicitationBroker(), authUser: auth.GetUser(r.Context()), flowTracker: context.NewFlowTracker()}
 
@@ -545,7 +546,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 				case "edit_reverted":
 					sc.feedbackTracker.RecordEditFeedback(frame.Tool, frame.Turn, false)
 				}
-				sc.feedbackTracker.Flush()
+				_ = sc.feedbackTracker.Flush()
 			}
 			continue
 		}
@@ -567,7 +568,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 			// truncate arbitrary transcripts by guessing session IDs.
 			if sess != nil && (frame.SessionID == "" || frame.SessionID == sess.ID) && frame.KeepUserMessages > 0 {
 				truncateAfterUserMessage(sess, frame.KeepUserMessages)
-				h.sm.SaveTranscript(sess)
+				_ = h.sm.SaveTranscript(sess)
 			}
 			continue
 		}
@@ -741,7 +742,7 @@ func (h *Handler) Stream(w http.ResponseWriter, r *http.Request) {
 	}
 	if sc.feedbackTracker != nil {
 		sc.feedbackTracker.RecordSessionEnd()
-		sc.feedbackTracker.Flush()
+		_ = sc.feedbackTracker.Flush()
 	}
 }
 
@@ -752,12 +753,12 @@ func (h *Handler) runAgentLoop(sc *safeConn, sess *session.Session, ctx *IDECont
 		if lastMsg.Role == ai.RoleUser {
 			if cfg, ok := agent.ParseBestOfN(lastMsg.Content); ok {
 				agent.RunBestOfN(cfg, sc, sess.CWD, h.aiClient, h.store, agent.DefaultConfig())
-				h.sm.SaveTranscript(sess)
+				_ = h.sm.SaveTranscript(sess)
 				return
 			}
 			if cfg, ok := agent.ParseMultitask(lastMsg.Content); ok {
 				agent.RunMultitask(cfg, sc, sess.CWD, h.aiClient, h.store, agent.DefaultConfig())
-				h.sm.SaveTranscript(sess)
+				_ = h.sm.SaveTranscript(sess)
 				return
 			}
 			if bugDesc, ok := agent.ParseDebug(lastMsg.Content); ok {
@@ -1188,11 +1189,12 @@ func (h *Handler) runAgentLoopWithAgents(sc *safeConn, sess *session.Session, ct
 						currentMode = newMode
 						sc.currentMode = newMode
 						toolDefs = agent.FilterToolDefs(agent.BuildToolDefs(sess.Tools), currentMode)
-						if currentMode == agent.ModePlan {
+						switch currentMode {
+						case agent.ModePlan:
 							sysPrompt = h.buildSystemPromptWithFlow(sess, ctx, sc.localExec, sc.flowTracker, sc.userInfo, sc.modelOverride) + agent.PlanModePromptSuffix()
-						} else if currentMode == agent.ModeAsk {
+						case agent.ModeAsk:
 							sysPrompt = h.buildSystemPromptWithFlow(sess, ctx, sc.localExec, sc.flowTracker, sc.userInfo, sc.modelOverride) + agent.AskModePromptSuffix()
-						} else {
+						default:
 							sysPrompt = h.buildSystemPromptWithFlow(sess, ctx, sc.localExec, sc.flowTracker, sc.userInfo, sc.modelOverride)
 						}
 						sc.WriteJSON(map[string]interface{}{"type": "mode_change", "mode": string(newMode)})
@@ -1257,7 +1259,7 @@ func (h *Handler) runAgentLoopWithAgents(sc *safeConn, sess *session.Session, ct
 			}
 
 			sc.WriteJSON(ai.StreamChunk{Type: "turn_complete"})
-			h.sm.SaveTranscript(sess)
+			_ = h.sm.SaveTranscript(sess)
 			continue
 		}
 
@@ -1300,7 +1302,7 @@ func (h *Handler) recordToolFeedback(tracker *feedback.Tracker, sess *session.Se
 		}
 		tracker.RecordToolOutcome(tc.Function.Name, taskContext, turn, errStr)
 	}
-	go tracker.Flush()
+	go func() { _ = tracker.Flush() }()
 }
 
 func isToolError(content string) bool {
@@ -1321,7 +1323,7 @@ func isToolError(content string) bool {
 func (h *Handler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	sessions := h.sm.ListForUser(currentUserID(r))
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sessions)
+	_ = json.NewEncoder(w).Encode(sessions)
 }
 
 func (h *Handler) GetSession(w http.ResponseWriter, r *http.Request) {
@@ -1332,7 +1334,7 @@ func (h *Handler) GetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sess)
+	_ = json.NewEncoder(w).Encode(sess)
 }
 
 func (h *Handler) DeleteSession(w http.ResponseWriter, r *http.Request) {
@@ -1365,7 +1367,7 @@ func (h *Handler) SearchMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	_ = json.NewEncoder(w).Encode(results)
 }
 
 func (h *Handler) SaveMemory(w http.ResponseWriter, r *http.Request) {
@@ -1385,7 +1387,7 @@ func (h *Handler) SaveMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(entry)
+	_ = json.NewEncoder(w).Encode(entry)
 }
 
 // checkPermAndMaybeDeny runs the permission gate for a tool call in the
@@ -1657,7 +1659,7 @@ func (h *Handler) autoTitleAndSave(sess *session.Session) {
 			}
 		}
 	}
-	h.sm.SaveTranscript(sess)
+	_ = h.sm.SaveTranscript(sess)
 }
 
 func (h *Handler) SetSessionTitle(w http.ResponseWriter, r *http.Request) {
@@ -1688,7 +1690,7 @@ func (h *Handler) SetSessionTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"id": id, "title": body.Title})
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "title": body.Title})
 }
 
 func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
@@ -1698,7 +1700,7 @@ func (h *Handler) ListTranscripts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(transcripts)
+	_ = json.NewEncoder(w).Encode(transcripts)
 }
 
 func (h *Handler) ResumeSession(w http.ResponseWriter, r *http.Request) {
@@ -1717,7 +1719,7 @@ func (h *Handler) ResumeSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sess)
+	_ = json.NewEncoder(w).Encode(sess)
 }
 
 // --- helpers ---

@@ -82,7 +82,7 @@ func SaveMemory(projectDir, key, value, category string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	_, err = f.WriteString(entry)
 	return err
@@ -147,12 +147,12 @@ func migrateMemory(legacyPath, newPath string) {
 	}
 
 	// Remove legacy file and empty parent dirs
-	os.Remove(legacyPath)
+	_ = os.Remove(legacyPath)
 	legacyDir := filepath.Dir(legacyPath)
-	os.Remove(legacyDir) // only succeeds if empty
+	_ = os.Remove(legacyDir) // only succeeds if empty
 	sidexDir := filepath.Dir(legacyDir)
 	entries, _ := os.ReadDir(sidexDir)
 	if len(entries) == 0 {
-		os.Remove(sidexDir)
+		_ = os.Remove(sidexDir)
 	}
 }

@@ -160,9 +160,9 @@ func (ft *FlowTracker) GetRecentEdits(limit int) string {
 	var b strings.Builder
 	for _, e := range edits {
 		elapsed := time.Since(e.Timestamp)
-		b.WriteString(fmt.Sprintf("- %s (%s ago)", e.FilePath, formatFlowDuration(elapsed)))
+		fmt.Fprintf(&b, "- %s (%s ago)", e.FilePath, formatFlowDuration(elapsed))
 		if line, ok := e.Metadata["line"]; ok {
-			b.WriteString(fmt.Sprintf(" L%s", line))
+			fmt.Fprintf(&b, " L%s", line)
 		}
 		b.WriteByte('\n')
 		if e.Content != "" {
@@ -201,11 +201,11 @@ func (ft *FlowTracker) formatEvent(e FlowEvent) string {
 
 	switch e.Type {
 	case "file_edit":
-		b.WriteString(fmt.Sprintf("- edited %s", e.FilePath))
+		fmt.Fprintf(&b, "- edited %s", e.FilePath)
 		if line, ok := e.Metadata["line"]; ok {
-			b.WriteString(fmt.Sprintf(":L%s", line))
+			fmt.Fprintf(&b, ":L%s", line)
 		}
-		b.WriteString(fmt.Sprintf(" (%s ago)\n", formatFlowDuration(elapsed)))
+		fmt.Fprintf(&b, " (%s ago)\n", formatFlowDuration(elapsed))
 		if e.Content != "" {
 			snippet := e.Content
 			if len(snippet) > 150 {
@@ -215,34 +215,34 @@ func (ft *FlowTracker) formatEvent(e FlowEvent) string {
 		}
 
 	case "file_open":
-		b.WriteString(fmt.Sprintf("- opened %s (%s ago)\n", e.FilePath, formatFlowDuration(elapsed)))
+		fmt.Fprintf(&b, "- opened %s (%s ago)\n", e.FilePath, formatFlowDuration(elapsed))
 
 	case "terminal_run":
-		b.WriteString(fmt.Sprintf("- $ %s", e.Content))
+		fmt.Fprintf(&b, "- $ %s", e.Content)
 		if code, ok := e.Metadata["exit_code"]; ok && code != "0" {
-			b.WriteString(fmt.Sprintf(" [exit %s]", code))
+			fmt.Fprintf(&b, " [exit %s]", code)
 		}
-		b.WriteString(fmt.Sprintf(" (%s ago)\n", formatFlowDuration(elapsed)))
+		fmt.Fprintf(&b, " (%s ago)\n", formatFlowDuration(elapsed))
 
 	case "terminal_output":
 		output := e.Content
 		if len(output) > 200 {
 			output = output[:200] + "..."
 		}
-		b.WriteString(fmt.Sprintf("  output: %s\n", strings.ReplaceAll(output, "\n", "\n  ")))
+		fmt.Fprintf(&b, "  output: %s\n", strings.ReplaceAll(output, "\n", "\n  "))
 
 	case "navigation":
-		b.WriteString(fmt.Sprintf("- navigated to %s", e.FilePath))
+		fmt.Fprintf(&b, "- navigated to %s", e.FilePath)
 		if line, ok := e.Metadata["line"]; ok {
-			b.WriteString(fmt.Sprintf(":L%s", line))
+			fmt.Fprintf(&b, ":L%s", line)
 		}
-		b.WriteString(fmt.Sprintf(" (%s ago)\n", formatFlowDuration(elapsed)))
+		fmt.Fprintf(&b, " (%s ago)\n", formatFlowDuration(elapsed))
 
 	case "search":
-		b.WriteString(fmt.Sprintf("- searched: %q (%s ago)\n", e.Content, formatFlowDuration(elapsed)))
+		fmt.Fprintf(&b, "- searched: %q (%s ago)\n", e.Content, formatFlowDuration(elapsed))
 
 	default:
-		b.WriteString(fmt.Sprintf("- [%s] %s (%s ago)\n", e.Type, e.FilePath, formatFlowDuration(elapsed)))
+		fmt.Fprintf(&b, "- [%s] %s (%s ago)\n", e.Type, e.FilePath, formatFlowDuration(elapsed))
 	}
 
 	return b.String()

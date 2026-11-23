@@ -102,7 +102,7 @@ func TestMemoryToolsAreUserScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	userA := NewRegistryForUser(t.TempDir(), "user-a", store)
 	userB := NewRegistryForUser(t.TempDir(), "user-b", store)

@@ -131,14 +131,14 @@ func (r *Registry) exitWorktree(args map[string]interface{}) ExecutionResult {
 		cmd.Dir = wt.OriginalCwd
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			result.WriteString(fmt.Sprintf("⚠ merge failed (branch preserved): %s\n%s\n", err, out))
-			result.WriteString(fmt.Sprintf("You can manually merge: cd %s && git merge %s\n", wt.OriginalCwd, wt.Branch))
+			fmt.Fprintf(&result, "⚠ merge failed (branch preserved): %s\n%s\n", err, out)
+			fmt.Fprintf(&result, "You can manually merge: cd %s && git merge %s\n", wt.OriginalCwd, wt.Branch)
 			cleanupWorktree(wt.OriginalCwd, wt.WorktreeCwd)
 			return ExecutionResult{Output: result.String()}
 		}
-		result.WriteString(fmt.Sprintf("Merged %s into %s.\n%s\n", wt.Branch, origBranch, out))
+		fmt.Fprintf(&result, "Merged %s into %s.\n%s\n", wt.Branch, origBranch, out)
 	} else {
-		result.WriteString(fmt.Sprintf("Discarding worktree branch %s.\n", wt.Branch))
+		fmt.Fprintf(&result, "Discarding worktree branch %s.\n", wt.Branch)
 	}
 
 	cleanupWorktree(wt.OriginalCwd, wt.WorktreeCwd)
@@ -147,18 +147,18 @@ func (r *Registry) exitWorktree(args map[string]interface{}) ExecutionResult {
 		cmd := exec.Command("git", "branch", "-D", wt.Branch)
 		cmd.Dir = wt.OriginalCwd
 		out, _ := cmd.CombinedOutput()
-		result.WriteString(fmt.Sprintf("Deleted branch %s.\n%s", wt.Branch, out))
+		fmt.Fprintf(&result, "Deleted branch %s.\n%s", wt.Branch, out)
 	}
 
-	result.WriteString(fmt.Sprintf("Working directory restored to %s.", wt.OriginalCwd))
+	fmt.Fprintf(&result, "Working directory restored to %s.", wt.OriginalCwd)
 	return ExecutionResult{Output: result.String()}
 }
 
 func cleanupWorktree(repoDir, wtDir string) {
 	cmd := exec.Command("git", "worktree", "remove", "--force", wtDir)
 	cmd.Dir = repoDir
-	cmd.CombinedOutput()
-	os.RemoveAll(wtDir)
+	_, _ = cmd.CombinedOutput()
+	_ = os.RemoveAll(wtDir)
 }
 
 func (r *Registry) listWorktrees(args map[string]interface{}) ExecutionResult {
@@ -181,7 +181,7 @@ func (r *Registry) listWorktrees(args map[string]interface{}) ExecutionResult {
 	var result strings.Builder
 	result.WriteString(string(out))
 	if r.Worktree != nil {
-		result.WriteString(fmt.Sprintf("\n(active session: branch %s at %s)", r.Worktree.Branch, r.Worktree.WorktreeCwd))
+		fmt.Fprintf(&result, "\n(active session: branch %s at %s)", r.Worktree.Branch, r.Worktree.WorktreeCwd)
 	}
 	return ExecutionResult{Output: result.String()}
 }

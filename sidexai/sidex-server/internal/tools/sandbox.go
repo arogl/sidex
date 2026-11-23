@@ -101,7 +101,7 @@ func (s *Sandbox) Start(workDir string, image string) error {
 	if err != nil {
 		return fmt.Errorf("daytona create failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		b, _ := io.ReadAll(resp.Body)
@@ -151,7 +151,7 @@ func (s *Sandbox) execDaytona(sandboxID, command, cwd string) (string, string, i
 	if err != nil {
 		return "", "", -1, fmt.Errorf("daytona exec: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
@@ -183,7 +183,7 @@ func (s *Sandbox) Stop() error {
 		if err != nil {
 			return fmt.Errorf("daytona delete: %w", err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	} else {
 		s.stopDocker()
 	}
@@ -307,7 +307,7 @@ func (s *Sandbox) execDocker(containerID, command, cwd string) (string, string, 
 }
 
 func (s *Sandbox) stopDocker() {
-	execCmd("docker", "kill", s.SandboxID)
+	_, _ = execCmd("docker", "kill", s.SandboxID)
 }
 
 func (s *Sandbox) readFileDocker(path string) (string, error) {

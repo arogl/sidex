@@ -96,7 +96,7 @@ func (c *Client) CompleteVLLM(ctx context.Context, req CompletionRequest, maxTok
 	if err != nil {
 		return CompletionResponse{}, fmt.Errorf("vLLM request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
@@ -177,7 +177,7 @@ func (c *Client) completeOpenRouter(ctx context.Context, req CompletionRequest, 
 	if err != nil {
 		return CompletionResponse{}, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)

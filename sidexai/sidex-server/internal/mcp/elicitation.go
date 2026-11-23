@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -12,7 +11,6 @@ const elicitationTimeout = 5 * time.Minute
 // It bridges between the MCP transport layer and the WebSocket client
 // connection, allowing servers to request user input.
 type ElicitationBroker struct {
-	mu      sync.Mutex
 	pending map[string]chan string // request ID → response channel
 	handler ElicitationHandler
 }

@@ -47,7 +47,7 @@ func TestMigratesAuth0ColumnSoUsageRecords(t *testing.T) {
 			PRIMARY KEY (user_id, date)
 		);
 	`)
-	db.Close()
+	_ = db.Close()
 	if err != nil {
 		t.Fatal(err)
 	}

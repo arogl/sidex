@@ -384,7 +384,7 @@ func (c *Client) streamAnthropic(
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
@@ -394,7 +394,7 @@ func (c *Client) streamAnthropic(
 		if hint := extraUsageHint(c.authMode, resp.StatusCode, b); hint != "" {
 			return errors.New(hint)
 		}
-		return fmt.Errorf("Anthropic API error %d: %s", resp.StatusCode, sanitizeAPIErrorBody(resp.StatusCode, b))
+		return fmt.Errorf("anthropic API error %d: %s", resp.StatusCode, sanitizeAPIErrorBody(resp.StatusCode, b))
 	}
 
 	return parseAnthropicSSE(resp.Body, onChunk)
@@ -527,9 +527,9 @@ func parseAnthropicSSE(r io.Reader, onChunk func(StreamChunk)) error {
 
 		case "error":
 			if ev.Error != nil {
-				return fmt.Errorf("Anthropic stream error: %s", ev.Error.Message)
+				return fmt.Errorf("anthropic stream error: %s", ev.Error.Message)
 			}
-			return fmt.Errorf("Anthropic stream error")
+			return fmt.Errorf("anthropic stream error")
 
 		case "message_stop":
 			// Terminal event; totals are emitted below.

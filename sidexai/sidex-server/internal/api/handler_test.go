@@ -86,7 +86,7 @@ func TestBuildSystemPromptIncludesFocusedAndRecentFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	flow := sidexcontext.NewFlowTracker()
 	flow.Record(sidexcontext.FlowEvent{Type: "file_edit", FilePath: "/repo/src/recent.ts"})
@@ -123,7 +123,7 @@ func TestSessionHandlersEnforceUserOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	h := &Handler{sm: session.NewManager(store), store: store}
 	owned := h.sm.CreateForUser(t.TempDir(), "user-a")
 	other := h.sm.CreateForUser(t.TempDir(), "user-b")

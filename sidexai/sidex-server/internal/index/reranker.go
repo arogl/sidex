@@ -166,7 +166,7 @@ func (r *Reranker) doRequest(body cohereRerankRequest) ([]byte, error) {
 		}
 
 		respBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			lastErr = fmt.Errorf("failed to read rerank response: %w", err)
 			continue

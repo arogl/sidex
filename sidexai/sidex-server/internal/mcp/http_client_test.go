@@ -29,7 +29,7 @@ func TestHTTPClientListTools(t *testing.T) {
 		case "initialize":
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Mcp-Session-Id", "test-session-123")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -43,7 +43,7 @@ func TestHTTPClientListTools(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case "tools/list":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -73,7 +73,7 @@ func TestHTTPClientListTools(t *testing.T) {
 			})
 		default:
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result":  nil,
@@ -86,7 +86,7 @@ func TestHTTPClientListTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTPClient: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if client.sessionID != "test-session-123" {
 		t.Errorf("sessionID = %q, want %q", client.sessionID, "test-session-123")
@@ -123,7 +123,7 @@ func TestHTTPClientCallTool(t *testing.T) {
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -136,7 +136,7 @@ func TestHTTPClientCallTool(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case "tools/call":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -147,7 +147,7 @@ func TestHTTPClientCallTool(t *testing.T) {
 			})
 		default:
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result":  nil,
@@ -160,7 +160,7 @@ func TestHTTPClientCallTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTPClient: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	result, err := client.CallTool("get_repo", json.RawMessage(`{"owner":"sidex-ai","repo":"sidex"}`))
 	if err != nil {
@@ -187,7 +187,7 @@ func TestHTTPClientSSEResponse(t *testing.T) {
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -204,13 +204,13 @@ func TestHTTPClientSSEResponse(t *testing.T) {
 			flusher, _ := w.(http.Flusher)
 
 			resp := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":{"content":[{"type":"text","text":"streamed result"}]}}`, req.ID)
-			fmt.Fprintf(w, "data: %s\n\n", resp)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", resp)
 			if flusher != nil {
 				flusher.Flush()
 			}
 		default:
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result":  nil,
@@ -223,7 +223,7 @@ func TestHTTPClientSSEResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTPClient: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	result, err := client.CallTool("test_tool", json.RawMessage(`{}`))
 	if err != nil {
@@ -244,9 +244,9 @@ func TestHTTPClientAuth(t *testing.T) {
 		}
 
 		var req jsonRPCRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"jsonrpc": "2.0",
 			"id":      req.ID,
 			"result": map[string]interface{}{
@@ -266,7 +266,7 @@ func TestHTTPClientAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTPClient: %v", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	if gotAuth != "Bearer my-secret-token" {
 		t.Errorf("Authorization header = %q, want %q", gotAuth, "Bearer my-secret-token")
@@ -281,9 +281,9 @@ func TestHTTPClientAliveAndClose(t *testing.T) {
 		}
 
 		var req jsonRPCRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"jsonrpc": "2.0",
 			"id":      req.ID,
 			"result": map[string]interface{}{
@@ -304,7 +304,7 @@ func TestHTTPClientAliveAndClose(t *testing.T) {
 		t.Error("client should be alive before Close()")
 	}
 
-	client.Close()
+	_ = client.Close()
 
 	if client.Alive() {
 		t.Error("client should not be alive after Close()")
@@ -319,12 +319,12 @@ func TestManagerAddHTTPServer(t *testing.T) {
 		}
 
 		var req jsonRPCRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -337,7 +337,7 @@ func TestManagerAddHTTPServer(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case "tools/list":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -349,7 +349,7 @@ func TestManagerAddHTTPServer(t *testing.T) {
 			})
 		case "tools/call":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -360,7 +360,7 @@ func TestManagerAddHTTPServer(t *testing.T) {
 			})
 		default:
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result":  nil,
@@ -408,12 +408,12 @@ func TestManagerLazyLoad(t *testing.T) {
 		}
 
 		var req jsonRPCRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		switch req.Method {
 		case "initialize":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -426,7 +426,7 @@ func TestManagerLazyLoad(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case "tools/list":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result": map[string]interface{}{
@@ -447,7 +447,7 @@ func TestManagerLazyLoad(t *testing.T) {
 			})
 		default:
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
 				"result":  nil,
@@ -494,7 +494,7 @@ func TestManagerLazyLoad(t *testing.T) {
 func TestConfigHTTPServer(t *testing.T) {
 	dir := t.TempDir()
 	sidexDir := dir + "/.sidex"
-	os.MkdirAll(sidexDir, 0o755)
+	_ = os.MkdirAll(sidexDir, 0o755)
 
 	configJSON := `{
 		"servers": {
@@ -515,7 +515,7 @@ func TestConfigHTTPServer(t *testing.T) {
 			}
 		}
 	}`
-	os.WriteFile(sidexDir+"/mcp.json", []byte(configJSON), 0o644)
+	_ = os.WriteFile(sidexDir+"/mcp.json", []byte(configJSON), 0o644)
 
 	cfg, err := LoadConfig(dir)
 	if err != nil {

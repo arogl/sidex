@@ -52,7 +52,7 @@ func (r *Registry) webSearch(args map[string]interface{}) ExecutionResult {
 	if err != nil {
 		return ExecutionResult{Error: "search request failed: " + err.Error()}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 500000))
 	if err != nil {
@@ -65,11 +65,11 @@ func (r *Registry) webSearch(args map[string]interface{}) ExecutionResult {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Search results for: %s\n\n", query))
+	fmt.Fprintf(&sb, "Search results for: %s\n\n", query)
 	for i, r := range results {
-		sb.WriteString(fmt.Sprintf("%d. [%s](%s)\n", i+1, r.title, r.url))
+		fmt.Fprintf(&sb, "%d. [%s](%s)\n", i+1, r.title, r.url)
 		if r.snippet != "" {
-			sb.WriteString(fmt.Sprintf("   %s\n", r.snippet))
+			fmt.Fprintf(&sb, "   %s\n", r.snippet)
 		}
 		sb.WriteString("\n")
 	}

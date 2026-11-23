@@ -35,13 +35,13 @@ func OpenStore(dbPath string) (*Store, error) {
 	db.SetMaxIdleConns(1)
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("feedback: ping: %w", err)
 	}
 
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("feedback: migrate: %w", err)
 	}
 	return s, nil
@@ -111,7 +111,7 @@ func (s *Store) BatchInsert(signals []Signal) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare(`
 		INSERT OR REPLACE INTO feedback_signals
@@ -121,7 +121,7 @@ func (s *Store) BatchInsert(signals []Signal) error {
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for _, sig := range signals {
 		metaJSON := "{}"
@@ -177,7 +177,7 @@ func (s *Store) ToolSuccessRates() (map[string]float64, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	rates := make(map[string]float64)
 	for rows.Next() {
@@ -211,7 +211,7 @@ func (s *Store) RecentSignals(limit int) ([]Signal, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSignals(rows)
 }
 
@@ -234,7 +234,7 @@ func (s *Store) SignalsByTool(toolName string, limit int) ([]Signal, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSignals(rows)
 }
 
@@ -257,7 +257,7 @@ func (s *Store) FailuresByContext(keyword string, limit int) ([]Signal, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanSignals(rows)
 }
 
@@ -323,7 +323,7 @@ func scanSignals(rows *sql.Rows) ([]Signal, error) {
 		sig.Timestamp = time.Unix(ts, 0)
 		if metaJSON != "" && metaJSON != "{}" {
 			sig.Metadata = make(map[string]any)
-			unmarshalJSON([]byte(metaJSON), &sig.Metadata)
+			_ = unmarshalJSON([]byte(metaJSON), &sig.Metadata)
 		}
 		signals = append(signals, sig)
 	}

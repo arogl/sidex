@@ -66,7 +66,7 @@ func fetchClaudeOAuthUsage(cfg ProviderConfig) (*SubscriptionQuota, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("claude usage HTTP %d", resp.StatusCode)
@@ -176,7 +176,7 @@ func getCodexUsageURL(cfg ProviderConfig, url string) (*SubscriptionQuota, error
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("codex usage HTTP %d", resp.StatusCode)

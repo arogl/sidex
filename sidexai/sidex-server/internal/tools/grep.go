@@ -71,9 +71,10 @@ func (r *Registry) grep(args map[string]interface{}) ExecutionResult {
 		if typeFilter != "" {
 			cmd += " --type " + shellSingleQuote(typeFilter)
 		}
-		if outputMode == "files_with_matches" {
+		switch outputMode {
+		case "files_with_matches":
 			cmd += " --files-with-matches"
-		} else if outputMode == "count" {
+		case "count":
 			cmd += " --count"
 		}
 		cmd += fmt.Sprintf(" %s %s 2>/dev/null | head -%d", shellSingleQuote(pattern), shellSingleQuote(sandboxDir), headLimit)

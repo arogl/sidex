@@ -219,9 +219,9 @@ func FormatPlan(p *Plan) string {
 		case "skipped":
 			marker = "[-]"
 		}
-		b.WriteString(fmt.Sprintf("%s %s. %s%s\n", marker, step.ID, step.Description, suffix))
+		fmt.Fprintf(&b, "%s %s. %s%s\n", marker, step.ID, step.Description, suffix)
 		if step.Notes != "" {
-			b.WriteString(fmt.Sprintf("    note: %s\n", step.Notes))
+			fmt.Fprintf(&b, "    note: %s\n", step.Notes)
 		}
 	}
 	return b.String()

@@ -172,12 +172,9 @@ func (a *Analyzer) GenerateGuidance(taskContext string) string {
 	// Tool effectiveness warnings
 	rates := a.ToolEffectiveness()
 	var warnings []string
-	var recommendations []string
 	for tool, rate := range rates {
 		if rate < 0.5 {
 			warnings = append(warnings, fmt.Sprintf("- %s has a %.0f%% failure rate — consider alternatives or double-check arguments", tool, (1-rate)*100))
-		} else if rate >= 0.9 {
-			recommendations = append(recommendations, tool)
 		}
 	}
 
