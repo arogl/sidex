@@ -48,7 +48,7 @@ Legend:
 - [x] `thinking` content shown in the thinking block
 - [x] `autoModeResolution` (which model Auto picked) no longer raises a notice
 - [x] File edits from Copilot's edit tools are applied and saved (including new files)
-- [ ] Inline references open the file when clicked
+- [~] Inline references open the file when clicked (structured references and `[label](file link)` links in a reply open the file at the line; Copilot's own replies write plain text, so plain file names are not linked)
 - [x] Live todo checklist that stays visible while the agent works
 - [~] `progressMessage` status lines ("Searching...") show as one muted line at the end of the running message and clear when the turn ends
 - [x] `usage` drives the context ring in the chat input from the prompt size (token and quota text, credits and the per-category breakdown are not shown)
@@ -87,7 +87,10 @@ Legend:
 
 ## Build and platform
 
-- [ ] Ship the ripgrep binaries in the release build
+- [~] Ship the ripgrep binaries in the release build (`release.yml` builds `real-host.cjs` and stages `@vscode/ripgrep-universal` for the target platform; not yet confirmed from an installed release)
+- [~] Ship the built-in agent server in the release build (`release.yml` builds `sidex-server` with Go on each runner and Tauri bundles it under `server/`; no Windows arm64 build; not yet confirmed from an installed release)
+- [~] Go lint, format and tests for `sidexai/sidex-server` run in CI (`lint-go.yml`; not yet a required check)
+- [ ] Ship a Node runtime with the app. The real extension host is started with the `node` on `PATH` (`ext_host_real.rs`), so an installed release needs Node 24 installed. The host's optional native packages (`@vscode/windows-process-tree`, `@vscode/sqlite3`, `node-pty`, `@parcel/watcher`, `@vscode/spdlog`) are not installed in a dev checkout either, and the host runs without them, so they are not needed for parity with `tauri dev`
 - [x] Copilot models on WSL: sign-in opens the Windows browser (needs `wslu` installed in the distro), the model list fills in and Auto can be chosen
 - [ ] URL scheme for the vscode.dev redirect page
 - [x] External URI openers (`MainThreadUriOpeners` now gets its service and links still open in the browser; an opener must claim a link as Default or Preferred, there is no picker; an extension that claims a link has not been tried)
@@ -97,4 +100,4 @@ Legend:
 - [x] Markdown preview reopening at start (it came back after the tab was closed by hand, because only the toggle command removed the file from the saved list; closing the tab now does too, and a shutdown still keeps it)
 - [x] Webviews rendering blank (Markdown preview, extension details): the served `webview-pre` files were from an older VS Code than the webview host, so the service worker reported version 4 against the expected 6 and the handshake lacked `keyEventToken` and `mountId`; synced to 1.144, keeping the SideX CSP, sandbox, protocol and Tauri-origin changes
 - [x] Recently Opened remembering files as well as folders (File > Open File went through the Tauri dialog without recording the file; it now does, and the menu already listed files)
-- [ ] Clippy errors in the native crate tests
+- [~] Clippy errors in the native crate tests (fixed in 27 files under `crates/`; CI still lints test targets for the `sidex` crate only)
