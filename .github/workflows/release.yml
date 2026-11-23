@@ -108,7 +108,7 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=12288"
         run: bun run build
 
-      - name: Build extension host and stage ripgrep
+      - name: Build extension host, stage ripgrep and Node
         shell: bash
         run: |
           bun packages/build/src/vscode-sync/cli.ts prepare "$(cat .vscode-version)"
@@ -123,6 +123,7 @@ jobs:
             *) echo "unknown target ${{ matrix.target }}"; exit 1 ;;
           esac
           node scripts/ext-host/stage-runtime-deps.mjs $args
+          node scripts/ext-host/stage-node.mjs $args
 
       # The server is cgo (sqlite, tree-sitter), so it is built natively on each runner.
       # No Windows arm64 build yet: that needs an arm64 C cross-compiler on the x64 runner.
