@@ -3,7 +3,14 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { URI } from '@sidex/base/common/uri.js';
-import { MentionItem, MentionResolver } from '../../context/mentionResolver.js';
+import {
+	contextBlock,
+	fileQuery,
+	hashTrigger,
+	type IAttachedRange,
+	variableSuggestions
+} from '../../context/chatVariables.js';
+import { MentionItem, MentionResolver, relativeLabel } from '../../context/mentionResolver.js';
 import { parseParticipantModelId } from '../../participantBridge.js';
 import { ISidexChatService } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
@@ -664,55 +671,12 @@ export class ChatInput extends Component {
 		this._stopBtn.style.display = 'none';
 
 		// Initialize mention system
+		const context = this._chatService.contextProvider;
 		this._mentionResolver = new MentionResolver({
-			findFiles: async (pattern: string, maxResults: number): Promise<URI[]> => {
-				try {
-					const vscode = (globalThis as any).vscode;
-					if (vscode?.workspace?.findFiles) {
-						return await vscode.workspace.findFiles(pattern, '**/node_modules/**', maxResults);
-					}
-				} catch {
-					/* fallback */
-				}
-				return [];
-			},
-			readFile: async (uri: URI): Promise<string> => {
-				try {
-					const vscode = (globalThis as any).vscode;
-					if (vscode?.workspace?.fs?.readFile) {
-						const bytes = await vscode.workspace.fs.readFile(uri);
-						return new TextDecoder().decode(bytes);
-					}
-				} catch {
-					/* fallback */
-				}
-				return '';
-			},
-			readDirectory: async (uri: URI): Promise<Array<[string, 'file' | 'directory']>> => {
-				try {
-					const vscode = (globalThis as any).vscode;
-					if (vscode?.workspace?.fs?.readDirectory) {
-						const entries = await vscode.workspace.fs.readDirectory(uri);
-						return entries.map(
-							(e: [string, number]) => [e[0], e[1] === 2 ? 'directory' : 'file'] as [string, 'file' | 'directory']
-						);
-					}
-				} catch {
-					/* fallback */
-				}
-				return [];
-			},
-			getWorkspaceFolderPath: (): string | undefined => {
-				try {
-					const vscode = (globalThis as any).vscode;
-					if (vscode?.workspace?.workspaceFolders?.[0]) {
-						return vscode.workspace.workspaceFolders[0].uri.fsPath;
-					}
-				} catch {
-					/* fallback */
-				}
-				return undefined;
-			}
+			findFiles: (query, maxResults) => context.findFiles(query, maxResults),
+			readFile: uri => context.readFile(uri),
+			readDirectory: uri => context.readDirectory(uri),
+			getWorkspaceFolderPath: () => context.getWorkspaceFolderPath()
 		});
 
 		this._mentionPopup = new MentionPopup(this.element, item => this._onMentionSelected(item));
@@ -1044,6 +1008,14 @@ export class ChatInput extends Component {
 		const textBefore = value.substring(0, cursorPos);
 		const atIndex = textBefore.lastIndexOf('@');
 
+		// A `#variable` (#file, #selection, #codebase) typed after the last @ takes over the popup.
+		const hash = hashTrigger(value, cursorPos);
+		if (hash && hash.start > atIndex) {
+			this._mentionTracking = { active: true, startPos: hash.start };
+			this._debouncedSearch(hash.query, true);
+			return;
+		}
+
 		// Must have an @, and it must be at the start or preceded by whitespace
 		if (atIndex === -1) {
 			this._mentionTracking.active = false;
@@ -1069,13 +1041,15 @@ export class ChatInput extends Component {
 		this._debouncedSearch(query);
 	}
 
-	private _debouncedSearch(query: string): void {
+	private _debouncedSearch(query: string, variables = false): void {
 		if (this._debounceTimer) {
 			clearTimeout(this._debounceTimer);
 		}
 		this._debounceTimer = setTimeout(async () => {
 			try {
-				const suggestions = await this._mentionResolver.getSuggestions(query);
+				const suggestions = variables
+					? await this._variableSuggestions(query)
+					: await this._mentionResolver.getSuggestions(query);
 				if (!this._mentionTracking.active) {
 					return;
 				}
@@ -1086,6 +1060,18 @@ export class ChatInput extends Component {
 				this._mentionPopup.hide();
 			}
 		}, 150);
+	}
+
+	/** The `#` popup: the variables, `#file:name` file matches, and file matches for any other name. */
+	private async _variableSuggestions(query: string): Promise<MentionItem[]> {
+		const name = fileQuery(query);
+		if (name !== undefined) {
+			return (await this._mentionResolver.getSuggestions(name)).filter(i => i.type === 'file');
+		}
+		const variables = variableSuggestions(query);
+		return variables.length > 0
+			? variables
+			: (await this._mentionResolver.getSuggestions(query)).filter(i => i.type === 'file');
 	}
 
 	private _getCaretRect(): DOMRect {
@@ -1107,13 +1093,34 @@ export class ChatInput extends Component {
 		const before = value.substring(0, this._mentionTracking.startPos);
 		const after = value.substring(cursorPos);
 
+		// `#file` keeps typing: it turns into `#file:` and the popup lists files.
+		if (item.variable === 'file') {
+			this._setTextAround(before, '#file:', after);
+			this._handleMentionInput();
+			return;
+		}
+		// `#codebase` stays in the text; the message is searched against the codebase when it is sent.
+		if (item.variable === 'codebase') {
+			this._setTextAround(before, '#codebase ', after);
+			this._mentionTracking.active = false;
+			this._mentionPopup.hide();
+			return;
+		}
+		if (item.variable === 'selection') {
+			item = this._selectionItem();
+			if (!item) {
+				this._setTextAround(before, '', after);
+				this._mentionTracking.active = false;
+				this._mentionPopup.hide();
+				this._showHint('Select some text in an editor first');
+				return;
+			}
+		}
+
 		// Remove "@query" from textarea and replace with nothing (pill goes above)
-		this._textareaEl.value = before + after;
-		this._textareaEl.selectionStart = before.length;
-		this._textareaEl.selectionEnd = before.length;
+		this._setTextAround(before, '', after);
 
 		this._mentionTracking.active = false;
-		this._autoResize();
 
 		// Resolve the mention content
 		let resolvedContent = '';
@@ -1132,6 +1139,48 @@ export class ChatInput extends Component {
 		this._textareaEl.focus();
 	}
 
+	/** Puts `insert` between `before` and `after` in the textarea, with the cursor after it. */
+	private _setTextAround(before: string, insert: string, after: string): void {
+		this._textareaEl.value = before + insert + after;
+		const cursor = before.length + insert.length;
+		this._textareaEl.selectionStart = cursor;
+		this._textareaEl.selectionEnd = cursor;
+		this._autoResize();
+	}
+
+	/** The active editor's selection as a mention, or undefined when nothing is selected. */
+	private _selectionItem(): MentionItem | undefined {
+		const selection = this._chatService.contextProvider.getActiveSelection();
+		if (!selection) {
+			return undefined;
+		}
+		const root = this._chatService.contextProvider.getWorkspaceFolderPath();
+		const path = relativeLabel(selection.uri.fsPath, root);
+		const r = selection.range;
+		return {
+			type: 'selection',
+			label: `${path}:${r.startLineNumber}-${r.endLineNumber}`,
+			content: selection.text,
+			uri: selection.uri.toString(),
+			range: r as IAttachedRange,
+			iconClass: 'codicon-selection'
+		};
+	}
+
+	private _showHint(text: string): void {
+		const hint = document.createElement('span');
+		hint.className = 'sc-mention-hint';
+		hint.textContent = text;
+		this._mentionPillsContainer.appendChild(hint);
+		this._mentionPillsContainer.style.display = '';
+		setTimeout(() => {
+			hint.remove();
+			if (this._mentionPillsContainer.childElementCount === 0) {
+				this._mentionPillsContainer.style.display = 'none';
+			}
+		}, 3000);
+	}
+
 	private _renderMentionPill(mention: ResolvedMention): void {
 		const pill = document.createElement('span');
 		pill.className = 'sc-mention-pill';
@@ -1142,6 +1191,8 @@ export class ChatInput extends Component {
 			iconEl.classList.add('codicon', 'codicon-folder');
 		} else if (mention.item.type === 'symbol') {
 			iconEl.classList.add('codicon', 'codicon-symbol-method');
+		} else if (mention.item.type === 'selection') {
+			iconEl.classList.add('codicon', 'codicon-selection');
 		} else {
 			iconEl.classList.add('codicon', 'codicon-file');
 		}
@@ -1514,7 +1565,8 @@ export class ChatInput extends Component {
 		// Build the full message with mention context prepended
 		let fullMessage = '';
 		for (const m of this._resolvedMentions) {
-			fullMessage += `<context source="@${m.item.label}">\n${m.resolvedContent}\n</context>\n\n`;
+			const source = m.item.type === 'selection' ? `#selection:${m.item.label}` : `@${m.item.label}`;
+			fullMessage += contextBlock(source, m.resolvedContent, m.item.uri, m.item.range);
 		}
 		fullMessage += this._buildAttachmentContext();
 		const attachmentDisplay = this._buildAttachmentDisplayMarkdown();
