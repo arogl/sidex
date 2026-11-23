@@ -29,7 +29,7 @@ func (r *Registry) searchFiles(args map[string]interface{}) ExecutionResult {
 	dir := r.resolvePath(strOr(args, "path", "."))
 
 	var matches []string
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}

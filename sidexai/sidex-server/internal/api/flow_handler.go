@@ -25,14 +25,14 @@ func (h *Handler) RecordFlowEvent(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
 		return
 	}
 
 	if req.Type == "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "type is required"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "type is required"})
 		return
 	}
 
@@ -40,7 +40,7 @@ func (h *Handler) RecordFlowEvent(w http.ResponseWriter, r *http.Request) {
 	if tracker == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"error": "no active session"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "no active session"})
 		return
 	}
 
@@ -55,7 +55,7 @@ func (h *Handler) RecordFlowEvent(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":      "recorded",
 		"event_count": tracker.EventCount(),
 	})
@@ -67,7 +67,7 @@ func (h *Handler) GetFlowContext(w http.ResponseWriter, r *http.Request) {
 	tracker := h.getFlowTracker()
 	if tracker == nil {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"context":     "",
 			"event_count": 0,
 		})
@@ -85,7 +85,7 @@ func (h *Handler) GetFlowContext(w http.ResponseWriter, r *http.Request) {
 	recentFiles := tracker.GetRecentFiles(10)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"context":      ctx,
 		"recent_files": recentFiles,
 		"event_count":  tracker.EventCount(),
@@ -98,7 +98,7 @@ func (h *Handler) GetRecentFiles(w http.ResponseWriter, r *http.Request) {
 	tracker := h.getFlowTracker()
 	if tracker == nil {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]string{})
+		_ = json.NewEncoder(w).Encode([]string{})
 		return
 	}
 
@@ -111,7 +111,7 @@ func (h *Handler) GetRecentFiles(w http.ResponseWriter, r *http.Request) {
 
 	files := tracker.GetRecentFiles(limit)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(files)
+	_ = json.NewEncoder(w).Encode(files)
 }
 
 // getFlowTracker returns the handler's shared flow tracker, creating it if needed.

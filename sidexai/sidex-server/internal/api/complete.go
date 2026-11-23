@@ -120,7 +120,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		writeEmptyCompletion(w)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
@@ -153,7 +153,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(fimResponse{
+	_ = json.NewEncoder(w).Encode(fimResponse{
 		Text:         text,
 		FinishReason: finishReason,
 	})
@@ -169,5 +169,5 @@ func cleanCompletion(text string) string {
 
 func writeEmptyCompletion(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(fimResponse{Text: "", FinishReason: "stop"})
+	_ = json.NewEncoder(w).Encode(fimResponse{Text: "", FinishReason: "stop"})
 }

@@ -228,11 +228,11 @@ func (c *Client) streamCodex(
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Codex API error %d: %s", resp.StatusCode, sanitizeAPIErrorBody(resp.StatusCode, b))
+		return fmt.Errorf("codex API error %d: %s", resp.StatusCode, sanitizeAPIErrorBody(resp.StatusCode, b))
 	}
 	return parseCodexSSE(resp.Body, onChunk)
 }

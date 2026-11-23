@@ -55,7 +55,7 @@ func (r *Registry) webFetch(args map[string]interface{}) ExecutionResult {
 	if err != nil {
 		return ExecutionResult{Error: err.Error()}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 500000))
 	if err != nil {

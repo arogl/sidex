@@ -118,7 +118,7 @@ func NewStdioClient(command string, args []string, env []string) (*MCPClient, er
 	go c.readLoop()
 
 	if err := c.initialize(); err != nil {
-		c.Close()
+		_ = c.Close()
 		return nil, fmt.Errorf("mcp: initialize handshake failed: %w", err)
 	}
 
@@ -321,7 +321,7 @@ func (c *MCPClient) Close() error {
 	// Best-effort shutdown request (ignore errors).
 	c.send("shutdown", nil) //nolint:errcheck
 
-	c.stdin.Close()
+	_ = c.stdin.Close()
 
 	done := make(chan error, 1)
 	go func() { done <- c.cmd.Wait() }()
@@ -330,7 +330,7 @@ func (c *MCPClient) Close() error {
 	case err := <-done:
 		c.closeErr = err
 	case <-time.After(5 * time.Second):
-		c.cmd.Process.Kill()
+		_ = c.cmd.Process.Kill()
 		c.closeErr = <-done
 	}
 

@@ -207,7 +207,7 @@ func (c *Client) StreamChatWithOptions(messages []Message, tools []ToolDef, syst
 	// Anthropic's own API is not OpenAI-shaped; it needs the Messages API.
 	if c.provider == "" {
 		if p := ProviderFromModelID(c.model); p == "anthropic" || p == "openai" || p == "google" {
-			return fmt.Errorf("%s is not connected. Connect that account or add an API key in Settings → Models — SideX will not send this to OpenRouter.", p)
+			return fmt.Errorf("%s is not connected. Connect that account or add an API key in Settings → Models — SideX will not send this to OpenRouter", p)
 		}
 	}
 	if IsAnthropicNative(c.provider) && c.apiKey != "" {
@@ -294,7 +294,7 @@ func (c *Client) StreamChatWithOptions(messages []Message, tools []ToolDef, syst
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
@@ -549,16 +549,6 @@ func (c *Client) parseSSEStream(reader io.Reader, onChunk func(StreamChunk)) err
 // custom models) instead of brittle substring checks.
 func ModelSupportsThinking(model string) bool {
 	return cost.SupportsThinking(model)
-}
-
-func (c *Client) resolveThinkingBudget(opts *StreamOptions) int {
-	if !ModelSupportsThinking(c.model) {
-		return 0
-	}
-	if opts != nil && opts.ThinkingBudget > 0 {
-		return opts.ThinkingBudget
-	}
-	return 0
 }
 
 // sanitizeAPIErrorBody returns a clean error message for HTTP error responses.

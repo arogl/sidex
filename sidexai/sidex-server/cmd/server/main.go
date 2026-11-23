@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to open memory store at %s: %v", storeDBPath, err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	log.Printf("State store: %s", storeDBPath)
 
 	dataDir := paths.ExpandUser(os.Getenv("SIDEX_DATA_DIR"))
@@ -63,7 +63,7 @@ func main() {
 	if err != nil {
 		log.Printf("warning: failed to initialize usage service: %v (continuing without usage tracking)", err)
 	} else {
-		defer usageSvc.Close()
+		defer func() { _ = usageSvc.Close() }()
 		if migrateErr := api.MigrateAPIKeys(usageSvc.DB()); migrateErr != nil {
 			log.Printf("warning: failed to migrate api_keys table: %v", migrateErr)
 		}
@@ -77,12 +77,12 @@ func main() {
 		} else {
 			if pingErr := pgDB.Ping(); pingErr != nil {
 				log.Printf("warning: Postgres ping failed: %v (usage events will not be recorded)", pingErr)
-				pgDB.Close()
+				_ = pgDB.Close()
 			} else {
 				pgDB.SetMaxOpenConns(10)
 				pgDB.SetMaxIdleConns(5)
 				usage.InitPostgres(pgDB)
-				defer pgDB.Close()
+				defer func() { _ = pgDB.Close() }()
 				log.Printf("Postgres connected for usage/billing data")
 			}
 		}

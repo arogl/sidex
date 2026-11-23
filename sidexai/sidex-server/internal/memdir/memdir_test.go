@@ -111,7 +111,7 @@ func TestLoadMemoryPromptTruncation(t *testing.T) {
 	}
 	entrypoint := paths.ProjectMemoryMD(projectDir)
 	dir := filepath.Dir(entrypoint)
-	os.MkdirAll(dir, 0755)
+	_ = os.MkdirAll(dir, 0755)
 	if err := os.WriteFile(entrypoint, []byte(b.String()), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -138,9 +138,9 @@ func TestMigrateFromLegacy(t *testing.T) {
 
 	// Create legacy memory file in the project repo
 	legacyDir := filepath.Join(projectDir, ".sidex", "memory")
-	os.MkdirAll(legacyDir, 0755)
+	_ = os.MkdirAll(legacyDir, 0755)
 	legacyContent := "## old_memory\n\n**Category**: project\n**Updated**: 2026-01-01 00:00\n\nlegacy value\n"
-	os.WriteFile(filepath.Join(legacyDir, "MEMORY.md"), []byte(legacyContent), 0644)
+	_ = os.WriteFile(filepath.Join(legacyDir, "MEMORY.md"), []byte(legacyContent), 0644)
 
 	// LoadMemoryPrompt should migrate and return the content
 	prompt := LoadMemoryPrompt(projectDir)

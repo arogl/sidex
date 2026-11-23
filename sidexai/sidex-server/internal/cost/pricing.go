@@ -103,7 +103,7 @@ func RefreshLivePricing() {
 		log.Printf("cost: failed to fetch OpenRouter pricing: %v", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var data struct {
 		Data []struct {

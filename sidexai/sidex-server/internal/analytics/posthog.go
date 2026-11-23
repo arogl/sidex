@@ -44,7 +44,7 @@ func NewAnalytics() *Analytics {
 
 func (a *Analytics) Close() {
 	if a.enabled && a.client != nil {
-		a.client.Close()
+		_ = a.client.Close()
 	}
 }
 
@@ -64,7 +64,7 @@ func (a *Analytics) Identify(userID, email, plan string, props map[string]interf
 	for k, v := range props {
 		properties.Set(k, v)
 	}
-	a.client.Enqueue(posthog.Identify{
+	_ = a.client.Enqueue(posthog.Identify{
 		DistinctId: userID,
 		Properties: properties,
 	})

@@ -59,10 +59,10 @@ func (h *Handler) InlineEdit(w http.ResponseWriter, r *http.Request) {
 				"type":    "text",
 				"content": chunk.Content,
 			})
-			fmt.Fprintf(w, "data: %s\n\n", data)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		case "done":
-			fmt.Fprintf(w, "data: {\"type\":\"done\"}\n\n")
+			_, _ = fmt.Fprintf(w, "data: {\"type\":\"done\"}\n\n")
 			flusher.Flush()
 		}
 	})
@@ -72,7 +72,7 @@ func (h *Handler) InlineEdit(w http.ResponseWriter, r *http.Request) {
 			"type":  "error",
 			"error": err.Error(),
 		})
-		fmt.Fprintf(w, "data: %s\n\n", errData)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", errData)
 		flusher.Flush()
 	}
 }

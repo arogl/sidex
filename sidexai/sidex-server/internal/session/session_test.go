@@ -16,7 +16,7 @@ func tempStore(t *testing.T) *memory.Store {
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
-	t.Cleanup(func() { s.Close() })
+	t.Cleanup(func() { _ = s.Close() })
 	return s
 }
 
@@ -124,12 +124,12 @@ func TestListTranscripts(t *testing.T) {
 	s1 := mgr.Create("/tmp")
 	s1.Title = "Session One"
 	s1.AddMessage(ai.Message{Role: ai.RoleUser, Content: "msg1"})
-	mgr.SaveTranscript(s1)
+	_ = mgr.SaveTranscript(s1)
 
 	s2 := mgr.Create("/tmp")
 	s2.Title = "Session Two"
 	s2.AddMessage(ai.Message{Role: ai.RoleUser, Content: "msg2"})
-	mgr.SaveTranscript(s2)
+	_ = mgr.SaveTranscript(s2)
 
 	transcripts, err := mgr.ListTranscripts()
 	if err != nil {
@@ -154,7 +154,7 @@ func TestDeleteRemovesTranscript(t *testing.T) {
 
 	sess := mgr.Create("/tmp")
 	sess.AddMessage(ai.Message{Role: ai.RoleUser, Content: "bye"})
-	mgr.SaveTranscript(sess)
+	_ = mgr.SaveTranscript(sess)
 
 	mgr.Delete(sess.ID)
 
@@ -193,7 +193,7 @@ func TestSetTitle(t *testing.T) {
 
 	sess := mgr.Create("/tmp")
 	sess.AddMessage(ai.Message{Role: ai.RoleUser, Content: "test"})
-	mgr.SaveTranscript(sess)
+	_ = mgr.SaveTranscript(sess)
 
 	if err := mgr.SetTitle(sess.ID, "My Title"); err != nil {
 		t.Fatalf("set title: %v", err)

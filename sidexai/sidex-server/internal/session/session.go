@@ -65,7 +65,7 @@ func (m *Manager) CreateForUser(cwd, userID string) *Session {
 	}
 	m.sessions.Store(s.ID, s)
 
-	m.store.SaveSession(memory.SessionRecord{
+	_ = m.store.SaveSession(memory.SessionRecord{
 		ID:        s.ID,
 		UserID:    s.UserID,
 		Title:     "New Session",
@@ -87,8 +87,8 @@ func (m *Manager) Get(id string) *Session {
 
 func (m *Manager) Delete(id string) {
 	m.sessions.Delete(id)
-	m.store.DeleteSession(id)
-	m.store.DeleteTranscript(id)
+	_ = m.store.DeleteSession(id)
+	_ = m.store.DeleteTranscript(id)
 }
 
 func (m *Manager) List() []*Session {
@@ -136,7 +136,7 @@ func (m *Manager) SaveTranscript(sess *Session) error {
 		return fmt.Errorf("persist transcript: %w", err)
 	}
 
-	m.store.SaveSession(memory.SessionRecord{
+	_ = m.store.SaveSession(memory.SessionRecord{
 		ID:        t.ID,
 		UserID:    t.UserID,
 		Title:     t.Title,

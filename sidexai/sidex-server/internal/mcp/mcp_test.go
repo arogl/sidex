@@ -136,10 +136,10 @@ func fakeServer(serverRead io.Reader, serverWrite io.WriteCloser) {
 		}
 
 		var method string
-		json.Unmarshal(idRaw, &method) // will fail; that's fine
-		json.Unmarshal(raw["method"], &method)
+		_ = json.Unmarshal(idRaw, &method) // will fail; that's fine
+		_ = json.Unmarshal(raw["method"], &method)
 
-		var id json.RawMessage = idRaw
+		id := idRaw
 
 		var resultJSON string
 		switch method {
@@ -153,7 +153,7 @@ func fakeServer(serverRead io.Reader, serverWrite io.WriteCloser) {
 				Arguments json.RawMessage `json:"arguments"`
 			}
 			if raw["params"] != nil {
-				json.Unmarshal(raw["params"], &params)
+				_ = json.Unmarshal(raw["params"], &params)
 			}
 			escaped := strings.ReplaceAll(string(params.Arguments), `"`, `\"`)
 			resultJSON = `{"content":[{"type":"text","text":"echoed: ` + escaped + `"}]}`
@@ -164,9 +164,9 @@ func fakeServer(serverRead io.Reader, serverWrite io.WriteCloser) {
 		}
 
 		resp := `{"jsonrpc":"2.0","id":` + string(id) + `,"result":` + resultJSON + "}\n"
-		serverWrite.Write([]byte(resp))
+		_, _ = serverWrite.Write([]byte(resp))
 	}
-	serverWrite.Close()
+	_ = serverWrite.Close()
 }
 
 func TestClientWithPipes(t *testing.T) {
@@ -212,7 +212,7 @@ func TestClientWithPipes(t *testing.T) {
 		t.Error("client should be alive")
 	}
 
-	clientWrite.Close()
+	_ = clientWrite.Close()
 }
 
 // --- Config loading tests ---
@@ -220,7 +220,7 @@ func TestClientWithPipes(t *testing.T) {
 func TestLoadConfig(t *testing.T) {
 	dir := t.TempDir()
 	sidexDir := filepath.Join(dir, ".sidex")
-	os.MkdirAll(sidexDir, 0o755)
+	_ = os.MkdirAll(sidexDir, 0o755)
 
 	configJSON := `{
 		"servers": {
@@ -235,7 +235,7 @@ func TestLoadConfig(t *testing.T) {
 			}
 		}
 	}`
-	os.WriteFile(filepath.Join(sidexDir, "mcp.json"), []byte(configJSON), 0o644)
+	_ = os.WriteFile(filepath.Join(sidexDir, "mcp.json"), []byte(configJSON), 0o644)
 
 	cfg, err := LoadConfig(dir)
 	if err != nil {
@@ -276,8 +276,8 @@ func TestLoadConfigMissing(t *testing.T) {
 func TestLoadConfigInvalid(t *testing.T) {
 	dir := t.TempDir()
 	sidexDir := filepath.Join(dir, ".sidex")
-	os.MkdirAll(sidexDir, 0o755)
-	os.WriteFile(filepath.Join(sidexDir, "mcp.json"), []byte(`not json`), 0o644)
+	_ = os.MkdirAll(sidexDir, 0o755)
+	_ = os.WriteFile(filepath.Join(sidexDir, "mcp.json"), []byte(`not json`), 0o644)
 
 	_, err := LoadConfig(dir)
 	if err == nil {

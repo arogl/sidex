@@ -25,8 +25,8 @@ func TestWorkspaceSlug(t *testing.T) {
 }
 
 func TestProjectDir(t *testing.T) {
-	os.Setenv("SIDEX_HOME", "/tmp/test-sidex-home")
-	defer os.Unsetenv("SIDEX_HOME")
+	_ = os.Setenv("SIDEX_HOME", "/tmp/test-sidex-home")
+	defer func() { _ = os.Unsetenv("SIDEX_HOME") }()
 
 	got := ProjectDir("/Users/bob/code/myapp")
 	want := filepath.Join("/tmp/test-sidex-home", "projects", "Users-bob-code-myapp")
@@ -36,8 +36,8 @@ func TestProjectDir(t *testing.T) {
 }
 
 func TestProjectMemoryMD(t *testing.T) {
-	os.Setenv("SIDEX_HOME", "/tmp/test-sidex-home")
-	defer os.Unsetenv("SIDEX_HOME")
+	_ = os.Setenv("SIDEX_HOME", "/tmp/test-sidex-home")
+	defer func() { _ = os.Unsetenv("SIDEX_HOME") }()
 
 	got := ProjectMemoryMD("/Users/bob/code/myapp")
 	want := filepath.Join("/tmp/test-sidex-home", "projects", "Users-bob-code-myapp", "memory.md")
@@ -47,7 +47,7 @@ func TestProjectMemoryMD(t *testing.T) {
 }
 
 func TestSidexHomeDefault(t *testing.T) {
-	os.Unsetenv("SIDEX_HOME")
+	_ = os.Unsetenv("SIDEX_HOME")
 	home, _ := os.UserHomeDir()
 	got := SidexHome()
 	want := filepath.Join(home, ".sidex")
@@ -57,8 +57,8 @@ func TestSidexHomeDefault(t *testing.T) {
 }
 
 func TestSidexHomeOverride(t *testing.T) {
-	os.Setenv("SIDEX_HOME", "/custom/path")
-	defer os.Unsetenv("SIDEX_HOME")
+	_ = os.Setenv("SIDEX_HOME", "/custom/path")
+	defer func() { _ = os.Unsetenv("SIDEX_HOME") }()
 
 	got := SidexHome()
 	if got != "/custom/path" {

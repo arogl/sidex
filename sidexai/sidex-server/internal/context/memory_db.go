@@ -54,13 +54,13 @@ func OpenMemoryDB(dbPath string) (*MemoryDB, error) {
 	db.SetMaxIdleConns(1)
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
 
 	mdb := &MemoryDB{db: db}
 	if err := mdb.migrate(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
@@ -216,7 +216,7 @@ func (m *MemoryDB) Search(query string, limit int) ([]Memory, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fts search: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	return scanMemories(rows)
 }
@@ -240,7 +240,7 @@ func (m *MemoryDB) SemanticSearch(queryEmbedding []float32, limit int) ([]Memory
 	if err != nil {
 		return nil, fmt.Errorf("semantic search: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	type scored struct {
 		mem   Memory
@@ -355,7 +355,7 @@ func (m *MemoryDB) GetCore() ([]Memory, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMemories(rows)
 }
 
@@ -374,7 +374,7 @@ func (m *MemoryDB) GetByTier(tier string) ([]Memory, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMemories(rows)
 }
 
@@ -447,7 +447,7 @@ func (m *MemoryDB) All() ([]Memory, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMemories(rows)
 }
 

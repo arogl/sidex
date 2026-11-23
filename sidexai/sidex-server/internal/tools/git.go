@@ -97,7 +97,7 @@ func (r *Registry) gitCommit(args map[string]interface{}) ExecutionResult {
 			f = strings.TrimSpace(f)
 			cmd := exec.Command("git", "add", f)
 			cmd.Dir = r.cwd
-			cmd.CombinedOutput()
+			_, _ = cmd.CombinedOutput()
 		}
 	}
 

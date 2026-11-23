@@ -89,7 +89,7 @@ func parseBedrockCredentials(raw string) (bedrockCredentials, error) {
 	parts := strings.SplitN(raw, ":", 3)
 	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return bedrockCredentials{}, errors.New(
-			`Bedrock credential must be "<access-key-id>:<secret-access-key>" ` +
+			`bedrock credential must be "<access-key-id>:<secret-access-key>" ` +
 				`or "<access-key-id>:<secret-access-key>:<session-token>"`)
 	}
 	creds := bedrockCredentials{accessKeyID: parts[0], secretAccessKey: parts[1]}
@@ -117,7 +117,7 @@ func bedrockRegionFromHost(baseURL string) (string, error) {
 	labels := strings.Split(u.Hostname(), ".")
 	if len(labels) < 3 || labels[0] != "bedrock-runtime" {
 		return "", fmt.Errorf(
-			"Bedrock base URL must be a bedrock-runtime endpoint (bedrock-runtime.<region>.amazonaws.com), got %q",
+			"bedrock base URL must be a bedrock-runtime endpoint (bedrock-runtime.<region>.amazonaws.com), got %q",
 			u.Hostname())
 	}
 	return labels[1], nil
@@ -259,11 +259,11 @@ func (c *Client) streamBedrock(
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Bedrock API error %d: %s", resp.StatusCode, sanitizeAPIErrorBody(resp.StatusCode, b))
+		return fmt.Errorf("bedrock API error %d: %s", resp.StatusCode, sanitizeAPIErrorBody(resp.StatusCode, b))
 	}
 
 	return parseBedrockEventStream(resp.Body, onChunk)
@@ -558,7 +558,7 @@ func parseBedrockEventStream(r io.Reader, onChunk func(StreamChunk)) error {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("Bedrock event stream read failed: %w", err)
+			return fmt.Errorf("bedrock event stream read failed: %w", err)
 		}
 
 		switch msg.headers[":message-type"] {
@@ -570,9 +570,9 @@ func parseBedrockEventStream(r io.Reader, onChunk func(StreamChunk)) error {
 			if body.Message == "" {
 				body.Message = string(msg.payload)
 			}
-			return fmt.Errorf("Bedrock stream error (%s): %s", msg.headers[":exception-type"], body.Message)
+			return fmt.Errorf("bedrock stream error (%s): %s", msg.headers[":exception-type"], body.Message)
 		case "error":
-			return fmt.Errorf("Bedrock stream error (%s): %s", msg.headers[":error-code"], msg.headers[":error-message"])
+			return fmt.Errorf("bedrock stream error (%s): %s", msg.headers[":error-code"], msg.headers[":error-message"])
 		}
 		if msg.headers[":event-type"] != "chunk" {
 			continue // ignore anything we don't recognize rather than fail the turn
@@ -657,9 +657,9 @@ func parseBedrockEventStream(r io.Reader, onChunk func(StreamChunk)) error {
 
 		case "error":
 			if ev.Error != nil {
-				return fmt.Errorf("Bedrock stream error: %s", ev.Error.Message)
+				return fmt.Errorf("bedrock stream error: %s", ev.Error.Message)
 			}
-			return errors.New("Bedrock stream error")
+			return errors.New("bedrock stream error")
 
 		case "message_stop":
 			// Terminal event; totals are emitted below.

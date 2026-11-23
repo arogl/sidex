@@ -1,19 +1,9 @@
 package compress
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 )
-
-func makeMsg(role, content, name string) Message {
-	return Message{
-		Role:       role,
-		Content:    content,
-		Name:       name,
-		ToolCallID: fmt.Sprintf("tc_%s", name),
-	}
-}
 
 func bigString(n int) string {
 	return strings.Repeat("x", n)

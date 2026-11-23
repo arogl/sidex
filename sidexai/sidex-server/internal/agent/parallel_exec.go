@@ -34,14 +34,14 @@ func (wr WaveResult) HasFailures() bool {
 
 func (wr WaveResult) Summary() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Wave %d (%s):\n", wr.WaveIndex, wr.Duration.Round(time.Millisecond)))
+	fmt.Fprintf(&sb, "Wave %d (%s):\n", wr.WaveIndex, wr.Duration.Round(time.Millisecond))
 	for _, t := range wr.Tasks {
 		status := "done"
 		if t.Error != "" {
 			status = "FAILED"
 		}
-		sb.WriteString(fmt.Sprintf("  [%s] %s — %s (%d tools, %s)\n",
-			t.TaskID, status, t.Description, t.ToolCalls, t.Duration.Round(time.Millisecond)))
+		fmt.Fprintf(&sb, "  [%s] %s — %s (%d tools, %s)\n",
+			t.TaskID, status, t.Description, t.ToolCalls, t.Duration.Round(time.Millisecond))
 	}
 	return sb.String()
 }
@@ -253,7 +253,7 @@ func createWorktreeForTask(repoDir string, task ParallelTask) (wtDir, branch str
 func getWorktreeDiff(wtDir string) string {
 	cmd := exec.Command("git", "add", "-A")
 	cmd.Dir = wtDir
-	cmd.Run()
+	_ = cmd.Run()
 
 	cmd = exec.Command("git", "diff", "--cached", "--stat")
 	cmd.Dir = wtDir
@@ -286,12 +286,12 @@ func mergeWorktrees(conn Conn, repoDir string, results []WaveResult) error {
 			// Commit any pending changes in the worktree
 			commitCmd := exec.Command("git", "add", "-A")
 			commitCmd.Dir = task.WorktreeDir
-			commitCmd.Run()
+			_ = commitCmd.Run()
 
 			commitCmd = exec.Command("git", "commit", "-m",
 				fmt.Sprintf("parallel task %s: %s", task.TaskID, task.Description))
 			commitCmd.Dir = task.WorktreeDir
-			commitCmd.CombinedOutput()
+			_, _ = commitCmd.CombinedOutput()
 
 			// Merge the branch back
 			mergeCmd := exec.Command("git", "merge", "--no-ff", task.Branch,
@@ -302,7 +302,7 @@ func mergeWorktrees(conn Conn, repoDir string, results []WaveResult) error {
 				// Abort the failed merge
 				abortCmd := exec.Command("git", "merge", "--abort")
 				abortCmd.Dir = repoDir
-				abortCmd.Run()
+				_ = abortCmd.Run()
 
 				mergeErrors = append(mergeErrors,
 					fmt.Sprintf("task %s: merge conflict — branch %s preserved for manual resolution. %s",
@@ -329,12 +329,12 @@ func mergeWorktrees(conn Conn, repoDir string, results []WaveResult) error {
 func cleanupParallelWorktree(repoDir, wtDir, branch string) {
 	cmd := exec.Command("git", "worktree", "remove", "--force", wtDir)
 	cmd.Dir = repoDir
-	cmd.CombinedOutput()
-	os.RemoveAll(wtDir)
+	_, _ = cmd.CombinedOutput()
+	_ = os.RemoveAll(wtDir)
 
 	cmd = exec.Command("git", "branch", "-d", branch)
 	cmd.Dir = repoDir
-	cmd.CombinedOutput()
+	_, _ = cmd.CombinedOutput()
 }
 
 func buildTaskStatusList(tasks []ParallelTask, status string) []map[string]string {
@@ -369,8 +369,8 @@ func FormatParallelResults(results []WaveResult) string {
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\nTotal: %d/%d tasks succeeded in %s\n",
-		totalSuccess, totalTasks, totalDuration.Round(time.Millisecond)))
+	fmt.Fprintf(&sb, "\nTotal: %d/%d tasks succeeded in %s\n",
+		totalSuccess, totalTasks, totalDuration.Round(time.Millisecond))
 
 	return sb.String()
 }
@@ -420,7 +420,7 @@ func HandleParallelPlanExecute(
 		for _, task := range wave.Tasks {
 			if task.Error == "" {
 				for _, stepID := range task.StepIDs {
-					planStore.UpdateStep(plan.ID, stepID, "completed", "completed via parallel execution")
+					_ = planStore.UpdateStep(plan.ID, stepID, "completed", "completed via parallel execution")
 				}
 			}
 		}
