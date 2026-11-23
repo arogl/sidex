@@ -1,11 +1,13 @@
-import { Component, DOM, $ } from '../base.js';
+import { joinEditedContent, splitEditableContent } from '../../replyActions.js';
 import { IChatMessage } from '../../sidexChatService.js';
+import { $, Component, DOM } from '../base.js';
 import { renderMarkdown } from '../markdownRenderer.js';
 
 export class UserMessage extends Component {
 	private _confirmCard: HTMLElement | null = null;
+	private _editor: HTMLElement | null = null;
 
-	constructor(msg: IChatMessage, onRevert?: () => void) {
+	constructor(msg: IChatMessage, onRevert?: () => void, onEdit?: (content: string) => void) {
 		super('div', 'composer-rendered-message');
 		this.element.style.cssText =
 			'display: block; outline: none; padding-top: 10px; margin-bottom: 6px; position: relative; width: 100%;';
@@ -43,6 +45,19 @@ export class UserMessage extends Component {
 			textCol.innerHTML = renderMarkdown(textContent);
 		}
 
+		if (onEdit) {
+			const editBtn = DOM.append(wrapper, $('button.sc-user-msg-edit'));
+			editBtn.title = 'Edit and resend';
+			editBtn.setAttribute('aria-label', 'Edit and resend');
+			editBtn.innerHTML = '<span class="codicon codicon-edit"></span>';
+			messageBox.addEventListener('mouseenter', () => editBtn.classList.add('visible'));
+			messageBox.addEventListener('mouseleave', () => editBtn.classList.remove('visible'));
+			editBtn.addEventListener('click', e => {
+				e.stopPropagation();
+				this._startEdit(msg, messageBox, editBtn, onEdit);
+			});
+		}
+
 		if (onRevert && msg.checkpointLabel) {
 			const btnCol = DOM.append(flexRow, $('div'));
 			btnCol.style.cssText =
@@ -68,6 +83,66 @@ export class UserMessage extends Component {
 				revertBtn.style.background = 'transparent';
 			});
 		}
+	}
+
+	private _startEdit(
+		msg: IChatMessage,
+		messageBox: HTMLElement,
+		editBtn: HTMLElement,
+		onEdit: (content: string) => void
+	): void {
+		if (this._editor) {
+			return;
+		}
+		const { hidden, text } = splitEditableContent(msg.content);
+		const editor = document.createElement('div');
+		editor.className = 'sc-user-msg-editor';
+		const area = document.createElement('textarea');
+		area.className = 'sc-user-msg-editor-text';
+		area.value = text;
+		area.rows = Math.min(10, Math.max(2, text.split('\n').length));
+		editor.appendChild(area);
+
+		const actions = document.createElement('div');
+		actions.className = 'sc-user-msg-editor-actions';
+		const cancel = document.createElement('button');
+		cancel.className = 'sc-user-msg-editor-cancel';
+		cancel.textContent = 'Cancel';
+		const send = document.createElement('button');
+		send.className = 'sc-user-msg-editor-send';
+		send.textContent = 'Resend';
+		actions.append(cancel, send);
+		editor.appendChild(actions);
+
+		const close = () => {
+			editor.remove();
+			this._editor = null;
+			messageBox.style.display = '';
+			editBtn.style.display = '';
+		};
+		const submit = () => {
+			const content = joinEditedContent(hidden, area.value);
+			if (content) {
+				close();
+				onEdit(content);
+			}
+		};
+		cancel.addEventListener('click', close);
+		send.addEventListener('click', submit);
+		area.addEventListener('keydown', e => {
+			if (e.key === 'Enter' && !e.shiftKey) {
+				e.preventDefault();
+				submit();
+			} else if (e.key === 'Escape') {
+				close();
+			}
+		});
+
+		messageBox.style.display = 'none';
+		editBtn.style.display = 'none';
+		messageBox.parentElement?.insertBefore(editor, messageBox);
+		this._editor = editor;
+		area.focus();
 	}
 
 	private _showConfirmation(onRevert: () => void): void {

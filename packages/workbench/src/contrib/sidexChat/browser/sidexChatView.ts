@@ -688,9 +688,13 @@ export class SidexChatViewPane extends ViewPane {
 			const msg = messages[i];
 			if (msg.role === 'user') {
 				const msgIndex = i;
-				const comp = new UserMessage(msg, () => {
-					this.chatService.revertToMessage(msgIndex);
-				});
+				const comp = new UserMessage(
+					msg,
+					() => {
+						this.chatService.revertToMessage(msgIndex);
+					},
+					text => this.chatService.editAndResend(msgIndex, text)
+				);
 				comp.appendTo(this._messagesEl);
 				this._viewDisposables.add(comp);
 			} else if (msg.role === 'assistant') {
