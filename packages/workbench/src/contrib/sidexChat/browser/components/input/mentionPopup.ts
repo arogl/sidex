@@ -2,8 +2,8 @@
  *  MentionPopup — autocomplete dropdown for @ mentions in Sidex Chat
  *--------------------------------------------------------------------------------------------*/
 
-import { Component, DOM, $ } from '../base.js';
 import type { MentionItem } from '../../context/mentionResolver.js';
+import { $, Component, DOM } from '../base.js';
 
 export class MentionPopup extends Component {
 	private _listEl: HTMLElement;
@@ -95,9 +95,10 @@ export class MentionPopup extends Component {
 				row.classList.add('selected');
 			}
 
-			const icon = DOM.append(row, $('span.sc-mention-item-icon'));
+			// The base `codicon` class selects the icon font; without it the glyph renders as an empty box.
+			const icon = DOM.append(row, $('span.sc-mention-item-icon.codicon'));
 			if (item.iconClass) {
-				icon.classList.add(...item.iconClass.split(' '));
+				icon.classList.add(...item.iconClass.split(' ').filter(c => c !== 'codicon'));
 			} else {
 				icon.classList.add(item.type === 'folder' ? 'codicon-folder' : 'codicon-file');
 			}
