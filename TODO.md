@@ -90,7 +90,7 @@ Legend:
 - [~] Ship the ripgrep binaries in the release build (`release.yml` builds `real-host.cjs` and stages `@vscode/ripgrep-universal` for the target platform; not yet confirmed from an installed release)
 - [~] Ship the built-in agent server in the release build (`release.yml` builds `sidex-server` with Go on each runner and Tauri bundles it under `server/`; no Windows arm64 build; not yet confirmed from an installed release)
 - [~] Go lint, format and tests for `sidexai/sidex-server` run in CI (`lint-go.yml`; not yet a required check)
-- [ ] Ship the remaining native packages the real extension host imports (`@vscode/windows-process-tree`, `@vscode/sqlite3`, `node-pty`, `@parcel/watcher`, `@vscode/spdlog`) and a Node runtime, so releases do not depend on a system `node`
+- [ ] Ship a Node runtime with the app. The real extension host is started with the `node` on `PATH` (`ext_host_real.rs`), so an installed release needs Node 24 installed. The host's optional native packages (`@vscode/windows-process-tree`, `@vscode/sqlite3`, `node-pty`, `@parcel/watcher`, `@vscode/spdlog`) are not installed in a dev checkout either, and the host runs without them, so they are not needed for parity with `tauri dev`
 - [x] Copilot models on WSL: sign-in opens the Windows browser (needs `wslu` installed in the distro), the model list fills in and Auto can be chosen
 - [ ] URL scheme for the vscode.dev redirect page
 - [x] External URI openers (`MainThreadUriOpeners` now gets its service and links still open in the browser; an opener must claim a link as Default or Preferred, there is no picker; an extension that claims a link has not been tried)
