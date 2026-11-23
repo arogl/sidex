@@ -65,6 +65,12 @@ jobs:
         with:
           node-version: 24
 
+      - name: Setup Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: sidexai/sidex-server/go.mod
+          cache-dependency-path: sidexai/sidex-server/go.sum
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
@@ -117,6 +123,22 @@ jobs:
             *) echo "unknown target ${{ matrix.target }}"; exit 1 ;;
           esac
           node scripts/ext-host/stage-runtime-deps.mjs $args
+
+      # The server is cgo (sqlite, tree-sitter), so it is built natively on each runner.
+      # No Windows arm64 build yet: that needs an arm64 C cross-compiler on the x64 runner.
+      # The app starts without the server; only the built-in agent chat is disconnected.
+      - name: Build agent server
+        shell: bash
+        run: |
+          case "${{ matrix.target }}" in
+            universal-apple-darwin) args="--os darwin --arch arm64,x64" ;;
+            aarch64-apple-darwin) args="--os darwin --arch arm64" ;;
+            x86_64-apple-darwin) args="--os darwin --arch x64" ;;
+            x86_64-pc-windows-msvc) args="--os win32 --arch x64" ;;
+            x86_64-unknown-linux-gnu) args="--os linux --arch x64" ;;
+            *) echo "no agent server build for ${{ matrix.target }}"; exit 0 ;;
+          esac
+          node scripts/build-server.mjs $args
 
       - name: Build Tauri app
         timeout-minutes: 40
