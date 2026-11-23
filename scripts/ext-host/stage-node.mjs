@@ -34,6 +34,13 @@ async function get(url) {
 	return Buffer.from(await res.arrayBuffer());
 }
 
+// A Windows zip needs bsdtar. Git Bash puts GNU tar first on PATH, and it cannot read zip files
+// ("This does not look like a tar archive"), so use the one Windows ships.
+function tarCommand() {
+	if (process.platform !== 'win32') return 'tar';
+	return join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+}
+
 const work = mkdtempSync(join(tmpdir(), 'sidex-node-'));
 try {
 	const shasums = (await get(distUrl(version, 'SHASUMS256.txt'))).toString('utf8');
@@ -47,7 +54,7 @@ try {
 		const dir = join(work, arch);
 		mkdirSync(dir);
 		writeFileSync(join(dir, file), data);
-		execFileSync('tar', ['-xf', file, binaryInArchive(version, os, arch)], { cwd: dir, stdio: 'inherit' });
+		execFileSync(tarCommand(), ['-xf', file, binaryInArchive(version, os, arch)], { cwd: dir, stdio: 'inherit' });
 		extracted.push(join(dir, binaryInArchive(version, os, arch)));
 	}
 	const out = resolve(root, 'apps/desktop', stagedBinaryPath(os));
