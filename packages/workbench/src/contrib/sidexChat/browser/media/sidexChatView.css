@@ -1545,6 +1545,12 @@
 	pointer-events: auto;
 }
 
+.sc-mention-hint {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	animation: sc-fade-in 0.12s ease-out;
+}
+
 .sc-mention-pill-icon {
 	font-size: 12px;
 	line-height: 1;

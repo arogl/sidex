@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '@sidex/base/common/uri.js';
+import type { IAttachedRange } from './chatVariables.js';
 
 export type MentionType = 'file' | 'folder' | 'symbol' | 'url' | 'selection' | 'codebase';
 
@@ -13,10 +14,16 @@ export interface MentionItem {
 	fullPath?: string;
 	content?: string;
 	iconClass?: string;
+	/** Set for the `#file`, `#selection` and `#codebase` entries of the `#` popup. */
+	variable?: 'file' | 'selection' | 'codebase';
+	/** The attached file or selection, as a URI string (set for `#file` and `#selection`). */
+	uri?: string;
+	range?: IAttachedRange;
 }
 
 interface IFileSystemProvider {
-	findFiles(pattern: string, maxResults: number): Promise<URI[]>;
+	/** Files whose path matches `query`; with no query, the files that are open in editors. */
+	findFiles(query: string, maxResults: number): Promise<URI[]>;
 	readFile(uri: URI): Promise<string>;
 	readDirectory(uri: URI): Promise<Array<[string, 'file' | 'directory']>>;
 	getWorkspaceFolderPath(): string | undefined;
@@ -51,6 +58,13 @@ const FILE_EXTENSIONS: Record<string, string> = {
 	'.vue': 'Vue',
 	'.svelte': 'Svelte'
 };
+
+/** The path relative to the workspace folder, with `/` separators (Windows paths use `\\`). */
+export function relativeLabel(fullPath: string, root: string | undefined): string {
+	const path = fullPath.replace(/\\/g, '/');
+	const base = root?.replace(/\\/g, '/').replace(/\/$/, '');
+	return base && path.startsWith(base + '/') ? path.substring(base.length + 1) : path;
+}
 
 const MAX_SUGGESTIONS = 10;
 const MAX_FILE_LINES = 500;
@@ -134,17 +148,18 @@ export class MentionResolver {
 
 		// Suggest some common files from the workspace
 		try {
-			const uris = await this._fsProvider.findFiles('**/*', 15);
+			const uris = await this._fsProvider.findFiles('', 15);
 			for (const uri of uris.slice(0, MAX_SUGGESTIONS)) {
 				const wsRoot = this._fsProvider.getWorkspaceFolderPath();
 				const fullPath = uri.fsPath;
-				const label = wsRoot ? fullPath.replace(wsRoot + '/', '') : fullPath;
+				const label = relativeLabel(fullPath, wsRoot);
 				const ext = this._getExtension(label);
 				items.push({
 					type: 'file',
 					label,
 					detail: FILE_EXTENSIONS[ext] || 'File',
 					fullPath,
+					uri: uri.toString(),
 					iconClass: 'codicon-file'
 				});
 			}
@@ -159,14 +174,13 @@ export class MentionResolver {
 		const items: MentionItem[] = [];
 
 		try {
-			const glob = `**/*${query}*`;
-			const uris = await this._fsProvider.findFiles(glob, 30);
+			const uris = await this._fsProvider.findFiles(query, 30);
 
 			const wsRoot = this._fsProvider.getWorkspaceFolderPath();
 
 			for (const uri of uris) {
 				const fullPath = uri.fsPath;
-				const label = wsRoot ? fullPath.replace(wsRoot + '/', '') : fullPath;
+				const label = relativeLabel(fullPath, wsRoot);
 				const ext = this._getExtension(label);
 
 				const isDir = !ext;
@@ -175,6 +189,7 @@ export class MentionResolver {
 					label,
 					detail: isDir ? 'Folder' : FILE_EXTENSIONS[ext] || 'File',
 					fullPath,
+					uri: isDir ? undefined : uri.toString(),
 					iconClass: isDir ? 'codicon-folder' : 'codicon-file'
 				});
 

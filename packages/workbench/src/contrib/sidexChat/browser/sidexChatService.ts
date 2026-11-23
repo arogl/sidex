@@ -13,15 +13,20 @@ import { IBulkEditService } from '@sidex/editor/browser/services/bulkEditService
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IFileService } from '@sidex/platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
-import { createDecorator } from '@sidex/platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '@sidex/platform/instantiation/common/instantiation.js';
 import { IProductService } from '@sidex/platform/product/common/productService.js';
 import { IStorageService, StorageScope } from '@sidex/platform/storage/common/storage.js';
 import { IUpdateService } from '@sidex/platform/update/common/update.js';
 import { IWorkspaceContextService } from '@sidex/platform/workspace/common/workspace.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ISearchService } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { IChatRequestVariableEntry, toFileVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
+import {
+	IChatRequestVariableEntry,
+	toFileVariableEntry,
+	toToolVariableEntry
+} from '../../chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';
@@ -36,6 +41,13 @@ import { IToolActivityService } from '../../chat/common/tools/toolActivityServic
 import { IExplorerService } from '../../files/browser/files.js';
 import { IRecentEditTracker } from '../../sidexComplete/browser/recentEditTracker.js';
 import { DISABLED_TOOLS_STORAGE_KEY, enablementMap, parseDisabledTools } from './chatToolSelection.js';
+import { ChatContextProvider, IChatContextProvider } from './context/chatContextProvider.js';
+import {
+	codebaseQuery,
+	codebaseReference,
+	extractAttachedContext,
+	type IAttachedContext
+} from './context/chatVariables.js';
 import { editDiffResources } from './editReviewUris.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
@@ -229,6 +241,8 @@ export interface ISidexChatService {
 	connect(): void;
 	disconnect(): void;
 	sendMessage(text: string): void;
+	/** Workspace access for the input's mentions and `#` variables. */
+	readonly contextProvider: IChatContextProvider;
 	clearMessages(): void;
 	stopStreaming(): void;
 	setMode(mode: AgentMode): void;
@@ -319,6 +333,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		cwd: this._gatherWorkspaceContext().cwd
 	}));
 	private readonly _subagentRegistry = new SubagentRegistry();
+	readonly contextProvider: IChatContextProvider;
 	private _contextIndexed = false;
 
 	/** Tool names whose execution makes the semantic index stale. */
@@ -475,9 +490,18 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ISearchService searchService: ISearchService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
+		this.contextProvider = new ChatContextProvider(
+			fileService,
+			this.editorService,
+			this.contextService,
+			searchService,
+			instantiationService
+		);
 		// A file edit that fails is shown as a notice, not an error chunk: an error chunk ends the turn.
 		this._checkpointFiles = {
 			read: async uri => {
@@ -973,6 +997,22 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		return [toFileVariableEntry(uri)];
 	}
 
+	/** The request variables for a participant turn: what the user attached, `#codebase`, and the active editor. */
+	private _participantVariables(attached: readonly IAttachedContext[], message: string): IChatRequestVariableEntry[] {
+		const variables: IChatRequestVariableEntry[] = attached.map(a => toFileVariableEntry(URI.parse(a.uri), a.range));
+		const codebase = codebaseReference(message);
+		const tool = codebase ? this.toolsService.getToolByName('codebase') : undefined;
+		if (codebase && tool) {
+			variables.push(toToolVariableEntry(tool, codebase));
+		}
+		for (const entry of this._activeEditorVariables()) {
+			if (!variables.some(v => v.id === entry.id)) {
+				variables.push(entry);
+			}
+		}
+		return variables;
+	}
+
 	/** Runs a turn against an extension chat participant and streams its progress into the chat. */
 	private async _sendToParticipant(
 		agentId: string,
@@ -980,6 +1020,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		message: string,
 		userSelectedModelId?: string
 	): Promise<void> {
+		// Attached files and selections go to the participant as request variables, not as text in the prompt.
+		const extracted = extractAttachedContext(message);
+		message = extracted.message;
 		const cts = new CancellationTokenSource();
 		this._participantCancellation = cts;
 		const checkpoint = new TurnEditCheckpoint(
@@ -1002,7 +1045,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			});
 			// The current user message is already in the list; everything before it is history.
 			const history = buildParticipantHistory(this._messages.slice(0, -1), (text, index) =>
-				toRequest(text, `sidex-history-${index}`)
+				toRequest(extractAttachedContext(text).message, `sidex-history-${index}`)
 			) as unknown as IChatAgentHistoryEntry[];
 			let thinking = false;
 			const result = await this.chatAgentService.invokeAgent(
@@ -1012,7 +1055,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 					command,
 					userSelectedModelId,
 					userSelectedTools: this._userSelectedTools(),
-					variables: { variables: this._activeEditorVariables() }
+					variables: { variables: this._participantVariables(extracted.attached, message) }
 				},
 				parts => {
 					this._editApplier.enqueue(extractEditOps(parts as never));
@@ -1261,9 +1304,10 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 
 	private async _sendWithContext(text: string): Promise<void> {
 		let contextPrefix = '';
-		const codebaseMatch = text.match(/@codebase\s*(.*)/);
+		const codebaseText = codebaseQuery(text);
+		const codebaseMatch = codebaseText !== undefined;
 		if (LOCAL_TOOLS_SUPPORTED() && this._contextIndexed && (this._useDynamicContext || codebaseMatch)) {
-			const searchQuery = codebaseMatch ? codebaseMatch[1].trim() || text : text;
+			const searchQuery = codebaseText ?? text;
 			const searchLimit = codebaseMatch ? 15 : 10;
 			const searchBudget = codebaseMatch ? 6000 : 4000;
 
