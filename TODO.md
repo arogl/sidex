@@ -65,7 +65,8 @@ Legend:
 ## Chat input and history
 
 - [x] Attachments and `#file`, `#selection`, `#codebase` context variables (typing `#` lists them; files and selections reach Copilot as request variables and `#codebase` as the `codebase` tool reference, the built-in agent gets the text; the `@` popup now finds files too; folders are only offered through `@`)
-- [ ] Slash-command and participant completion in the input
+- [x] Slash-command completion in the input (`/` lists the answering participant's commands and `/orchestrate`; `@name /` lists that participant's; a bare `/explain` is routed to the default participant when it answers; `@name:` is accepted)
+- [ ] Participant (`@name`) completion in the input
 - [ ] Follow-up suggestions
 - [x] Copy, retry and vote actions on replies (a bar on hover; retry is for the newest reply and rolls back its file changes; votes show as a filled thumb and are kept for the session only, nothing is sent)
 - [x] Chat history across restarts (chats are saved to the local database per workspace; after a restart the chat starts fresh and earlier chats are in the history search, in full)
