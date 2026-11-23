@@ -206,7 +206,7 @@ func parseGrepOutput(output string) []SearchResult {
 
 		filePath := parts[0]
 		lineNum := 0
-		_ = fmt.Sscanf(parts[1], "%d", &lineNum)
+		_, _ = fmt.Sscanf(parts[1], "%d", &lineNum)
 
 		results = append(results, SearchResult{
 			File:      filePath,
