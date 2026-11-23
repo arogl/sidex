@@ -77,7 +77,8 @@ export function findParticipant<T extends IParticipantRef>(
 	agents: readonly T[],
 	mode?: string
 ): T | undefined {
-	const lower = mention.toLowerCase();
+	// People write `@copilot: explain this` as well as `@copilot explain this`.
+	const lower = mention.replace(/[:,;]+$/, '').toLowerCase();
 	// Copilot's default participant is named "GitHubCopilot", so also accept the short aliases users type.
 	return (
 		agents.find(a => a.name.toLowerCase() === lower || a.id.toLowerCase() === lower) ??
