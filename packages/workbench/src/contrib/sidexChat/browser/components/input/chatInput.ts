@@ -11,7 +11,7 @@ import {
 	variableSuggestions
 } from '../../context/chatVariables.js';
 import { MentionItem, MentionResolver, relativeLabel } from '../../context/mentionResolver.js';
-import { parseParticipantModelId } from '../../participantBridge.js';
+import { parseParticipantModelId, slashTrigger } from '../../participantBridge.js';
 import { ISidexChatService } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
 import { conversationTokens as estimateConversationTokens } from './contextEstimate.js';
@@ -1008,6 +1008,27 @@ export class ChatInput extends Component {
 		const textBefore = value.substring(0, cursorPos);
 		const atIndex = textBefore.lastIndexOf('@');
 
+		// A `/command` at the start of the message, or right after a leading `@participant`.
+		const slash = slashTrigger(value, cursorPos);
+		if (slash) {
+			const commands = this._chatService
+				.getSlashCommands(slash.agent)
+				.filter(c => c.name.toLowerCase().startsWith(slash.query.toLowerCase()));
+			if (commands.length > 0) {
+				this._mentionTracking = { active: true, startPos: slash.start };
+				this._mentionPopup.show(
+					commands.map(c => ({
+						type: 'command' as const,
+						label: c.name,
+						detail: c.description,
+						iconClass: 'codicon-symbol-event'
+					})),
+					this._getCaretRect()
+				);
+				return;
+			}
+		}
+
 		// A `#variable` (#file, #selection, #codebase) typed after the last @ takes over the popup.
 		const hash = hashTrigger(value, cursorPos);
 		if (hash && hash.start > atIndex) {
@@ -1093,6 +1114,13 @@ export class ChatInput extends Component {
 		const before = value.substring(0, this._mentionTracking.startPos);
 		const after = value.substring(cursorPos);
 
+		// `/command` goes into the text, followed by a space, and the message is sent to the participant.
+		if (item.type === 'command') {
+			this._setTextAround(before, `/${item.label} `, after);
+			this._mentionTracking.active = false;
+			this._mentionPopup.hide();
+			return;
+		}
 		// `#file` keeps typing: it turns into `#file:` and the popup lists files.
 		if (item.variable === 'file') {
 			this._setTextAround(before, '#file:', after);

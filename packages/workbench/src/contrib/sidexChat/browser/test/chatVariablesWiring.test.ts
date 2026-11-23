@@ -31,3 +31,14 @@ describe('chat variable wiring', () => {
 		expect(service).toContain('codebaseQuery(text)');
 	});
 });
+
+describe('slash command wiring', () => {
+	it('the input completes commands from the chat service and the service routes them', () => {
+		const input = read('components/input/chatInput.ts');
+		expect(input).toContain('slashTrigger(value, cursorPos)');
+		expect(input).toContain('getSlashCommands(slash.agent)');
+		const service = read('sidexChatService.ts');
+		expect(service).toContain('routeSlashCommand(text, slashAgent)');
+		expect(service).toContain("name: 'orchestrate'");
+	});
+});
