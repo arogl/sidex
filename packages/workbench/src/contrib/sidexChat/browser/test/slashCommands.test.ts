@@ -57,3 +57,22 @@ describe('slash command routing', () => {
 		expect(routeToParticipant('@workspace /new app', agents)?.command).toBe('new');
 	});
 });
+
+describe('a colon after @name', () => {
+	it('still names the participant', () => {
+		expect(findParticipant('copilot:', agents)).toBe(copilot);
+		expect(findParticipant('workspace,', agents)).toBe(workspace);
+		expect(routeToParticipant('@copilot: /explain this', agents)).toEqual({
+			agent: copilot,
+			command: 'explain',
+			message: 'this'
+		});
+		expect(routeToParticipant('@workspace: /new app', agents)?.command).toBe('new');
+		expect(slashTrigger('@copilot: /', 11)?.agent).toBe('copilot:');
+	});
+
+	it('does not invent a participant', () => {
+		expect(findParticipant('everything:', agents)).toBeUndefined();
+		expect(routeToParticipant('@everything: hi', agents)).toBeUndefined();
+	});
+});
