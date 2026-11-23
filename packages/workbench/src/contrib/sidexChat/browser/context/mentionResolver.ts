@@ -5,7 +5,7 @@
 import { URI } from '@sidex/base/common/uri.js';
 import type { IAttachedRange } from './chatVariables.js';
 
-export type MentionType = 'file' | 'folder' | 'symbol' | 'url' | 'selection' | 'codebase' | 'command';
+export type MentionType = 'file' | 'folder' | 'symbol' | 'url' | 'selection' | 'codebase' | 'command' | 'participant';
 
 export interface MentionItem {
 	type: MentionType;

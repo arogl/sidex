@@ -56,10 +56,12 @@ import { filterEnabledModels, parseEnabledModels } from './modelFilter.js';
 import {
 	buildParticipantHistory,
 	findParticipant,
+	type IParticipantSuggestion,
 	mergePickerModels,
 	PARTICIPANT_SETTLE_MS,
 	PARTICIPANT_WAIT_MS,
 	parseParticipantModelId,
+	participantSuggestions,
 	pickFallbackParticipant,
 	progressToChunks,
 	routeSlashCommand,
@@ -257,6 +259,8 @@ export interface ISidexChatService {
 	 * participant when it is the one answering (a Copilot model is selected, or the local server is unreachable).
 	 */
 	getSlashCommands(agentMention?: string): ISlashCommandInfo[];
+	/** The participants the input can complete after an `@` at the start of a message. */
+	getParticipants(query: string): IParticipantSuggestion[];
 	/** Workspace access for the input's mentions and `#` variables. */
 	readonly contextProvider: IChatContextProvider;
 	clearMessages(): void;
@@ -1032,6 +1036,10 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			return undefined;
 		}
 		return pickFallbackParticipant(this.chatAgentService.getAgents(), this._participantMode());
+	}
+
+	getParticipants(query: string): IParticipantSuggestion[] {
+		return participantSuggestions(this.chatAgentService.getAgents(), query);
 	}
 
 	getSlashCommands(agentMention?: string): ISlashCommandInfo[] {

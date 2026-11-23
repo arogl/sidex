@@ -13,6 +13,9 @@ export interface IParticipantRef {
 	readonly isDefault?: boolean;
 	readonly modes?: readonly string[];
 	readonly slashCommands?: readonly { readonly name: string; readonly description?: string }[];
+	readonly description?: string;
+	/** Where the participant can be used; the chat panel is `panel`. */
+	readonly locations?: readonly string[];
 }
 
 export interface IParticipantRoute<T extends IParticipantRef> {
@@ -97,6 +100,38 @@ export function routeSlashCommand<T extends IParticipantRef>(text: string, agent
 		return undefined;
 	}
 	return { agent, command: match[1], message: match[2] };
+}
+
+export interface IParticipantSuggestion {
+	/** What follows the `@`. */
+	readonly name: string;
+	readonly description: string;
+}
+
+/**
+ * The participants a message can be addressed to, for completing `@name`: those usable in the chat panel whose
+ * name starts with what was typed. The default Copilot participant is offered as `copilot`, the short name
+ * `routeToParticipant` accepts, rather than its internal name `GitHubCopilot`.
+ */
+export function participantSuggestions<T extends IParticipantRef>(
+	agents: readonly T[],
+	query: string
+): IParticipantSuggestion[] {
+	const q = normalize(query);
+	const seen = new Set<string>();
+	const out: IParticipantSuggestion[] = [];
+	for (const agent of agents) {
+		if (agent.locations && !agent.locations.includes('panel')) {
+			continue;
+		}
+		const name = agent.isDefault && normalize(agent.name) === 'githubcopilot' ? 'copilot' : agent.name;
+		if (!normalize(name).startsWith(q) || seen.has(name.toLowerCase())) {
+			continue;
+		}
+		seen.add(name.toLowerCase());
+		out.push({ name, description: agent.description ?? '' });
+	}
+	return out;
 }
 
 export interface ISlashTrigger {
