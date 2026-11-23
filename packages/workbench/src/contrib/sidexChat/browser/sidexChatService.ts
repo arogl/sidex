@@ -31,6 +31,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';
 import {
+	IChatAgentData,
 	IChatAgentHistoryEntry,
 	IChatAgentRequest,
 	IChatAgentService
@@ -53,12 +54,14 @@ import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './lo
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
 import {
 	buildParticipantHistory,
+	findParticipant,
 	mergePickerModels,
 	PARTICIPANT_SETTLE_MS,
 	PARTICIPANT_WAIT_MS,
 	parseParticipantModelId,
 	pickFallbackParticipant,
 	progressToChunks,
+	routeSlashCommand,
 	routeToParticipant,
 	toParticipantModelId,
 	waitForCondition,
@@ -218,6 +221,13 @@ export type PermissionMode = 'default' | 'auto_edits' | 'plan_only' | 'auto_all'
 
 export const ISidexChatService = createDecorator<ISidexChatService>('sidexChatService');
 
+export interface ISlashCommandInfo {
+	readonly name: string;
+	readonly description: string;
+	/** The participant that owns the command. */
+	readonly agent: string;
+}
+
 export interface ISidexChatService {
 	readonly _serviceBrand: undefined;
 
@@ -241,6 +251,11 @@ export interface ISidexChatService {
 	connect(): void;
 	disconnect(): void;
 	sendMessage(text: string): void;
+	/**
+	 * The `/commands` the input can complete: those of the participant named by `agentMention`, or of the default
+	 * participant when it is the one answering (a Copilot model is selected, or the local server is unreachable).
+	 */
+	getSlashCommands(agentMention?: string): ISlashCommandInfo[];
 	/** Workspace access for the input's mentions and `#` variables. */
 	readonly contextProvider: IChatContextProvider;
 	clearMessages(): void;
@@ -902,6 +917,19 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			void this._sendToParticipant(route.agent.id, route.command, route.message);
 			return;
 		}
+		const slashAgent = this._defaultParticipantForTurn();
+		const slashRoute = slashAgent ? routeSlashCommand(text, slashAgent) : undefined;
+		if (slashRoute) {
+			this._enqueueUserMessage(text);
+			this._setStreaming(true);
+			void this._sendToParticipant(
+				slashRoute.agent.id,
+				slashRoute.command,
+				slashRoute.message,
+				parseParticipantModelId(this._serverModel)
+			);
+			return;
+		}
 		const participantModel = parseParticipantModelId(this._serverModel);
 		if (participantModel !== undefined) {
 			// A Copilot model is selected, so the default participant answers regardless of the server.
@@ -995,6 +1023,30 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			}
 		}
 		return [toFileVariableEntry(uri)];
+	}
+
+	/** The default participant, when it is the one answering this turn: a Copilot model is selected, or the server is down. */
+	private _defaultParticipantForTurn(): IChatAgentData | undefined {
+		if (parseParticipantModelId(this._serverModel) === undefined && this._connectionState === 'connected') {
+			return undefined;
+		}
+		return pickFallbackParticipant(this.chatAgentService.getAgents(), this._participantMode());
+	}
+
+	getSlashCommands(agentMention?: string): ISlashCommandInfo[] {
+		const agents = this.chatAgentService.getAgents();
+		const agent = agentMention
+			? findParticipant(agentMention, agents, this._participantMode())
+			: this._defaultParticipantForTurn();
+		const commands = (agent?.slashCommands ?? []).map(c => ({
+			name: c.name,
+			description: c.description ?? '',
+			agent: agent!.name
+		}));
+		// `/orchestrate` is SideX's own; the view handles it before any participant sees the message.
+		return agentMention
+			? commands
+			: [{ name: 'orchestrate', description: 'Split a task across parallel agents', agent: 'SideX' }, ...commands];
 	}
 
 	/** The request variables for a participant turn: what the user attached, `#codebase`, and the active editor. */

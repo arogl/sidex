@@ -12,7 +12,7 @@ export interface IParticipantRef {
 	readonly name: string;
 	readonly isDefault?: boolean;
 	readonly modes?: readonly string[];
-	readonly slashCommands?: readonly { readonly name: string }[];
+	readonly slashCommands?: readonly { readonly name: string; readonly description?: string }[];
 }
 
 export interface IParticipantRoute<T extends IParticipantRef> {
@@ -71,6 +71,55 @@ function normalize(value: string): string {
 	return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+/** The participant a typed `@name` refers to. */
+export function findParticipant<T extends IParticipantRef>(
+	mention: string,
+	agents: readonly T[],
+	mode?: string
+): T | undefined {
+	const lower = mention.toLowerCase();
+	// Copilot's default participant is named "GitHubCopilot", so also accept the short aliases users type.
+	return (
+		agents.find(a => a.name.toLowerCase() === lower || a.id.toLowerCase() === lower) ??
+		agents.find(a => normalize(a.name) === normalize(lower)) ??
+		(DEFAULT_AGENT_ALIASES.has(lower) ? pickFallbackParticipant(agents, mode) : undefined)
+	);
+}
+
+/**
+ * A message that starts with `/command`, for a participant that declares that command. Used when the default
+ * participant answers, as in VS Code where `/explain` goes to the default agent.
+ */
+export function routeSlashCommand<T extends IParticipantRef>(text: string, agent: T): IParticipantRoute<T> | undefined {
+	const match = /^\s*\/([^\s]+)\s*([\s\S]*)$/.exec(text);
+	if (!match || !agent.slashCommands?.some(c => c.name === match[1])) {
+		return undefined;
+	}
+	return { agent, command: match[1], message: match[2] };
+}
+
+export interface ISlashTrigger {
+	/** Index of the `/` in the text. */
+	readonly start: number;
+	/** What was typed after it. */
+	readonly query: string;
+	/** The `@name` the command follows, when the message addresses a participant. */
+	readonly agent?: string;
+}
+
+/**
+ * The `/` the cursor is completing: at the start of the message, or right after a leading `@name `. A space
+ * after what was typed ends it, so a path such as `/usr/bin` later in a sentence is not a command.
+ */
+export function slashTrigger(text: string, cursor: number): ISlashTrigger | undefined {
+	const before = text.substring(0, cursor);
+	const match = /^(\s*)(?:@([^\s]+)\s+)?\/([^\s]*)$/.exec(before);
+	if (!match) {
+		return undefined;
+	}
+	return { start: before.length - match[3].length - 1, query: match[3], agent: match[2] };
+}
+
 /**
  * Matches a leading `@name` (and an optional `/command`) against the registered participants.
  * Returns undefined when the text is not addressed to a participant, so the normal SideX flow runs.
@@ -84,12 +133,7 @@ export function routeToParticipant<T extends IParticipantRef>(
 	if (!match) {
 		return undefined;
 	}
-	const mention = match[1].toLowerCase();
-	// Copilot's default participant is named "GitHubCopilot", so also accept the short aliases users type.
-	const agent =
-		agents.find(a => a.name.toLowerCase() === mention || a.id.toLowerCase() === mention) ??
-		agents.find(a => normalize(a.name) === normalize(mention)) ??
-		(DEFAULT_AGENT_ALIASES.has(mention) ? pickFallbackParticipant(agents, mode) : undefined);
+	const agent = findParticipant(match[1], agents, mode);
 	if (!agent) {
 		return undefined;
 	}
