@@ -286,6 +286,8 @@ export interface ISidexChatService {
 	revertToMessage(messageIndex: number): void;
 	/** Answers the last user message again, dropping the reply (and the file changes it made). */
 	retryLastReply(): void;
+	/** Replaces the user message at `messageIndex` and everything after it with `text`, undoes the file changes since, and sends it. */
+	editAndResend(messageIndex: number, text: string): void;
 	setReplyVote(messageIndex: number, vote: 'up' | 'down' | undefined): void;
 	redoCheckpoint(): void;
 	getSavedSessions(): Array<{
@@ -1320,6 +1322,30 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		this._revertedMessages = [];
 		// The user message is still last, so sending it again does not add it twice.
 		this.sendMessage(target.text);
+	}
+
+	editAndResend(messageIndex: number, text: string): void {
+		const msg = this._messages[messageIndex];
+		if (this._isStreaming || !msg || msg.role !== 'user' || !text.trim()) {
+			return;
+		}
+		if (msg.checkpointLabel) {
+			void this._rollbackToCheckpoint(msg.checkpointLabel);
+		}
+		this._messages = this._messages.slice(0, messageIndex);
+		this._revertedMessages = [];
+		this._currentAssistantMessage = null;
+		this._onDidChangeMessages.fire(this._messages);
+		if (this._ws && this._connectionState === 'connected') {
+			this._ws.send(
+				JSON.stringify({
+					type: 'revert',
+					session_id: this._sessionId,
+					keep_user_messages: this._messages.filter(m => m.role === 'user').length
+				})
+			);
+		}
+		this.sendMessage(text);
 	}
 
 	setReplyVote(messageIndex: number, vote: 'up' | 'down' | undefined): void {

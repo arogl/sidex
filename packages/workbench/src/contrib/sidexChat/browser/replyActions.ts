@@ -23,3 +23,23 @@ export function findRetryTarget(
 	}
 	return undefined;
 }
+
+const LEADING_BLOCKS = /^(?:\s*(?:<context\b[^>]*>[\s\S]*?<\/context>|<attachments>[\s\S]*?<\/attachments>))+\s*/;
+
+/**
+ * Splits a sent user message into the hidden blocks the input put in front of the text (attached files and
+ * selections) and the text the person typed, so only the text is edited and the blocks are sent again with it.
+ */
+export function splitEditableContent(content: string): { hidden: string; text: string } {
+	const match = LEADING_BLOCKS.exec(content);
+	if (!match) {
+		return { hidden: '', text: content.trim() };
+	}
+	return { hidden: match[0], text: content.slice(match[0].length).trim() };
+}
+
+/** The message to send after an edit: the original hidden blocks, then the new text. Undefined when it is empty. */
+export function joinEditedContent(hidden: string, text: string): string | undefined {
+	const trimmed = text.trim();
+	return trimmed ? hidden + trimmed : undefined;
+}

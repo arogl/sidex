@@ -2581,3 +2581,55 @@ i.cursor-icon { font-style: normal; }
 .cursor-icon, i.cursor-icon {
 	font-style: normal !important;
 }
+
+.sc-user-msg-edit {
+	background: transparent;
+	border: none;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	opacity: 0;
+	padding: 2px 4px;
+	border-radius: 4px;
+	align-self: flex-end;
+}
+.sc-user-msg-edit.visible,
+.sc-user-msg-edit:hover,
+.sc-user-msg-edit:focus-visible {
+	opacity: 1;
+}
+.sc-user-msg-editor {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.sc-user-msg-editor-text {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+	font: inherit;
+	padding: 8px 10px;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background);
+	border: 1px solid var(--vscode-focusBorder);
+	border-radius: 8px;
+}
+.sc-user-msg-editor-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 6px;
+}
+.sc-user-msg-editor-actions button {
+	padding: 3px 10px;
+	border-radius: 4px;
+	font-size: 11px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.1));
+}
+.sc-user-msg-editor-actions .sc-user-msg-editor-send {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: transparent;
+}
