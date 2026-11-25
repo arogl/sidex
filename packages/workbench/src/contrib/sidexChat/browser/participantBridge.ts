@@ -237,6 +237,11 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 			case 'autoModeResolution':
 				// Which model Auto picked for the turn; there is nowhere to show it, and it is not worth a notice.
 				break;
+			case 'reference':
+				// The files and symbols the answer drew on (VS Code's "Used N references" list), not part of the
+				// text. Not displayed yet, and not worth a notice on every reply.
+				console.info(`[sidex-chat] used reference: ${JSON.stringify(part['reference'])}`);
+				break;
 			case 'textEdit':
 			case 'workspaceEdit':
 				// applied to the files by the edit applier, see participantEditOps

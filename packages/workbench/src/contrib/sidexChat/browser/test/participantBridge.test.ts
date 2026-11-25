@@ -264,6 +264,10 @@ describe('streaming text body', () => {
 });
 
 describe('informational progress', () => {
+	it('does not raise a notice for the references a reply used', () => {
+		expect(progressToChunks([{ kind: 'reference', reference: { scheme: 'file', path: '/a.rs' } }])).toEqual([]);
+	});
+
 	it('does not report which model Auto picked as unsupported', () => {
 		expect(progressToChunks([{ kind: 'autoModeResolution' }])).toEqual([]);
 	});
