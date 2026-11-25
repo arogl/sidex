@@ -741,6 +741,17 @@ export class SidexChatViewPane extends ViewPane {
 			this._currentAssistantComp.updateProgress(lastMsg);
 		}
 
+		// Suggested follow-ups belong to the newest reply, once the turn has finished.
+		const showFollowups =
+			lastMsg.role === 'assistant' && !this.chatService.isStreaming && this._currentAssistantComp !== null;
+		if (showFollowups) {
+			this._currentAssistantComp?.setFollowups(lastMsg.followups, f => this.chatService.sendFollowup(f));
+		} else {
+			for (const row of this._messagesEl.querySelectorAll('.sc-followups')) {
+				row.remove();
+			}
+		}
+
 		// Render reverted messages dimmed + redo link
 		this._renderRevertedMessages();
 

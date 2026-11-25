@@ -34,6 +34,7 @@ import {
 	IChatAgentData,
 	IChatAgentHistoryEntry,
 	IChatAgentRequest,
+	IChatAgentResult,
 	IChatAgentService
 } from '../../chat/common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
@@ -79,7 +80,11 @@ import {
 	TurnEditCheckpoint
 } from './participantEditCheckpoint.js';
 import { extractEditOps } from './participantEditOps.js';
-import { findRetryTarget } from './replyActions.js';
+import { findRetryTarget, followupText, type IFollowupInfo, normalizeFollowups } from './replyActions.js';
+
+/** How long a participant gets to suggest follow-ups before the reply is left without any. */
+const FOLLOWUP_TIMEOUT_MS = 5000;
+
 import {
 	buildSubagentPrompt,
 	getAllowedTools,
@@ -109,6 +114,8 @@ export interface IChatMessage {
 	checkpointLabel?: string;
 	/** The user's vote on this reply. Kept for the session only; nothing sends it anywhere. */
 	vote?: 'up' | 'down';
+	/** Next messages the participant suggests, shown as buttons under the newest reply. */
+	followups?: IFollowupInfo[];
 }
 
 export interface IToolCallInfo {
@@ -286,6 +293,8 @@ export interface ISidexChatService {
 	revertToMessage(messageIndex: number): void;
 	/** Answers the last user message again, dropping the reply (and the file changes it made). */
 	retryLastReply(): void;
+	/** Sends a suggested follow-up as the next message, to the participant that offered it. */
+	sendFollowup(followup: IFollowupInfo): void;
 	/** Replaces the user message at `messageIndex` and everything after it with `text`, undoes the file changes since, and sends it. */
 	editAndResend(messageIndex: number, text: string): void;
 	setReplyVote(messageIndex: number, vote: 'up' | 'down' | undefined): void;
@@ -1093,6 +1102,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			this._checkpointFiles
 		);
 		this._turnCheckpoint = checkpoint;
+		let followupArgs: [IChatAgentRequest, IChatAgentResult, IChatAgentHistoryEntry[]] | undefined;
 		try {
 			// The same local-session URI VS Code uses. Copilot builds its debug-log and transcript file names from
 			// the resource, and a bespoke `sidex-chat:/...` string became the folder name `sidex-chat:` (invalid on Windows).
@@ -1111,15 +1121,16 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				toRequest(extractAttachedContext(text).message, `sidex-history-${index}`)
 			) as unknown as IChatAgentHistoryEntry[];
 			let thinking = false;
+			const request: IChatAgentRequest = {
+				...toRequest(message, `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
+				command,
+				userSelectedModelId,
+				userSelectedTools: this._userSelectedTools(),
+				variables: { variables: this._participantVariables(extracted.attached, message) }
+			};
 			const result = await this.chatAgentService.invokeAgent(
 				agentId,
-				{
-					...toRequest(message, `sidex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
-					command,
-					userSelectedModelId,
-					userSelectedTools: this._userSelectedTools(),
-					variables: { variables: this._participantVariables(extracted.attached, message) }
-				},
+				request,
 				parts => {
 					this._editApplier.enqueue(extractEditOps(parts as never));
 					for (const chunk of progressToChunks(parts as never)) {
@@ -1152,6 +1163,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				this._handleChunk({ type: 'error', error: result.errorDetails.message } as IStreamChunk);
 				return;
 			}
+			followupArgs = [request, result, history];
 		} catch (e) {
 			this._handleChunk({ type: 'error', error: e instanceof Error ? e.message : String(e) } as IStreamChunk);
 			return;
@@ -1163,6 +1175,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			await this._publishEditReview(checkpoint);
 		}
 		this._handleChunk({ type: 'done' } as IStreamChunk);
+		if (followupArgs) {
+			await this._loadFollowups(agentId, ...followupArgs);
+		}
 	}
 
 	/** Once a turn has finished writing, offers the files it changed for Keep and Undo. */
@@ -1346,6 +1361,49 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			);
 		}
 		this.sendMessage(text);
+	}
+
+	sendFollowup(followup: IFollowupInfo): void {
+		if (this._isStreaming) {
+			return;
+		}
+		this._enqueueUserMessage(followupText(followup));
+		this._setStreaming(true);
+		void this._sendToParticipant(
+			followup.agentId,
+			followup.subCommand,
+			followup.message,
+			parseParticipantModelId(this._serverModel)
+		);
+	}
+
+	/** Asks the participant what to offer next, and shows it under the reply unless the chat has moved on. */
+	private async _loadFollowups(
+		agentId: string,
+		request: IChatAgentRequest,
+		result: IChatAgentResult,
+		history: IChatAgentHistoryEntry[]
+	): Promise<void> {
+		const target = this._messages[this._messages.length - 1];
+		if (!target || target.role !== 'assistant') {
+			return;
+		}
+		const cts = new CancellationTokenSource();
+		const timer = setTimeout(() => cts.cancel(), FOLLOWUP_TIMEOUT_MS);
+		try {
+			const raw = await this.chatAgentService.getFollowups(agentId, request, result, history, cts.token);
+			const followups = normalizeFollowups(raw);
+			if (followups.length > 0 && !this._isStreaming && this._messages[this._messages.length - 1] === target) {
+				target.followups = followups;
+				this._onDidChangeMessages.fire(this._messages);
+			}
+		} catch (e) {
+			// Suggestions are optional; a participant that cannot offer any just shows none.
+			console.info(`[sidex-chat] no follow-ups from '${agentId}': ${e instanceof Error ? e.message : String(e)}`);
+		} finally {
+			clearTimeout(timer);
+			cts.dispose();
+		}
 	}
 
 	setReplyVote(messageIndex: number, vote: 'up' | 'down' | undefined): void {

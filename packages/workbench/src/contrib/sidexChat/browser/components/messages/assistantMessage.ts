@@ -3,7 +3,7 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
-import { nextVote, type ReplyVote } from '../../replyActions.js';
+import { type IFollowupInfo, nextVote, type ReplyVote } from '../../replyActions.js';
 import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
 import { Collapsible } from '../collapsible/collapsible.js';
@@ -126,6 +126,22 @@ export class AssistantMessage extends Component {
 			this._checklist = view;
 		}
 		this._checklist.update(todos);
+	}
+
+	/** Shows the suggested next messages as buttons under the reply, replacing any shown before. */
+	setFollowups(followups: readonly IFollowupInfo[] | undefined, onPick: (f: IFollowupInfo) => void): void {
+		this.element.querySelector(':scope > .sc-followups')?.remove();
+		if (!followups || followups.length === 0) {
+			return;
+		}
+		const row = this.append('div', 'sc-followups');
+		for (const f of followups) {
+			const btn = DOM.append(row, $('button.sc-followup')) as HTMLButtonElement;
+			btn.type = 'button';
+			btn.textContent = f.title;
+			btn.title = f.tooltip ?? f.message;
+			this.on(btn, 'click', () => onPick(f));
+		}
 	}
 
 	/** Copy, retry (last reply only, by CSS) and thumbs up/down under a reply. Shown on hover. */
