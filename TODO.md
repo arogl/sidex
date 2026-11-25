@@ -47,7 +47,7 @@ Legend:
 - [x] `inlineReference` shown as the file or symbol name in code style
 - [x] `thinking` content shown in the thinking block
 - [x] `autoModeResolution` (which model Auto picked) no longer raises a notice
-- [~] `reference` parts (the files a reply used) no longer raise a notice on every Copilot reply
+- [x] `reference` parts (the files a reply used) no longer raise a notice on every Copilot reply
 - [ ] Show the references a reply used as a "Used N references" list
 - [x] File edits from Copilot's edit tools are applied and saved (including new files)
 - [~] Inline references open the file when clicked (structured references and `[label](file link)` links in a reply open the file at the line; Copilot's own replies write plain text, so plain file names are not linked)
@@ -69,7 +69,8 @@ Legend:
 - [x] Attachments and `#file`, `#selection`, `#codebase` context variables (typing `#` lists them; files and selections reach Copilot as request variables and `#codebase` as the `codebase` tool reference, the built-in agent gets the text; the `@` popup now finds files too; folders are only offered through `@`)
 - [x] Slash-command completion in the input (`/` lists the answering participant's commands and `/orchestrate`; `@name /` lists that participant's; a bare `/explain` is routed to the default participant when it answers; `@name:` is accepted)
 - [x] Participant (`@name`) completion in the input (`@` at the start of a message lists the chat participants with descriptions, the default one as `copilot`; picking one inserts the name and opens its `/` commands; later `@` still lists files only)
-- [ ] Follow-up suggestions
+- [x] Follow-up suggestions (buttons under the newest reply when the participant offers any; Copilot returned none for the replies tested, the same as VS Code, so none showed)
+- [ ] Colour the code inside inline code spans in replies the way VS Code does
 - [x] Copy, retry and vote actions on replies (a bar on hover; retry is for the newest reply and rolls back its file changes; votes show as a filled thumb and are kept for the session only, nothing is sent)
 - [x] Chat history across restarts (chats are saved to the local database per workspace; after a restart the chat starts fresh and earlier chats are in the history search, in full)
 - [x] Edit and resend an earlier message (a pencil under a user message turns it into a text box; Resend drops it and what followed, rolls back the file changes since, and sends the new text; attached files and selections are sent again with it)

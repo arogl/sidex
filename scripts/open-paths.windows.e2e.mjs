@@ -2,12 +2,78 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { createServer } from 'node:net';
+import { createConnection as connectSocket, createServer } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { chromium } from 'playwright';
+import { fileURLToPath } from 'node:url';
 
-// Run on Windows from an interactive desktop with no other SideX instance open.
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+function run(command, args) {
+	return new Promise(done => {
+		const child = spawn(command, args, { cwd: repoRoot, stdio: 'inherit', shell: process.platform === 'win32' });
+		child.once('error', () => done(1));
+		child.once('exit', code => done(code ?? 1));
+	});
+}
+
+// `playwright` is not a dependency of the workspace (CI does not run this script), so install it on first use
+// without touching package.json or the lock file.
+async function loadPlaywright() {
+	try {
+		return await import('playwright');
+	} catch {
+		console.log('Installing playwright for this script: bun add --no-save playwright');
+		if ((await run('bun', ['add', '--no-save', 'playwright'])) !== 0) {
+			console.error('Could not install playwright. Run `bun add --no-save playwright` in the repo root, then retry.');
+			process.exit(1);
+		}
+		return import('playwright');
+	}
+}
+const { chromium } = await loadPlaywright();
+
+// A debug build loads its UI from the Vite dev server (devUrl in apps/desktop/tauri.conf.json), so start one
+// when none is listening. A release build embeds the frontend and needs none. Pass --no-dev-server to skip it.
+const devPort = 1420;
+let devServer;
+
+function listening(port) {
+	const attempt = host =>
+		new Promise(done => {
+			const socket = connectSocket({ host, port });
+			socket.once('connect', () => (socket.destroy(), done(true)));
+			socket.once('error', () => done(false));
+		});
+	return Promise.all([attempt('127.0.0.1'), attempt('::1')]).then(results => results.some(Boolean));
+}
+
+async function startDevServer() {
+	if (process.argv.includes('--no-dev-server') || !/[\\/]debug[\\/]/.test(executable) || (await listening(devPort))) {
+		return;
+	}
+	console.log('Starting the dev server (bun run dev); the first start can take a few minutes.');
+	devServer = spawn('bun', ['run', 'dev'], { cwd: repoRoot, stdio: 'ignore', shell: process.platform === 'win32' });
+	devServer.once('error', error => console.error('Could not start the dev server:', error));
+	for (let attempt = 0; attempt < 900; attempt++) {
+		assert.equal(devServer.exitCode, null, 'The dev server exited before it was ready');
+		if (await listening(devPort)) return;
+		await delay(500);
+	}
+	throw new Error('Timed out waiting for the dev server on port ' + devPort);
+}
+
+async function stopDevServer() {
+	if (!devServer || devServer.exitCode !== null) return;
+	if (process.platform === 'win32') {
+		await run('taskkill', ['/pid', String(devServer.pid), '/T', '/F']);
+	} else {
+		devServer.kill();
+	}
+}
+
+// Run on Windows from an interactive desktop with no other SideX instance open:
+//   node scripts/open-paths.windows.e2e.mjs [path to SideX.exe] [fixture dir] [--no-dev-server]
 const executable = resolve(process.argv[2] ?? 'target/debug/SideX.exe');
 const fixture = await mkdtemp(join(resolve(process.argv[3] ?? '.'), 'sidex-launch-'));
 const project = join(fixture, 'Sample Project');
@@ -50,16 +116,49 @@ async function connect(child) {
 		const targets = response?.ok ? await response.json() : [];
 		if (targets.some(target => target.type === 'page')) {
 			browser = await chromium.connectOverCDP(endpoint);
-			return browser.contexts()[0].pages()[0];
+			const page = browser.contexts()[0].pages()[0];
+			watch(page);
+			return page;
 		}
 		await delay(200);
 	}
 	throw new Error('Timed out waiting for the native SideX WebView');
 }
 
+// When a step times out, say what the window was showing: its URL, whether the workbench rendered, and a
+// screenshot (open-paths-failure.png in the current directory).
+async function describeFailure(page, step) {
+	console.error('FAIL ' + step + '; the window is at ' + page.url());
+	const state = await page
+		.evaluate(() => ({
+			workbench: Boolean(document.querySelector('.monaco-workbench')),
+			editors: document.querySelectorAll('.editor-instance').length,
+			tabs: [...document.querySelectorAll('.tabs-container .tab')].map(tab => tab.textContent?.trim()),
+			text: document.body.innerText.slice(0, 400)
+		}))
+		.catch(error => ({ unreadable: String(error) }));
+	console.error('Window state:', JSON.stringify(state));
+	await page.screenshot({ path: 'open-paths-failure.png' }).catch(() => undefined);
+	console.error('Screenshot: open-paths-failure.png');
+}
+
+function watch(page) {
+	page.on('console', message => {
+		if (message.type() === 'error') console.error('[webview]', message.text());
+	});
+	page.on('pageerror', error => console.error('[webview error]', error.message));
+	page.on('response', response => {
+		if (response.status() >= 400) console.error('[webview] ' + response.status() + ' ' + response.url());
+	});
+	page.on('requestfailed', request => console.error('[webview] request failed ' + request.url()));
+}
+
 async function expectEditor(page, filename, marker) {
 	const editor = page.locator('.editor-instance .view-lines').filter({ hasText: marker }).first();
-	await editor.waitFor({ state: 'visible', timeout: 45000 });
+	await editor.waitFor({ state: 'visible', timeout: 45000 }).catch(async error => {
+		await describeFailure(page, 'waiting for ' + filename + ' to open');
+		throw error;
+	});
 	await page.waitForFunction(name => {
 		const active = window.__sidex_editorService?.activeEditor;
 		return active?.resource?.path.endsWith('/' + name);
@@ -95,11 +194,9 @@ async function stop(child) {
 }
 
 try {
+	await startDevServer();
 	let primary = launch([join(project, js)], dirname(fixture));
 	let page = await connect(primary);
-	page.on('console', message => {
-		if (message.type() === 'error') console.error('[webview]', message.text());
-	});
 	await expectEditor(page, js, 'launchMarker');
 	console.log('PASS cold start opens an absolute JavaScript path with spaces and Unicode');
 
@@ -136,6 +233,7 @@ try {
 	await stop(primary);
 } finally {
 	for (const child of [...processes]) await stop(child);
+	await stopDevServer();
 	await browser?.close();
 	await rm(fixture, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }).catch(error => {
 		console.warn('Could not remove the temporary test profile:', error.message);
