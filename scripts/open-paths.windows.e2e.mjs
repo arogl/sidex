@@ -5,7 +5,17 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { chromium } from 'playwright';
+
+// `playwright` is not a dependency of the workspace (CI does not run this script). Install it where this
+// script can resolve it, without touching package.json or the lock file: `bun add --no-save playwright`.
+const playwright = await import('playwright').catch(() => undefined);
+if (!playwright) {
+	console.error(
+		'This script needs the `playwright` package: run `bun add --no-save playwright` in the repo root, then retry.'
+	);
+	process.exit(1);
+}
+const { chromium } = playwright;
 
 // Run on Windows from an interactive desktop with no other SideX instance open.
 const executable = resolve(process.argv[2] ?? 'target/debug/SideX.exe');
