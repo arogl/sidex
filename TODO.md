@@ -47,6 +47,8 @@ Legend:
 - [x] `inlineReference` shown as the file or symbol name in code style
 - [x] `thinking` content shown in the thinking block
 - [x] `autoModeResolution` (which model Auto picked) no longer raises a notice
+- [~] `reference` parts (the files a reply used) no longer raise a notice on every Copilot reply
+- [ ] Show the references a reply used as a "Used N references" list
 - [x] File edits from Copilot's edit tools are applied and saved (including new files)
 - [~] Inline references open the file when clicked (structured references and `[label](file link)` links in a reply open the file at the line; Copilot's own replies write plain text, so plain file names are not linked)
 - [x] Live todo checklist that stays visible while the agent works
