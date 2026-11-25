@@ -43,3 +43,56 @@ export function joinEditedContent(hidden: string, text: string): string | undefi
 	const trimmed = text.trim();
 	return trimmed ? hidden + trimmed : undefined;
 }
+
+/** A suggested next message a participant offers under its reply. */
+export interface IFollowupInfo {
+	readonly message: string;
+	readonly agentId: string;
+	readonly subCommand?: string;
+	/** What the button says; the message when the participant gave no title. */
+	readonly title: string;
+	readonly tooltip?: string;
+}
+
+export const MAX_FOLLOWUPS = 4;
+
+/** Keeps the usable follow-ups a participant returned: replies with text, no repeats, at most four. */
+export function normalizeFollowups(raw: readonly unknown[] | undefined): IFollowupInfo[] {
+	const out: IFollowupInfo[] = [];
+	const seen = new Set<string>();
+	for (const item of raw ?? []) {
+		const f = item as Partial<{
+			kind: string;
+			message: string;
+			agentId: string;
+			subCommand: string;
+			title: string;
+			tooltip: string;
+		}> | null;
+		if (!f || f.kind !== 'reply' || typeof f.message !== 'string' || typeof f.agentId !== 'string') {
+			continue;
+		}
+		const message = f.message.trim();
+		const key = `${f.agentId}|${f.subCommand ?? ''}|${message.toLowerCase()}`;
+		if (!message || seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		out.push({
+			message,
+			agentId: f.agentId,
+			subCommand: f.subCommand || undefined,
+			title: f.title?.trim() || message,
+			tooltip: f.tooltip || undefined
+		});
+		if (out.length === MAX_FOLLOWUPS) {
+			break;
+		}
+	}
+	return out;
+}
+
+/** What the user message for a chosen follow-up reads in the chat: its slash command, when it has one. */
+export function followupText(f: Pick<IFollowupInfo, 'message' | 'subCommand'>): string {
+	return f.subCommand ? `/${f.subCommand} ${f.message}` : f.message;
+}

@@ -2633,3 +2633,28 @@ i.cursor-icon { font-style: normal; }
 	color: var(--vscode-button-foreground);
 	border-color: transparent;
 }
+
+/* ===== Suggested follow-ups under the newest reply ===== */
+.sc-followups {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 6px 0 2px;
+}
+
+.sc-followup {
+	max-width: 100%;
+	padding: 3px 10px;
+	font: inherit;
+	font-size: 12px;
+	text-align: left;
+	color: var(--vscode-foreground);
+	background: transparent;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.12));
+	border-radius: 12px;
+	cursor: pointer;
+}
+
+.sc-followup:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}

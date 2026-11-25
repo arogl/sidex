@@ -70,7 +70,7 @@ Legend:
 - [ ] Follow-up suggestions
 - [x] Copy, retry and vote actions on replies (a bar on hover; retry is for the newest reply and rolls back its file changes; votes show as a filled thumb and are kept for the session only, nothing is sent)
 - [x] Chat history across restarts (chats are saved to the local database per workspace; after a restart the chat starts fresh and earlier chats are in the history search, in full)
-- [ ] Edit and resend an earlier message
+- [x] Edit and resend an earlier message (a pencil under a user message turns it into a text box; Resend drops it and what followed, rolls back the file changes since, and sends the new text; attached files and selections are sent again with it)
 
 ## MCP
 
