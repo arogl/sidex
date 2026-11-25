@@ -116,16 +116,49 @@ async function connect(child) {
 		const targets = response?.ok ? await response.json() : [];
 		if (targets.some(target => target.type === 'page')) {
 			browser = await chromium.connectOverCDP(endpoint);
-			return browser.contexts()[0].pages()[0];
+			const page = browser.contexts()[0].pages()[0];
+			watch(page);
+			return page;
 		}
 		await delay(200);
 	}
 	throw new Error('Timed out waiting for the native SideX WebView');
 }
 
+// When a step times out, say what the window was showing: its URL, whether the workbench rendered, and a
+// screenshot (open-paths-failure.png in the current directory).
+async function describeFailure(page, step) {
+	console.error('FAIL ' + step + '; the window is at ' + page.url());
+	const state = await page
+		.evaluate(() => ({
+			workbench: Boolean(document.querySelector('.monaco-workbench')),
+			editors: document.querySelectorAll('.editor-instance').length,
+			tabs: [...document.querySelectorAll('.tabs-container .tab')].map(tab => tab.textContent?.trim()),
+			text: document.body.innerText.slice(0, 400)
+		}))
+		.catch(error => ({ unreadable: String(error) }));
+	console.error('Window state:', JSON.stringify(state));
+	await page.screenshot({ path: 'open-paths-failure.png' }).catch(() => undefined);
+	console.error('Screenshot: open-paths-failure.png');
+}
+
+function watch(page) {
+	page.on('console', message => {
+		if (message.type() === 'error') console.error('[webview]', message.text());
+	});
+	page.on('pageerror', error => console.error('[webview error]', error.message));
+	page.on('response', response => {
+		if (response.status() >= 400) console.error('[webview] ' + response.status() + ' ' + response.url());
+	});
+	page.on('requestfailed', request => console.error('[webview] request failed ' + request.url()));
+}
+
 async function expectEditor(page, filename, marker) {
 	const editor = page.locator('.editor-instance .view-lines').filter({ hasText: marker }).first();
-	await editor.waitFor({ state: 'visible', timeout: 45000 });
+	await editor.waitFor({ state: 'visible', timeout: 45000 }).catch(async error => {
+		await describeFailure(page, 'waiting for ' + filename + ' to open');
+		throw error;
+	});
 	await page.waitForFunction(name => {
 		const active = window.__sidex_editorService?.activeEditor;
 		return active?.resource?.path.endsWith('/' + name);
@@ -164,9 +197,6 @@ try {
 	await startDevServer();
 	let primary = launch([join(project, js)], dirname(fixture));
 	let page = await connect(primary);
-	page.on('console', message => {
-		if (message.type() === 'error') console.error('[webview]', message.text());
-	});
 	await expectEditor(page, js, 'launchMarker');
 	console.log('PASS cold start opens an absolute JavaScript path with spaces and Unicode');
 
