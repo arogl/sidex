@@ -285,13 +285,13 @@ async function setupOpenPaths() {
 	] = await Promise.all([
 		import('@tauri-apps/api/core'),
 		import('@tauri-apps/api/event'),
-		import('./vs/base/common/uri.js'),
-		import('./vs/workbench/browser/web.factory.js'),
+		import('@sidex/base/common/uri.js'),
+		import('@sidex/workbench/browser/web.factory.js'),
 		import('./open-paths.js'),
 		import('@tauri-apps/api/window'),
-		import('./vs/platform/commands/common/commands.js'),
-		import('./vs/workbench/services/lifecycle/common/lifecycle.js'),
-		import('./vs/workbench/browser/parts/editor/editorCommands.js')
+		import('@sidex/platform/commands/common/commands.js'),
+		import('@sidex/workbench/services/lifecycle/common/lifecycle.js'),
+		import('@sidex/workbench/browser/parts/editor/editorCommands.js')
 	]);
 	if (getCurrentWindow().label !== 'main') {
 		return;

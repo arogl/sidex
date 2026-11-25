@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createOpenPathsHandler } from '../src/open-paths.ts';
+import { createOpenPathsHandler } from '../apps/workbench/src/open-paths.ts';
 
 function fixture(batches = []) {
 	const opened = [];
