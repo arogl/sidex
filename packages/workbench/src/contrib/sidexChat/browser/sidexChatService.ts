@@ -1393,6 +1393,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		try {
 			const raw = await this.chatAgentService.getFollowups(agentId, request, result, history, cts.token);
 			const followups = normalizeFollowups(raw);
+			console.info(`[sidex-chat] follow-ups from '${agentId}': ${raw.length} returned, ${followups.length} usable`);
 			if (followups.length > 0 && !this._isStreaming && this._messages[this._messages.length - 1] === target) {
 				target.followups = followups;
 				this._onDidChangeMessages.fire(this._messages);
