@@ -108,6 +108,7 @@ pub mod models;
     unused_imports
 )] // TODO(ratchet)
 pub mod next_gen_tools;
+pub mod open_paths;
 #[allow(
     clippy::pedantic,
     clippy::style,
