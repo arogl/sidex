@@ -80,7 +80,14 @@ import {
 	TurnEditCheckpoint
 } from './participantEditCheckpoint.js';
 import { extractEditOps } from './participantEditOps.js';
-import { findRetryTarget, followupText, type IFollowupInfo, normalizeFollowups } from './replyActions.js';
+import {
+	addUsedReference,
+	findRetryTarget,
+	followupText,
+	type IFollowupInfo,
+	type IUsedReference,
+	normalizeFollowups
+} from './replyActions.js';
 
 /** How long a participant gets to suggest follow-ups before the reply is left without any. */
 const FOLLOWUP_TIMEOUT_MS = 5000;
@@ -116,6 +123,8 @@ export interface IChatMessage {
 	vote?: 'up' | 'down';
 	/** Next messages the participant suggests, shown as buttons under the newest reply. */
 	followups?: IFollowupInfo[];
+	/** The files and symbols the participant says the reply used. */
+	references?: IUsedReference[];
 }
 
 export interface IToolCallInfo {
@@ -157,8 +166,11 @@ export interface IStreamChunk {
 		| 'ask_question'
 		| 'checkpoint_created'
 		| 'checkpoint_restored'
-		| 'edits_review';
+		| 'edits_review'
+		| 'reference';
 	content?: string;
+	/** A file or symbol the reply used, for a `reference` chunk. */
+	reference?: IUsedReference;
 	error?: string;
 	done?: boolean;
 	tool_calls?: Array<{
@@ -2747,6 +2759,25 @@ ${prompt}`,
 				}
 				this._currentAssistantMessage.progressMessage = chunk.content;
 				this._onDidChangeMessages.fire(this._messages);
+				break;
+			}
+			case 'reference': {
+				if (chunk.reference) {
+					if (!this._currentAssistantMessage) {
+						this._currentAssistantMessage = {
+							role: 'assistant',
+							content: '',
+							toolCalls: [],
+							timestamp: Date.now()
+						};
+						this._messages.push(this._currentAssistantMessage);
+					}
+					this._currentAssistantMessage.references = addUsedReference(
+						this._currentAssistantMessage.references ?? [],
+						chunk.reference
+					);
+					this._onDidChangeMessages.fire(this._messages);
+				}
 				break;
 			}
 			case 'brief':

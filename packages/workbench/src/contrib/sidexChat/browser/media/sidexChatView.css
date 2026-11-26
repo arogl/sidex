@@ -2658,3 +2658,12 @@ i.cursor-icon { font-style: normal; }
 .sc-followup:hover {
 	background: var(--vscode-toolbar-hoverBackground);
 }
+
+/* ===== "Used N references" under a reply ===== */
+.sc-reference {
+	padding: 2px 8px;
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

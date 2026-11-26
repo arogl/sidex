@@ -96,3 +96,20 @@ export function normalizeFollowups(raw: readonly unknown[] | undefined): IFollow
 export function followupText(f: Pick<IFollowupInfo, 'message' | 'subCommand'>): string {
 	return f.subCommand ? `/${f.subCommand} ${f.message}` : f.message;
 }
+
+/** A file or symbol a reply drew on, listed under the reply as "Used N references". */
+export interface IUsedReference {
+	readonly label: string;
+	/** A `file:` link that opens it, with `#L<line>` for a symbol; absent when it is not a local file. */
+	readonly link?: string;
+}
+
+/** The references with `next` added, unless the same one is already listed. */
+export function addUsedReference(list: readonly IUsedReference[], next: IUsedReference): IUsedReference[] {
+	const key = (r: IUsedReference) => r.link ?? r.label;
+	return list.some(r => key(r) === key(next)) ? [...list] : [...list, next];
+}
+
+export function usedReferencesLabel(count: number): string {
+	return `Used ${count} reference${count === 1 ? '' : 's'}`;
+}
