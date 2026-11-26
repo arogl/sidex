@@ -33,6 +33,7 @@ export interface IProgressPart {
 
 export type BridgeChunk =
 	| { type: 'text' | 'thinking' | 'notice' | 'error' | 'progress'; content: string }
+	| { type: 'reference'; reference: { label: string; link?: string } }
 	| { type: 'usage'; tokens_used: { prompt_tokens: number; completion_tokens?: number; total_tokens?: number } };
 
 /**
@@ -238,9 +239,14 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 				// Which model Auto picked for the turn; there is nowhere to show it, and it is not worth a notice.
 				break;
 			case 'reference':
-				// The files and symbols the answer drew on (VS Code's "Used N references" list), not part of the
-				// text. Not displayed yet, and not worth a notice on every reply.
-				console.info(`[sidex-chat] used reference: ${JSON.stringify(part['reference'])}`);
+				// The files and symbols the answer drew on (VS Code's "Used N references" list), not part of the text.
+				const label = inlineReferenceLabel(part['reference'], undefined);
+				if (label) {
+					chunks.push({
+						type: 'reference',
+						reference: { label, link: inlineReferenceLink(part['reference']) }
+					});
+				}
 				break;
 			case 'textEdit':
 			case 'workspaceEdit':

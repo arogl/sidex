@@ -3,7 +3,7 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
-import { type IFollowupInfo, nextVote, type ReplyVote } from '../../replyActions.js';
+import { type IFollowupInfo, nextVote, type ReplyVote, usedReferencesLabel } from '../../replyActions.js';
 import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
 import { Collapsible } from '../collapsible/collapsible.js';
@@ -32,11 +32,53 @@ export class AssistantMessage extends Component {
 
 	private _progressEl: HTMLElement | null = null;
 	private _toolSection: Collapsible | null = null;
+	private _referenceSection: Collapsible | null = null;
+	private _onOpenReference?: (href: string) => void;
 	private _checklist: TodoChecklistView | null = null;
 	private readonly _toolRows = new Map<string, { item: ToolCallItem; signature: string }>();
 
 	get thinkingBlock(): ThinkingBlock | null {
 		return this._thinkingBlock;
+	}
+
+	/** The "Used N references" list: the files and symbols the participant says the reply drew on. */
+	syncReferences(msg: IChatMessage): void {
+		const refs = msg.references ?? [];
+		if (refs.length === 0) {
+			return;
+		}
+		if (!this._referenceSection) {
+			const section = new Collapsible(usedReferencesLabel(refs.length));
+			const before =
+				this._toolSection?.element.nextElementSibling ??
+				this.element.querySelector(':scope > .markdown-root, :scope > .sc-assistant-body');
+			if (before) {
+				this.element.insertBefore(section.element, before);
+			} else {
+				section.appendTo(this.element);
+			}
+			this._register(section);
+			this._referenceSection = section;
+		}
+		const section = this._referenceSection;
+		section.setLabel(usedReferencesLabel(refs.length));
+		section.body.replaceChildren();
+		for (const ref of refs) {
+			const row = DOM.append(section.body, DOM.$('div.sc-reference'));
+			if (ref.link) {
+				const a = DOM.append(row, DOM.$('a.sc-link')) as HTMLAnchorElement;
+				a.href = '#';
+				a.setAttribute('data-href', ref.link);
+				a.textContent = ref.label;
+				a.title = decodeURI(ref.link.replace(/^file:\/\//, ''));
+				a.addEventListener('click', event => {
+					event.preventDefault();
+					this._onOpenReference?.(ref.link as string);
+				});
+			} else {
+				row.textContent = ref.label;
+			}
+		}
 	}
 
 	/** The transient status line ("Searching the workspace") at the end of the message while a turn runs. */
@@ -216,6 +258,7 @@ export class AssistantMessage extends Component {
 		onOpenLink?: (href: string) => void
 	) {
 		super('div', 'composer-rendered-message');
+		this._onOpenReference = onOpenLink;
 		this.element.style.cssText =
 			'display: block; outline: none; padding-top: 0px; padding-bottom: 0px; background-color: var(--composer-pane-background); opacity: 1; z-index: 99; margin-bottom: 12px;';
 
@@ -262,6 +305,8 @@ export class AssistantMessage extends Component {
 		}
 
 		// Markdown body
+		this.syncReferences(msg);
+
 		if (msg.content) {
 			const bodyWrapper = this.append('div', 'markdown-root');
 			bodyWrapper.style.cssText = 'font-size: 13px; line-height: 1.5; color: var(--vscode-foreground);';
