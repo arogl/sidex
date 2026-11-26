@@ -3,6 +3,18 @@ import { tokenizeToString } from '@sidex/editor/common/languages/textToHtmlToken
 import { resolveFenceLanguage, tokenizedToCodeHtml } from './codeFence.js';
 
 /**
+ * The code in a block as plain text. The markdown renderer turns the line breaks of the whole reply into `<br>`,
+ * code blocks included, and a `<br>` has no text of its own, so `textContent` alone would join every line.
+ */
+export function codeText(code: HTMLElement): string {
+	const copy = code.cloneNode(true) as HTMLElement;
+	for (const br of copy.querySelectorAll('br')) {
+		br.replaceWith('\n');
+	}
+	return copy.textContent ?? '';
+}
+
+/**
  * Colours the fenced code blocks in a reply with the editor's tokenizer and theme, the way VS Code's chat does.
  * A reply is redrawn as it streams, which drops the colours, so finished results are kept and put back at once.
  */
@@ -13,7 +25,7 @@ export class CodeBlockHighlighter {
 
 	apply(root: HTMLElement): void {
 		for (const code of root.querySelectorAll<HTMLElement>('pre.sc-code-block:not(.sc-citation-code) > code')) {
-			const text = code.textContent ?? '';
+			const text = codeText(code);
 			const label = code.parentElement?.querySelector('.sc-code-lang')?.textContent ?? '';
 			const languageId = resolveFenceLanguage(label, this._languages);
 			if (!languageId || !text.trim()) {
@@ -30,7 +42,7 @@ export class CodeBlockHighlighter {
 					const colored = tokenizedToCodeHtml(html);
 					this._cache.set(key, colored);
 					// Only if the block is still on screen and still holds this text.
-					if (code.isConnected && code.textContent === text) {
+					if (code.isConnected && codeText(code) === text) {
 						code.innerHTML = colored;
 					}
 				})
