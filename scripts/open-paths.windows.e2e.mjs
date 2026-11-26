@@ -144,13 +144,15 @@ async function describeFailure(page, step) {
 
 function watch(page) {
 	page.on('console', message => {
-		if (message.type() === 'error') console.error('[webview]', message.text());
+		// "Failed to load resource" lines carry no URL; the response handler below prints the failing ones with it.
+		if (message.type() === 'error' && !message.text().startsWith('Failed to load resource')) {
+			console.error('[webview]', message.text());
+		}
 	});
 	page.on('pageerror', error => console.error('[webview error]', error.message));
 	page.on('response', response => {
 		if (response.status() >= 400) console.error('[webview] ' + response.status() + ' ' + response.url());
 	});
-	page.on('requestfailed', request => console.error('[webview] request failed ' + request.url()));
 }
 
 async function expectEditor(page, filename, marker) {
@@ -235,7 +237,7 @@ try {
 	for (const child of [...processes]) await stop(child);
 	await stopDevServer();
 	await browser?.close();
-	await rm(fixture, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 }).catch(error => {
+	await rm(fixture, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 }).catch(error => {
 		console.warn('Could not remove the temporary test profile:', error.message);
 	});
 }
