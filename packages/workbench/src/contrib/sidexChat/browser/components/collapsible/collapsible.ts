@@ -1,9 +1,11 @@
-import { Component, $, DOM } from '../base.js';
+import { $, Component, DOM } from '../base.js';
+import { splitCollapsibleLabel } from './label.js';
 
 export class Collapsible extends Component {
 	private _headerEl: HTMLElement;
 	private _bodyEl: HTMLElement;
 	private _labelEl: HTMLElement;
+	private _actionEl!: HTMLElement;
 	private _chevron: HTMLElement;
 	private _expanded = false;
 
@@ -27,14 +29,8 @@ export class Collapsible extends Component {
 		this._labelEl = DOM.append(this._headerEl, $('span.ui-collapsible-details'));
 		this._labelEl.style.cssText =
 			'color: var(--vscode-descriptionForeground); opacity: 0.6; overflow: hidden; text-overflow: ellipsis; flex: 1;';
-		// Highlight first word
-		const spaceIdx = label.indexOf(' ');
-		if (spaceIdx > 0) {
-			action.textContent = label.slice(0, spaceIdx);
-			this._labelEl.textContent = label.slice(spaceIdx).trim();
-		} else {
-			this._labelEl.textContent = label;
-		}
+		this._actionEl = action;
+		this.setLabel(label);
 
 		// Twistie on the right — same as explorer tree items
 		this._chevron = document.createElement('i');
@@ -54,8 +50,11 @@ export class Collapsible extends Component {
 		return this._bodyEl;
 	}
 
+	/** The first word is the action ("Used", "Ran") and the rest its detail, here and when the label changes. */
 	setLabel(label: string): void {
-		this._labelEl.textContent = label;
+		const [action, detail] = splitCollapsibleLabel(label);
+		this._actionEl.textContent = action;
+		this._labelEl.textContent = detail;
 	}
 
 	toggle(force?: boolean): void {

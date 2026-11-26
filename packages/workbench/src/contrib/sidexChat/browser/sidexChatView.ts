@@ -762,20 +762,29 @@ export class SidexChatViewPane extends ViewPane {
 		this._scrollToBottom();
 	}
 
+	/** The markdown last drawn into each reply body, so an update can tell whether the text changed. */
+	private readonly _drawnBodies = new WeakMap<HTMLElement, string>();
+
 	private _updateAssistantBody(comp: AssistantMessage, msg: IChatMessage): void {
 		// The body is created on the first update when the message began with a tool call, so look for that
 		// one too, otherwise every streamed update would add another copy of the text.
 		const bodyEl = comp.element.querySelector('.markdown-root, .sc-assistant-body') as HTMLElement | null;
 		if (bodyEl) {
 			const rendered = renderMarkdown(msg.content);
-			if (bodyEl.innerHTML !== rendered) {
+			// Compare with what was drawn last, not with the element, whose colouring changes its HTML.
+			if (this._drawnBodies.get(bodyEl) !== rendered) {
 				bodyEl.innerHTML = rendered;
+				this._drawnBodies.set(bodyEl, rendered);
+				comp.highlightCode();
 			}
 		} else if (msg.content) {
 			const newBody = document.createElement('div');
 			newBody.className = 'sc-assistant-body';
-			newBody.innerHTML = renderMarkdown(msg.content);
+			const rendered = renderMarkdown(msg.content);
+			newBody.innerHTML = rendered;
+			this._drawnBodies.set(newBody, rendered);
 			comp.element.appendChild(newBody);
+			comp.highlightCode();
 		}
 	}
 
