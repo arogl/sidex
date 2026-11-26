@@ -88,6 +88,7 @@ import {
 	type IUsedReference,
 	normalizeFollowups
 } from './replyActions.js';
+import { parseRetentionDays, RETENTION_SETTING_KEY } from './retention.js';
 
 /** How long a participant gets to suggest follow-ups before the reply is left without any. */
 const FOLLOWUP_TIMEOUT_MS = 5000;
@@ -394,6 +395,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 	private _indexDirty = false;
 	private _reindexTimer: ReturnType<typeof setTimeout> | undefined;
 	private _reindexInterval: ReturnType<typeof setInterval> | undefined;
+	private _retentionTimer: ReturnType<typeof setTimeout> | undefined;
+	private _retentionInterval: ReturnType<typeof setInterval> | undefined;
 	private _contextIndexing = false;
 	private _cachedSessions: Array<{
 		id: string;
@@ -538,6 +541,7 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
+		this._startRetentionSchedule();
 		this.contextProvider = new ChatContextProvider(
 			fileService,
 			this.editorService,
@@ -2889,6 +2893,8 @@ ${prompt}`,
 		if (this._reindexInterval) {
 			clearInterval(this._reindexInterval);
 		}
+		clearTimeout(this._retentionTimer);
+		clearInterval(this._retentionInterval);
 		this.disconnect();
 		super.dispose();
 	}
@@ -2984,6 +2990,45 @@ ${prompt}`,
 			this._reindexTimer = undefined;
 			this._runReindex();
 		}, 15_000);
+	}
+
+	/**
+	 * Deletes chats and attached files older than the retention setting (30 days unless changed, never when 0):
+	 * shortly after start, then once a day. The setting is read each time, so a change applies at the next run.
+	 */
+	private _startRetentionSchedule(): void {
+		if (this._retentionTimer || this._retentionInterval) {
+			return;
+		}
+		this._retentionTimer = setTimeout(() => {
+			void this._runRetention();
+			this._retentionInterval = setInterval(() => void this._runRetention(), 24 * 60 * 60_000);
+		}, 2 * 60_000);
+	}
+
+	private async _runRetention(): Promise<void> {
+		const invoke = SidexChatService._getTauriInvoke();
+		if (!invoke) {
+			return;
+		}
+		try {
+			const days = parseRetentionDays(await invoke('settings_get', { section: RETENTION_SETTING_KEY }));
+			if (days === 0) {
+				return;
+			}
+			const report = (await invoke('chat_retention_sweep', { days })) as {
+				sessions_deleted: number;
+				files_deleted: number;
+			};
+			if (report.sessions_deleted > 0 || report.files_deleted > 0) {
+				console.info(
+					`[sidex-chat] retention (${days} days): deleted ${report.sessions_deleted} chats and ${report.files_deleted} files`
+				);
+				await this._refreshCachedSessions();
+			}
+		} catch (e) {
+			console.info(`[sidex-chat] retention sweep failed: ${e instanceof Error ? e.message : String(e)}`);
+		}
 	}
 
 	/** Periodic catch-all re-index for edits made outside the agent. */

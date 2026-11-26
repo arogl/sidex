@@ -3,6 +3,7 @@
  *  Renders using VS Code settings-editor row structure for 1:1 parity.
  *--------------------------------------------------------------------------------------------*/
 
+import { parseRetentionDays, RETENTION_OPTIONS, RETENTION_SETTING_KEY } from '../../retention.js';
 import type { SettingsSection } from '../sidexSettingsPanel.js';
 import { createCustomDropdown } from '../sidexSettingsStyles.js';
 
@@ -63,7 +64,25 @@ export class GeneralSection implements SettingsSection {
 			'sidex.general.defaultAgent'
 		);
 
-		// 3. Auto Scroll
+		// 3. Delete old chats and files
+		let retentionDays = parseRetentionDays(undefined);
+		if (this._invoke) {
+			try {
+				retentionDays = parseRetentionDays(await this._invoke('settings_get', { section: RETENTION_SETTING_KEY }));
+			} catch {
+				/* use the default */
+			}
+		}
+		this._addSelectRow(
+			card,
+			'Delete old chats and files after',
+			'Chats not used for this long, and the files attached to them, are deleted automatically once a day. Pinned chats are kept.',
+			[...RETENTION_OPTIONS],
+			String(retentionDays),
+			RETENTION_SETTING_KEY
+		);
+
+		// 4. Auto Scroll
 		this._addToggleRow(
 			card,
 			'Auto scroll on message',
