@@ -210,3 +210,29 @@ pub fn session_archive(
     let db = state.lock_db().map_err(|e| e.to_string())?;
     sidex_db::update_session_archive(&db, &session_id, archived).map_err(|e| e.to_string())
 }
+
+/// Where the chat assets and project state live: `$SIDEX_HOME` or `~/.sidex`, then `projects/`. This is the same
+/// folder the agent server and the chat input use.
+fn projects_dir() -> Option<std::path::PathBuf> {
+    let home = std::env::var_os("SIDEX_HOME")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| dirs::home_dir().map(|h| h.join(".sidex")))?;
+    Some(home.join("projects"))
+}
+
+/// Delete chats not used for `days` days (pinned ones are kept) and the attached files older than that which no
+/// remaining chat mentions. `days == 0` deletes nothing.
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+pub fn chat_retention_sweep(
+    state: State<'_, Arc<SidexDbState>>,
+    days: u32,
+) -> Result<sidex_db::RetentionReport, String> {
+    let Some(projects) = projects_dir() else {
+        return Ok(sidex_db::RetentionReport::default());
+    };
+    let db = state.lock_db().map_err(|e| e.to_string())?;
+    sidex_db::sweep_old_chats_and_files(&db, &projects, days, std::time::SystemTime::now())
+        .map_err(|e| e.to_string())
+}

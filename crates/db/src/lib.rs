@@ -23,6 +23,7 @@ pub mod chat_sessions;
 pub mod db;
 pub mod history;
 pub mod recent;
+pub mod retention;
 pub mod state;
 pub mod storage_kv;
 pub mod validation;
@@ -45,6 +46,7 @@ pub use recent::{
     add_recent_file, add_recent_workspace, clear_recent, recent_files, recent_workspaces,
     RecentEntry,
 };
+pub use retention::{sweep as sweep_old_chats_and_files, RetentionReport};
 pub use state::{
     delete_extension_state, delete_global_state, delete_workspace_state, extension_state_keys,
     get_extension_state, get_global_state, get_workspace_state, set_extension_state,

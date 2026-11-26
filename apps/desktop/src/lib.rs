@@ -902,6 +902,7 @@ pub fn run() {
             commands::session_search,
             commands::session_update_title,
             commands::session_pin,
+            commands::chat_retention_sweep,
             commands::session_archive,
             // Layered settings
             commands::settings_get,
