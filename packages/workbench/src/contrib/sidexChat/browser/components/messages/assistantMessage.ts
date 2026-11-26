@@ -6,6 +6,7 @@ import { IModelService } from '@sidex/editor/common/services/model.js';
 import { type IFollowupInfo, nextVote, type ReplyVote, usedReferencesLabel } from '../../replyActions.js';
 import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
+import { CodeBlockHighlighter } from '../codeHighlight.js';
 import { Collapsible } from '../collapsible/collapsible.js';
 import { renderMarkdown } from '../markdownRenderer.js';
 import { isChecklistWrite, latestChecklist } from '../tools/todoChecklist.js';
@@ -33,12 +34,21 @@ export class AssistantMessage extends Component {
 	private _progressEl: HTMLElement | null = null;
 	private _toolSection: Collapsible | null = null;
 	private _referenceSection: Collapsible | null = null;
+	private _highlighter: CodeBlockHighlighter | null = null;
 	private _onOpenReference?: (href: string) => void;
 	private _checklist: TodoChecklistView | null = null;
 	private readonly _toolRows = new Map<string, { item: ToolCallItem; signature: string }>();
 
 	get thinkingBlock(): ThinkingBlock | null {
 		return this._thinkingBlock;
+	}
+
+	/** Colours the code blocks in the reply; call it again after the text is redrawn. */
+	highlightCode(): void {
+		const body = this.element.querySelector<HTMLElement>('.markdown-root, .sc-assistant-body');
+		if (body && this._highlighter) {
+			this._highlighter.apply(body);
+		}
 	}
 
 	/** The "Used N references" list: the files and symbols the participant says the reply drew on. */
@@ -259,6 +269,7 @@ export class AssistantMessage extends Component {
 	) {
 		super('div', 'composer-rendered-message');
 		this._onOpenReference = onOpenLink;
+		this._highlighter = languageService ? new CodeBlockHighlighter(languageService) : null;
 		this.element.style.cssText =
 			'display: block; outline: none; padding-top: 0px; padding-bottom: 0px; background-color: var(--composer-pane-background); opacity: 1; z-index: 99; margin-bottom: 12px;';
 
@@ -314,6 +325,7 @@ export class AssistantMessage extends Component {
 			bodyEl.style.cssText =
 				'display: flex; flex-direction: column; gap: 8px; white-space: normal; overflow-wrap: break-word;';
 			bodyEl.innerHTML = renderMarkdown(msg.content);
+			this.highlightCode();
 
 			// Links in the reply (including references to files) open through the editor's opener; left alone, the
 			// browser would navigate the whole window away from SideX.

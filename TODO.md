@@ -70,7 +70,7 @@ Legend:
 - [x] Slash-command completion in the input (`/` lists the answering participant's commands and `/orchestrate`; `@name /` lists that participant's; a bare `/explain` is routed to the default participant when it answers; `@name:` is accepted)
 - [x] Participant (`@name`) completion in the input (`@` at the start of a message lists the chat participants with descriptions, the default one as `copilot`; picking one inserts the name and opens its `/` commands; later `@` still lists files only)
 - [x] Follow-up suggestions (buttons under the newest reply when the participant offers any; Copilot returned none for the replies tested, the same as VS Code, so none showed)
-- [ ] Colour the code inside inline code spans in replies the way VS Code does
+- [~] Colour the code in fenced code blocks in replies the way VS Code does (the editor's tokenizer and theme, applied again as a reply streams; blocks with no known language stay plain)
 - [x] Copy, retry and vote actions on replies (a bar on hover; retry is for the newest reply and rolls back its file changes; votes show as a filled thumb and are kept for the session only, nothing is sent)
 - [x] Chat history across restarts (chats are saved to the local database per workspace; after a restart the chat starts fresh and earlier chats are in the history search, in full)
 - [x] Edit and resend an earlier message (a pencil under a user message turns it into a text box; Resend drops it and what followed, rolls back the file changes since, and sends the new text; attached files and selections are sent again with it)
