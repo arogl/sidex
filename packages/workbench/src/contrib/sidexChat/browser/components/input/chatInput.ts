@@ -3,6 +3,7 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { URI } from '@sidex/base/common/uri.js';
+import { fileAttachmentLine } from '../../attachmentDisplay.js';
 import {
 	contextBlock,
 	fileQuery,
@@ -1551,7 +1552,7 @@ export class ChatInput extends Component {
 			if (attachment.kind === 'image') {
 				lines.push(`![${attachment.name}](${attachment.path})`);
 			} else {
-				lines.push(`Attached file: \`${attachment.path}\``);
+				lines.push(fileAttachmentLine(attachment.path, attachment.name));
 			}
 		}
 		return lines.join('\n');

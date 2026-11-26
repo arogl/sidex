@@ -1,3 +1,4 @@
+import { parseFileAttachmentLines, stripFileAttachmentLines } from '../../attachmentDisplay.js';
 import { joinEditedContent, splitEditableContent } from '../../replyActions.js';
 import { IChatMessage } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
@@ -234,22 +235,14 @@ function extractAttachmentPreviews(content: string): AttachmentPreview[] {
 			path
 		});
 	}
-	for (const match of content.matchAll(/^Attached file:\s+`([^`]+)`\s*$/gm)) {
-		const path = match[1].trim();
-		previews.push({
-			kind: 'file',
-			name: basename(path),
-			path
-		});
+	for (const file of parseFileAttachmentLines(content, basename)) {
+		previews.push({ kind: 'file', name: file.name, path: file.path });
 	}
 	return previews;
 }
 
 function stripAttachmentDisplayMarkdown(content: string): string {
-	return content
-		.replace(/!\[([^\]]*)\]\(([^)]+)\)\s*/g, '')
-		.replace(/^Attached file:\s+`[^`]+`\s*$/gm, '')
-		.trim();
+	return stripFileAttachmentLines(content.replace(/!\[([^\]]*)\]\(([^)]+)\)\s*/g, '')).trim();
 }
 
 function renderAttachmentPreviewStrip(parent: HTMLElement, previews: AttachmentPreview[]): void {
