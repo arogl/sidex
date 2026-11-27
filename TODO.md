@@ -55,7 +55,7 @@ Legend:
 - [~] `progressMessage` status lines ("Searching...") show as one muted line at the end of the running message and clear when the turn ends
 - [x] `usage` drives the context ring in the chat input from the prompt size (token and quota text, credits and the per-category breakdown are not shown)
 - [ ] `beginToolInvocation` / `updateToolInvocation` (live "running" state for a tool)
-- [ ] `confirmation` prompts and `command` buttons
+- [~] `confirmation` prompts and `command` buttons (a confirmation shows its title, message and buttons under the reply; the first button accepts and the others reject, and the answer goes back to the participant as the next turn; a command button runs its command)
 - [ ] `treeData`, `multiDiffData`, `codeCitation`, `task` and `warning` styling
 - [ ] `notebookEdit` and `externalEdits`
 - [x] File deletes in an agent's patch are performed and reported (permanent: see trash below)
@@ -71,7 +71,7 @@ Legend:
 - [x] Participant (`@name`) completion in the input (`@` at the start of a message lists the chat participants with descriptions, the default one as `copilot`; picking one inserts the name and opens its `/` commands; later `@` still lists files only)
 - [x] Follow-up suggestions (buttons under the newest reply when the participant offers any; Copilot returned none for the replies tested, the same as VS Code, so none showed)
 - [x] Colour the code in fenced code blocks in replies the way VS Code does (the editor's tokenizer and theme, applied again as a reply streams; blocks with no known language stay plain)
-- [~] An attached file shows its own name in the message, not the random name of its copy in the assets folder
+- [x] An attached file shows its own name in the message, not the random name of its copy in the assets folder
 - [~] Scheduled deletion of old chats and attached files (Settings, General, "Delete old chats and files after": 30 days by default, Never to turn it off; runs two minutes after start and then daily; pinned chats are kept)
 - [x] Copy, retry and vote actions on replies (a bar on hover; retry is for the newest reply and rolls back its file changes; votes show as a filled thumb and are kept for the session only, nothing is sent)
 - [x] Chat history across restarts (chats are saved to the local database per workspace; after a restart the chat starts fresh and earlier chats are in the history search, in full)

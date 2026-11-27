@@ -739,6 +739,7 @@ export class SidexChatViewPane extends ViewPane {
 			this._updateAssistantBody(this._currentAssistantComp, lastMsg);
 			this._currentAssistantComp.syncToolCalls(lastMsg);
 			this._currentAssistantComp.syncReferences(lastMsg);
+			this._syncPrompts(this._currentAssistantComp, lastMsg);
 			this._currentAssistantComp.updateProgress(lastMsg);
 		}
 
@@ -764,6 +765,24 @@ export class SidexChatViewPane extends ViewPane {
 
 	/** The markdown last drawn into each reply body, so an update can tell whether the text changed. */
 	private readonly _drawnBodies = new WeakMap<HTMLElement, string>();
+
+	/** Draws the reply's confirmations and command buttons; a pressed confirmation redraws as answered. */
+	private _syncPrompts(comp: AssistantMessage, msg: IChatMessage): void {
+		const draw = (): void =>
+			comp.syncPrompts(
+				msg,
+				(id, button) => {
+					this.chatService.answerConfirmation(id, button);
+					draw();
+				},
+				(commandId, args) => {
+					void Promise.resolve(this.commandService.executeCommand(commandId, ...args)).catch(e =>
+						console.error(`[sidex-chat] command '${commandId}' from a reply failed`, e)
+					);
+				}
+			);
+		draw();
+	}
 
 	private _updateAssistantBody(comp: AssistantMessage, msg: IChatMessage): void {
 		// The body is created on the first update when the message began with a tool call, so look for that

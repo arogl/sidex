@@ -91,6 +91,59 @@ export class AssistantMessage extends Component {
 		}
 	}
 
+	/**
+	 * The confirmations and command buttons the participant put in the reply, kept as the last thing in the message.
+	 * An answered confirmation stays visible with its choice marked, and its buttons are off.
+	 */
+	syncPrompts(
+		msg: IChatMessage,
+		onConfirm: (promptId: string, button: number) => void,
+		onCommand: (commandId: string, args: readonly unknown[]) => void
+	): void {
+		const prompts = msg.prompts ?? [];
+		this.element.querySelector(':scope > .sc-prompts')?.remove();
+		if (prompts.length === 0) {
+			return;
+		}
+		const wrap = this.append('div', 'sc-prompts');
+		for (const prompt of prompts) {
+			if (prompt.kind === 'confirmation') {
+				const box = DOM.append(wrap, DOM.$('div.sc-confirmation'));
+				if (prompt.title) {
+					DOM.append(box, DOM.$('div.sc-confirmation-title')).textContent = prompt.title;
+				}
+				if (prompt.message) {
+					DOM.append(box, DOM.$('div.sc-confirmation-message')).textContent = prompt.message;
+				}
+				const row = DOM.append(box, DOM.$('div.sc-prompt-buttons'));
+				const answered = prompt.answered !== undefined;
+				prompt.buttons.forEach((label, index) => {
+					const btn = DOM.append(row, DOM.$('button.sc-prompt-button')) as HTMLButtonElement;
+					btn.type = 'button';
+					btn.textContent = label;
+					btn.classList.toggle('sc-prompt-button--primary', index === 0);
+					btn.classList.toggle('sc-prompt-button--chosen', prompt.answered === index);
+					btn.disabled = answered;
+					this.on(btn, 'click', () => onConfirm(prompt.id, index));
+				});
+			} else {
+				const row = DOM.append(wrap, DOM.$('div.sc-prompt-buttons'));
+				const buttons = [
+					{ label: prompt.label, commandId: prompt.commandId, args: prompt.args, tooltip: prompt.tooltip },
+					...prompt.secondary
+				];
+				buttons.forEach((b, index) => {
+					const btn = DOM.append(row, DOM.$('button.sc-prompt-button')) as HTMLButtonElement;
+					btn.type = 'button';
+					btn.textContent = b.label;
+					btn.title = b.tooltip ?? '';
+					btn.classList.toggle('sc-prompt-button--primary', index === 0);
+					this.on(btn, 'click', () => onCommand(b.commandId, b.args));
+				});
+			}
+		}
+	}
+
 	/** The transient status line ("Searching the workspace") at the end of the message while a turn runs. */
 	updateProgress(msg: IChatMessage): void {
 		const text = msg.progressMessage;
