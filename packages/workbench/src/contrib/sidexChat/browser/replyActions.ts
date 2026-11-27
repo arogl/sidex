@@ -113,3 +113,11 @@ export function addUsedReference(list: readonly IUsedReference[], next: IUsedRef
 export function usedReferencesLabel(count: number): string {
 	return `Used ${count} reference${count === 1 ? '' : 's'}`;
 }
+
+/**
+ * For a link to a folder (a `file:` link ending in a slash) the same link without the slash, which is how the
+ * Explorer knows the folder; undefined for anything else.
+ */
+export function folderLinkTarget(href: string): string | undefined {
+	return /^file:\/\/[^#?]*\/$/.test(href) ? href.replace(/\/+$/, '') : undefined;
+}
