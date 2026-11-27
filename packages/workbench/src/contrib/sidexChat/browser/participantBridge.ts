@@ -52,6 +52,18 @@ export function progressMessageText(content: unknown): string {
 	return text.length > 160 ? `${text.slice(0, 157)}...` : text;
 }
 
+/** "Preparing run in terminal": the status line while the model is still writing a tool call's input. */
+export function toolPreparingText(toolName: unknown): string {
+	const name = typeof toolName === 'string' ? toolName : '';
+	const words = name
+		.replace(/^(copilot|mcp)_/, '')
+		.replace(/[_\-.]+/g, ' ')
+		.replace(/([a-z])([A-Z])/g, '$1 $2')
+		.trim()
+		.toLowerCase();
+	return words ? `Preparing ${words}` : 'Preparing a tool call';
+}
+
 /** The token counts of a `usage` part, which drive the context ring; undefined when there is no prompt size. */
 export function usageChunk(part: IProgressPart): BridgeChunk | undefined {
 	const prompt = part['promptTokens'];
@@ -238,6 +250,14 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 				}
 				break;
 			}
+			case 'beginToolInvocation':
+				// The model has started writing a tool call. The call itself is shown by the tool service when it runs;
+				// this fills the wait before that with a status line.
+				chunks.push({ type: 'progress', content: toolPreparingText(part['toolName']) });
+				break;
+			case 'updateToolInvocation':
+				// More of the same call's input; nothing to show.
+				break;
 			case 'autoModeResolution':
 				// Which model Auto picked for the turn; there is nowhere to show it, and it is not worth a notice.
 				break;
