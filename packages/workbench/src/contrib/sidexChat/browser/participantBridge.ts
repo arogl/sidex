@@ -6,6 +6,7 @@
 // Pure helpers that route a SideX chat message to an extension chat participant (such as Copilot Chat)
 // and turn the participant's streamed progress into SideX stream chunks.
 
+import { fileTreeNode, type IFileTreeNode } from './fileTree.js';
 import { commandPrompt, confirmationPrompt, type IChatPrompt } from './prompts.js';
 
 /** The slice of an agent record the router needs. */
@@ -37,6 +38,7 @@ export type BridgeChunk =
 	| { type: 'text' | 'thinking' | 'notice' | 'error' | 'progress'; content: string }
 	| { type: 'reference'; reference: { label: string; link?: string } }
 	| { type: 'prompt'; prompt: IChatPrompt }
+	| { type: 'tree'; tree: IFileTreeNode }
 	| { type: 'usage'; tokens_used: { prompt_tokens: number; completion_tokens?: number; total_tokens?: number } };
 
 /**
@@ -271,6 +273,13 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 					});
 				}
 				break;
+			case 'treeData': {
+				const tree = fileTreeNode(part['treeData']);
+				if (tree) {
+					chunks.push({ type: 'tree', tree });
+				}
+				break;
+			}
 			case 'confirmation': {
 				const prompt = confirmationPrompt(part as Record<string, unknown>);
 				if (prompt) {

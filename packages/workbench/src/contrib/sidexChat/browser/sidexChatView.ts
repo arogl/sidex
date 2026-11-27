@@ -748,6 +748,7 @@ export class SidexChatViewPane extends ViewPane {
 			this._updateAssistantBody(this._currentAssistantComp, lastMsg);
 			this._currentAssistantComp.syncToolCalls(lastMsg);
 			this._currentAssistantComp.syncReferences(lastMsg);
+			this._currentAssistantComp.syncTrees(lastMsg);
 			this._syncPrompts(this._currentAssistantComp, lastMsg);
 			this._currentAssistantComp.updateProgress(lastMsg);
 		}

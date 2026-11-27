@@ -2737,3 +2737,13 @@ i.cursor-icon { font-style: normal; }
 	opacity: 1;
 	outline: 1px solid var(--vscode-focusBorder);
 }
+
+/* ===== Folder and file trees in a reply ===== */
+.sc-tree-row {
+	padding-top: 1px;
+	padding-bottom: 1px;
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

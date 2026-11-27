@@ -56,7 +56,8 @@ Legend:
 - [x] `usage` drives the context ring in the chat input from the prompt size (token and quota text, credits and the per-category breakdown are not shown)
 - [~] `beginToolInvocation` / `updateToolInvocation` (while the model writes a tool call's input the reply shows "Preparing <tool>", replaced by the tool row when the call runs; the streamed input itself is not shown)
 - [~] `confirmation` prompts and `command` buttons (a confirmation shows its title, message and buttons under the reply; the first button accepts and the others reject, and the answer goes back to the participant as the next turn; a command button runs its command)
-- [ ] `treeData`, `multiDiffData`, `codeCitation`, `task` and `warning` styling
+- [~] `treeData` (a folder or file tree shows as a collapsible "Files in <name>" list; names open the file or Explorer folder)
+- [ ] `multiDiffData`, `codeCitation`, `task` and `warning` styling
 - [ ] `notebookEdit` and `externalEdits`
 - [x] File deletes in an agent's patch are performed and reported (permanent: see trash below)
 - [~] Trash or recycle bin support for the desktop file provider, so agent deletes are recoverable (the provider declares the Trash capability and a `move_to_trash` command uses the OS trash; Explorer "Move to Trash", workspace edits and the extension API `useTrash` go through it; `files.enableTrash` turns it off; if the trash cannot take a file the Explorer offers Delete Permanently; shell `rm` run by an agent is not covered)
