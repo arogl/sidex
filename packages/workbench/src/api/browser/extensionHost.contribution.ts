@@ -85,6 +85,7 @@ import './mainThreadDataChannels.js';
 import './mainThreadMeteredConnection.js';
 import './mainThreadBrowsers.js';
 import '../../contrib/extensions/browser/tauriExtensionHost.contribution.js';
+import '../../contrib/extensions/browser/installFromVsix.contribution.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.extensionPoints';
