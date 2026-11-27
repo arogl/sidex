@@ -10,6 +10,7 @@ import {
 	progressMessageText,
 	progressToChunks,
 	routeToParticipant,
+	toolPreparingText,
 	toParticipantModelId,
 	waitForCondition,
 	withParagraphBreak
@@ -329,5 +330,20 @@ describe('usage', () => {
 		expect(progressToChunks([{ kind: 'usage', promptTokens: Number.NaN }])).toEqual([]);
 		const agents = readFileSync(resolve(import.meta.dir, '../../../../api/browser/mainThreadChatAgents2.ts'), 'utf8');
 		expect(agents).not.toMatch(/UNSUPPORTED_PROGRESS_KINDS = new Set\([^)]*'usage'/);
+	});
+});
+
+describe('tool invocation progress', () => {
+	it('begin shows a preparing status and update shows nothing', () => {
+		const chunks = progressToChunks([
+			{ kind: 'beginToolInvocation', toolCallId: 'a', toolName: 'copilot_readFile' },
+			{ kind: 'updateToolInvocation', toolCallId: 'a', streamData: {} }
+		] as never);
+		expect(chunks).toEqual([{ type: 'progress', content: 'Preparing read file' }]);
+	});
+	it('names are made readable', () => {
+		expect(toolPreparingText('run_in_terminal')).toBe('Preparing run in terminal');
+		expect(toolPreparingText('mcp_everything_echo')).toBe('Preparing everything echo');
+		expect(toolPreparingText(undefined)).toBe('Preparing a tool call');
 	});
 });

@@ -2657,6 +2657,8 @@ ${prompt}`,
 					};
 					this._messages.push(this._currentAssistantMessage);
 				}
+				// The tool row now shows the call; drop the "Preparing ..." line that came before it.
+				this._currentAssistantMessage.progressMessage = undefined;
 				if (chunk.tool_calls) {
 					for (const tc of chunk.tool_calls) {
 						// Agent file edits make the semantic index stale —

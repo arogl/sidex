@@ -44,10 +44,10 @@ interface IChatParticipantContribution {
 }
 
 /**
- * Progress kinds that need services SideX does not have yet (editing sessions and streamed tool
- * invocations). They are reported, never silently dropped. `usage` is not here: the chat view shows it.
+ * Progress kinds that need services SideX does not have yet (editing sessions). They are reported, never
+ * silently dropped. `usage` and the tool invocation parts are not here: the chat view shows them.
  */
-const UNSUPPORTED_PROGRESS_KINDS = new Set(['externalEdits', 'beginToolInvocation', 'updateToolInvocation']);
+const UNSUPPORTED_PROGRESS_KINDS = new Set(['externalEdits']);
 
 /** Manifest `modes` values map to chat modes; participants that declare none serve Ask, as in VS Code. */
 function toChatModes(modes: string[] | undefined): ChatModeKind[] {

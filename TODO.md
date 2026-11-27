@@ -54,7 +54,7 @@ Legend:
 - [x] Live todo checklist that stays visible while the agent works
 - [~] `progressMessage` status lines ("Searching...") show as one muted line at the end of the running message and clear when the turn ends
 - [x] `usage` drives the context ring in the chat input from the prompt size (token and quota text, credits and the per-category breakdown are not shown)
-- [ ] `beginToolInvocation` / `updateToolInvocation` (live "running" state for a tool)
+- [~] `beginToolInvocation` / `updateToolInvocation` (while the model writes a tool call's input the reply shows "Preparing <tool>", replaced by the tool row when the call runs; the streamed input itself is not shown)
 - [~] `confirmation` prompts and `command` buttons (a confirmation shows its title, message and buttons under the reply; the first button accepts and the others reject, and the answer goes back to the participant as the next turn; a command button runs its command)
 - [ ] `treeData`, `multiDiffData`, `codeCitation`, `task` and `warning` styling
 - [ ] `notebookEdit` and `externalEdits`
