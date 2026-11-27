@@ -1,8 +1,10 @@
-import { Component, DOM, $ } from '../base.js';
-import { Emitter, Event } from '@sidex/base/common/event.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
+import { Emitter, Event } from '@sidex/base/common/event.js';
+import { toDisposable } from '@sidex/base/common/lifecycle.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { IAccountService } from '../../account/accountService.js';
+import { $, Component, DOM } from '../base.js';
+import { placeMenu } from './menuPlacement.js';
 
 function icon(codicon: ThemeIcon): HTMLSpanElement {
 	const el = document.createElement('span');
@@ -80,7 +82,9 @@ export class ChatHeader extends Component {
 		this._historyList = DOM.append(this._historyPanel, $('div.sc-history-list'));
 
 		// Item context menu (shared, repositioned per item)
-		this._itemContextMenu = DOM.append(this._historyPanel, $('div.sc-item-context-menu'));
+		// Appended to the document, not the panel, which clips its children; removed again with the header.
+		this._itemContextMenu = DOM.append(this.element.ownerDocument.body, $('div.sc-item-context-menu'));
+		this._register(toDisposable(() => this._itemContextMenu.remove()));
 		const contextActions: Array<{ id: string; label: string; codicon: ThemeIcon }> = [
 			{ id: 'pin', label: 'Pin', codicon: Codicon.pin },
 			{ id: 'archive', label: 'Archive', codicon: Codicon.archive },
@@ -218,7 +222,8 @@ export class ChatHeader extends Component {
 
 		// Close panels on outside click
 		this.on(document.body, 'click', e => {
-			if (!this.element.contains(e.target as Node)) {
+			// The item menu lives in the document body, so a click in it is not an outside click.
+			if (!this.element.contains(e.target as Node) && !this._itemContextMenu.contains(e.target as Node)) {
 				this._closeHistory();
 				this._closeMenu();
 			}
@@ -336,12 +341,22 @@ export class ChatHeader extends Component {
 	}
 
 	private _showItemContextMenu(sessionId: string, anchor: HTMLElement): void {
-		this._itemContextMenu.dataset.sessionId = sessionId;
-		this._itemContextMenu.classList.add('visible');
+		const menu = this._itemContextMenu;
+		menu.dataset.sessionId = sessionId;
+		// Measure it while hidden, then place it in window coordinates: the history panel clips what is inside it,
+		// and in a small window that cut off all but the first entries.
+		menu.style.visibility = 'hidden';
+		menu.classList.add('visible');
 		const rect = anchor.getBoundingClientRect();
-		const panelRect = this._historyPanel.getBoundingClientRect();
-		this._itemContextMenu.style.top = `${rect.bottom - panelRect.top}px`;
-		this._itemContextMenu.style.right = `${panelRect.right - rect.right}px`;
+		const view = anchor.ownerDocument.defaultView;
+		const { top, left } = placeMenu(
+			rect,
+			{ width: menu.offsetWidth, height: menu.offsetHeight },
+			{ width: view?.innerWidth ?? 800, height: view?.innerHeight ?? 600 }
+		);
+		menu.style.top = `${top}px`;
+		menu.style.left = `${left}px`;
+		menu.style.visibility = '';
 	}
 
 	private _filterHistory(query: string): void {

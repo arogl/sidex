@@ -388,7 +388,7 @@
 /* ===== Item Context Menu ===== */
 .sc-item-context-menu {
 	display: none;
-	position: absolute;
+	position: fixed;
 	min-width: 140px;
 	background: var(--vscode-menu-background, var(--vscode-dropdown-background));
 	border: 1px solid var(--vscode-widget-border, rgba(255,255,255,0.09));
