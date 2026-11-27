@@ -6,7 +6,8 @@ import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { IFileDialogService } from '@sidex/platform/dialogs/common/dialogs.js';
 import type { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '@sidex/platform/notification/common/notification.js';
-import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { vsixInstallSummary, vsixPathsFromChoice } from './vsixPaths.js';
 
 /**
@@ -28,7 +29,8 @@ class InstallFromVsixAction extends Action2 {
 		const fileDialogService = accessor.get(IFileDialogService);
 		const notificationService = accessor.get(INotificationService);
 		const commandService = accessor.get(ICommandService);
-		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+		const serverService = accessor.get(IExtensionManagementServerService);
+		const profileService = accessor.get(IUserDataProfileService);
 
 		const chosen = await fileDialogService.showOpenDialog({
 			title: localize('sidexInstallFromVsixTitle', 'Install from VSIX'),
@@ -53,7 +55,16 @@ class InstallFromVsixAction extends Action2 {
 				// The backend unpacked it into the extensions folder. The Extensions view lists what the workbench has
 				// recorded, so record the unpacked folder the same way a marketplace install is.
 				if (result.path) {
-					await extensionManagementService.installFromLocation(URI.file(result.path));
+					// SideX has no local extension management server, so go to the one it does have; the workbench's
+					// own installFromLocation refuses a file location without a local server.
+					const server = serverService.webExtensionManagementServer;
+					if (!server) {
+						throw new Error('The extension management server is not available');
+					}
+					await server.extensionManagementService.installFromLocation(
+						URI.file(result.path),
+						profileService.currentProfile.extensionsResource
+					);
 				}
 				installed.push(result.id ?? result.name ?? path);
 			} catch (e) {
