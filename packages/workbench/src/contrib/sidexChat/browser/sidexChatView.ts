@@ -36,6 +36,7 @@ import { ChatHeader } from './components/toolbar/chatHeader.js';
 import { errorBannerTitle } from './errorBannerTitle.js';
 import { serverWsUrl } from './localServer.js';
 import { OrchestrationView, SidexOrchestrator, StreamConsumer } from './orchestrator/index.js';
+import { folderLinkTarget } from './replyActions.js';
 import { IChatMessage, IEditsReview, ISidexChatService } from './sidexChatService.js';
 
 const $ = DOM.$;
@@ -714,11 +715,10 @@ export class SidexChatViewPane extends ViewPane {
 					vote => this.chatService.setReplyVote(i, vote),
 					href => {
 						// A folder (its link ends in a slash) is shown in the Explorer; an editor cannot open it.
-						if (/^file:\/\/[^#?]*\/$/.test(href)) {
-							void Promise.resolve(this.commandService.executeCommand('revealInExplorer', URI.parse(href))).catch(
-								() => {
-									/* ignore */
-								}
+						const folder = folderLinkTarget(href);
+						if (folder) {
+							void Promise.resolve(this.commandService.executeCommand('revealInExplorer', URI.parse(folder))).catch(e =>
+								console.error(`[sidex-chat] could not show '${folder}' in the Explorer`, e)
 							);
 							return;
 						}

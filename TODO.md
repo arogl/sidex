@@ -107,3 +107,4 @@ Legend:
 - [x] Webviews rendering blank (Markdown preview, extension details): the served `webview-pre` files were from an older VS Code than the webview host, so the service worker reported version 4 against the expected 6 and the handshake lacked `keyEventToken` and `mountId`; synced to 1.144, keeping the SideX CSP, sandbox, protocol and Tauri-origin changes
 - [x] Recently Opened remembering files as well as folders (File > Open File went through the Tauri dialog without recording the file; it now does, and the menu already listed files)
 - [~] Clippy errors in the native crate tests (fixed in 27 files under `crates/`; CI still lints test targets for the `sidex` crate only)
+- [ ] Review and fix the open CodeQL code-scanning alerts (<https://github.com/arogl/sidex/security/code-scanning>; the session cannot read them, so the alerts still need listing here by rule and file)

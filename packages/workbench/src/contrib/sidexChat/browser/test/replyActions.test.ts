@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { findRetryTarget, nextVote } from '../replyActions.js';
+import { findRetryTarget, folderLinkTarget, nextVote } from '../replyActions.js';
 
 describe('nextVote', () => {
 	test('sets a vote, switches to the other, and takes back the one that is set', () => {
@@ -55,5 +55,16 @@ describe('wiring', () => {
 		expect(service.slice(service.indexOf('retryLastReply(): void {'))).toMatch(
 			/retryLastReply\(\): void \{\s*if \(this\._isStreaming\) \{\s*return;/
 		);
+	});
+});
+
+describe('folderLinkTarget', () => {
+	test('drops the trailing slash of a folder link', () => {
+		expect(folderLinkTarget('file:///e:/editor/x/.pi/')).toBe('file:///e:/editor/x/.pi');
+	});
+	test('leaves files and other links alone', () => {
+		expect(folderLinkTarget('file:///e:/editor/x/a.md')).toBeUndefined();
+		expect(folderLinkTarget('file:///e:/editor/x/a.md#L3')).toBeUndefined();
+		expect(folderLinkTarget('https://example.com/')).toBeUndefined();
 	});
 });
