@@ -322,6 +322,20 @@ export class AssistantMessage extends Component {
 	) {
 		super('div', 'composer-rendered-message');
 		this._onOpenReference = onOpenLink;
+		// Links in the reply (including references to files) open through the editor's opener; left alone, the
+		// browser would navigate the whole window away from SideX. One handler on the message, because the body
+		// may be created later by a streaming update and not by this constructor.
+		this.on(this.element, 'click', event => {
+			const link = (event.target as HTMLElement | null)?.closest?.('a.sc-link') as HTMLAnchorElement | null;
+			if (!link) {
+				return;
+			}
+			event.preventDefault();
+			const href = link.getAttribute('href');
+			if (href && href !== '#') {
+				onOpenLink?.(href);
+			}
+		});
 		this._highlighter = languageService ? new CodeBlockHighlighter(languageService) : null;
 		this.element.style.cssText =
 			'display: block; outline: none; padding-top: 0px; padding-bottom: 0px; background-color: var(--composer-pane-background); opacity: 1; z-index: 99; margin-bottom: 12px;';
@@ -379,20 +393,6 @@ export class AssistantMessage extends Component {
 				'display: flex; flex-direction: column; gap: 8px; white-space: normal; overflow-wrap: break-word;';
 			bodyEl.innerHTML = renderMarkdown(msg.content);
 			this.highlightCode();
-
-			// Links in the reply (including references to files) open through the editor's opener; left alone, the
-			// browser would navigate the whole window away from SideX.
-			this.on(bodyEl, 'click', event => {
-				const link = (event.target as HTMLElement | null)?.closest?.('a.sc-link') as HTMLAnchorElement | null;
-				if (!link) {
-					return;
-				}
-				event.preventDefault();
-				const href = link.getAttribute('href');
-				if (href && href !== '#') {
-					onOpenLink?.(href);
-				}
-			});
 
 			// Wire up code citation click handlers
 			if (onFileClick) {
