@@ -51,6 +51,7 @@ import {
 	type IAttachedContext
 } from './context/chatVariables.js';
 import { editDiffResources } from './editReviewUris.js';
+import type { IFileTreeNode } from './fileTree.js';
 import { resolveServerEndpoint, SERVER_RESTARTED_EVENT, serverWsUrl } from './localServer.js';
 import { ILocalToolRequest, LOCAL_TOOLS_SUPPORTED, LocalToolExecutor } from './localToolExecutor.js';
 import { filterEnabledModels, parseEnabledModels } from './modelFilter.js';
@@ -129,6 +130,8 @@ export interface IChatMessage {
 	references?: IUsedReference[];
 	/** Confirmations and command buttons the participant put in the reply. */
 	prompts?: IChatPrompt[];
+	/** Folder and file trees the participant showed in the reply. */
+	trees?: IFileTreeNode[];
 }
 
 export interface IToolCallInfo {
@@ -172,10 +175,13 @@ export interface IStreamChunk {
 		| 'checkpoint_restored'
 		| 'edits_review'
 		| 'reference'
-		| 'prompt';
+		| 'prompt'
+		| 'tree';
 	content?: string;
 	/** A confirmation or command button, for a `prompt` chunk. */
 	prompt?: IChatPrompt;
+	/** A folder or file tree, for a `tree` chunk. */
+	tree?: IFileTreeNode;
 	/** A file or symbol the reply used, for a `reference` chunk. */
 	reference?: IUsedReference;
 	error?: string;
@@ -2822,6 +2828,22 @@ ${prompt}`,
 						this._currentAssistantMessage.references ?? [],
 						chunk.reference
 					);
+					this._onDidChangeMessages.fire(this._messages);
+				}
+				break;
+			}
+			case 'tree': {
+				if (chunk.tree) {
+					if (!this._currentAssistantMessage) {
+						this._currentAssistantMessage = {
+							role: 'assistant',
+							content: '',
+							toolCalls: [],
+							timestamp: Date.now()
+						};
+						this._messages.push(this._currentAssistantMessage);
+					}
+					this._currentAssistantMessage.trees = [...(this._currentAssistantMessage.trees ?? []), chunk.tree];
 					this._onDidChangeMessages.fire(this._messages);
 				}
 				break;

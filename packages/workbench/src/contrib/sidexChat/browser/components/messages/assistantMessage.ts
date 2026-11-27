@@ -3,6 +3,7 @@ import { Emitter, Event } from '@sidex/base/common/event.js';
 import { ThemeIcon } from '@sidex/base/common/themables.js';
 import { ILanguageService } from '@sidex/editor/common/languages/language.js';
 import { IModelService } from '@sidex/editor/common/services/model.js';
+import type { IFileTreeNode } from '../../fileTree.js';
 import { type IFollowupInfo, nextVote, type ReplyVote, usedReferencesLabel } from '../../replyActions.js';
 import { IChatMessage, IToolCallInfo } from '../../sidexChatService.js';
 import { $, Component, DOM } from '../base.js';
@@ -34,6 +35,7 @@ export class AssistantMessage extends Component {
 	private _progressEl: HTMLElement | null = null;
 	private _toolSection: Collapsible | null = null;
 	private _referenceSection: Collapsible | null = null;
+	private readonly _treeSections: Collapsible[] = [];
 	private _highlighter: CodeBlockHighlighter | null = null;
 	private _onOpenReference?: (href: string) => void;
 	private _checklist: TodoChecklistView | null = null;
@@ -141,6 +143,40 @@ export class AssistantMessage extends Component {
 					this.on(btn, 'click', () => onCommand(b.commandId, b.args));
 				});
 			}
+		}
+	}
+
+	/** Folder and file trees from the participant, each as a collapsible list whose names open the file or folder. */
+	syncTrees(msg: IChatMessage): void {
+		const trees = msg.trees ?? [];
+		if (trees.length === this._treeSections.length) {
+			return;
+		}
+		for (const tree of trees.slice(this._treeSections.length)) {
+			const section = new Collapsible(`Files in ${tree.label}`);
+			section.appendTo(this.element);
+			this._register(section);
+			this._treeSections.push(section);
+			const draw = (node: IFileTreeNode, depth: number): void => {
+				const row = DOM.append(section.body, DOM.$('div.sc-tree-row'));
+				row.style.paddingLeft = `${depth * 14}px`;
+				const name = node.folder ? `${node.label}/` : node.label;
+				if (node.link) {
+					const a = DOM.append(row, DOM.$('a.sc-link')) as HTMLAnchorElement;
+					a.href = '#';
+					a.textContent = name;
+					a.addEventListener('click', event => {
+						event.preventDefault();
+						this._onOpenReference?.(node.link as string);
+					});
+				} else {
+					row.textContent = name;
+				}
+				for (const child of node.children) {
+					draw(child, depth + 1);
+				}
+			};
+			draw(tree, 0);
 		}
 	}
 
