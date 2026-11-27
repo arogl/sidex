@@ -1,3 +1,4 @@
+import { URI } from '@sidex/base/common/uri.js';
 import { localize, localize2 } from '@sidex/base/nls.js';
 import { Categories } from '@sidex/platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions.js';
@@ -5,6 +6,7 @@ import { ICommandService } from '@sidex/platform/commands/common/commands.js';
 import { IFileDialogService } from '@sidex/platform/dialogs/common/dialogs.js';
 import type { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '@sidex/platform/notification/common/notification.js';
+import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { vsixInstallSummary, vsixPathsFromChoice } from './vsixPaths.js';
 
 /**
@@ -26,6 +28,7 @@ class InstallFromVsixAction extends Action2 {
 		const fileDialogService = accessor.get(IFileDialogService);
 		const notificationService = accessor.get(INotificationService);
 		const commandService = accessor.get(ICommandService);
+		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
 
 		const chosen = await fileDialogService.showOpenDialog({
 			title: localize('sidexInstallFromVsixTitle', 'Install from VSIX'),
@@ -44,7 +47,14 @@ class InstallFromVsixAction extends Action2 {
 		const failed: { path: string; error: string }[] = [];
 		for (const path of paths) {
 			try {
-				const result = await invoke<{ id?: string; name?: string }>('install_extension', { vsixPath: path });
+				const result = await invoke<{ id?: string; name?: string; path?: string }>('install_extension', {
+					vsixPath: path
+				});
+				// The backend unpacked it into the extensions folder. The Extensions view lists what the workbench has
+				// recorded, so record the unpacked folder the same way a marketplace install is.
+				if (result.path) {
+					await extensionManagementService.installFromLocation(URI.file(result.path));
+				}
 				installed.push(result.id ?? result.name ?? path);
 			} catch (e) {
 				failed.push({ path, error: e instanceof Error ? e.message : String(e) });

@@ -109,4 +109,4 @@ Legend:
 - [x] Recently Opened remembering files as well as folders (File > Open File went through the Tauri dialog without recording the file; it now does, and the menu already listed files)
 - [~] Clippy errors in the native crate tests (fixed in 27 files under `crates/`; CI still lints test targets for the `sidex` crate only)
 - [ ] Review and fix the open CodeQL code-scanning alerts (<https://github.com/arogl/sidex/security/code-scanning>; the session cannot read them, so the alerts still need listing here by rule and file)
-- [~] Install from VSIX (the built-in command is hidden because SideX reports no local extension server; "Developer: Install from VSIX..." in the command palette picks a `.vsix`, installs it through the Rust backend and offers a window reload)
+- [~] Install from VSIX ("Developer: Install from VSIX..." in the command palette picks a `.vsix`, installs it through the Rust backend, records it in the Extensions view's Installed list and offers a window reload; the built-in command is hidden because SideX reports no local extension server)
