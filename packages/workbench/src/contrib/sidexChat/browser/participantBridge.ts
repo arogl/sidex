@@ -6,6 +6,8 @@
 // Pure helpers that route a SideX chat message to an extension chat participant (such as Copilot Chat)
 // and turn the participant's streamed progress into SideX stream chunks.
 
+import { commandPrompt, confirmationPrompt, type IChatPrompt } from './prompts.js';
+
 /** The slice of an agent record the router needs. */
 export interface IParticipantRef {
 	readonly id: string;
@@ -34,6 +36,7 @@ export interface IProgressPart {
 export type BridgeChunk =
 	| { type: 'text' | 'thinking' | 'notice' | 'error' | 'progress'; content: string }
 	| { type: 'reference'; reference: { label: string; link?: string } }
+	| { type: 'prompt'; prompt: IChatPrompt }
 	| { type: 'usage'; tokens_used: { prompt_tokens: number; completion_tokens?: number; total_tokens?: number } };
 
 /**
@@ -248,6 +251,20 @@ export function progressToChunks(parts: readonly IProgressPart[]): BridgeChunk[]
 					});
 				}
 				break;
+			case 'confirmation': {
+				const prompt = confirmationPrompt(part as Record<string, unknown>);
+				if (prompt) {
+					chunks.push({ type: 'prompt', prompt });
+				}
+				break;
+			}
+			case 'command': {
+				const prompt = commandPrompt(part as Record<string, unknown>);
+				if (prompt) {
+					chunks.push({ type: 'prompt', prompt });
+				}
+				break;
+			}
 			case 'textEdit':
 			case 'workspaceEdit':
 				// applied to the files by the edit applier, see participantEditOps

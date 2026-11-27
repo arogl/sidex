@@ -80,6 +80,7 @@ import {
 	TurnEditCheckpoint
 } from './participantEditCheckpoint.js';
 import { extractEditOps } from './participantEditOps.js';
+import { confirmationAnswer, type IChatPrompt, type IConfirmationPrompt } from './prompts.js';
 import {
 	addUsedReference,
 	findRetryTarget,
@@ -126,6 +127,8 @@ export interface IChatMessage {
 	followups?: IFollowupInfo[];
 	/** The files and symbols the participant says the reply used. */
 	references?: IUsedReference[];
+	/** Confirmations and command buttons the participant put in the reply. */
+	prompts?: IChatPrompt[];
 }
 
 export interface IToolCallInfo {
@@ -168,8 +171,11 @@ export interface IStreamChunk {
 		| 'checkpoint_created'
 		| 'checkpoint_restored'
 		| 'edits_review'
-		| 'reference';
+		| 'reference'
+		| 'prompt';
 	content?: string;
+	/** A confirmation or command button, for a `prompt` chunk. */
+	prompt?: IChatPrompt;
 	/** A file or symbol the reply used, for a `reference` chunk. */
 	reference?: IUsedReference;
 	error?: string;
@@ -308,6 +314,8 @@ export interface ISidexChatService {
 	retryLastReply(): void;
 	/** Sends a suggested follow-up as the next message, to the participant that offered it. */
 	sendFollowup(followup: IFollowupInfo): void;
+	/** Answers a confirmation the participant asked: the first button accepts, the others reject. */
+	answerConfirmation(promptId: string, button: number): void;
 	/** Replaces the user message at `messageIndex` and everything after it with `text`, undoes the file changes since, and sends it. */
 	editAndResend(messageIndex: number, text: string): void;
 	setReplyVote(messageIndex: number, vote: 'up' | 'down' | undefined): void;
@@ -1106,7 +1114,8 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 		agentId: string,
 		command: string | undefined,
 		message: string,
-		userSelectedModelId?: string
+		userSelectedModelId?: string,
+		confirmation?: { accepted?: unknown[]; rejected?: unknown[] }
 	): Promise<void> {
 		// Attached files and selections go to the participant as request variables, not as text in the prompt.
 		const extracted = extractAttachedContext(message);
@@ -1142,7 +1151,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				command,
 				userSelectedModelId,
 				userSelectedTools: this._userSelectedTools(),
-				variables: { variables: this._participantVariables(extracted.attached, message) }
+				variables: { variables: this._participantVariables(extracted.attached, message) },
+				acceptedConfirmationData: confirmation?.accepted,
+				rejectedConfirmationData: confirmation?.rejected
 			};
 			const result = await this.chatAgentService.invokeAgent(
 				agentId,
@@ -1150,6 +1161,9 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 				parts => {
 					this._editApplier.enqueue(extractEditOps(parts as never));
 					for (const chunk of progressToChunks(parts as never)) {
+						if (chunk.type === 'prompt' && chunk.prompt.kind === 'confirmation') {
+							chunk.prompt.agentId = agentId;
+						}
 						// The thinking block stays open until something other than thinking arrives.
 						if (thinking && chunk.type !== 'thinking' && chunk.type !== 'progress' && chunk.type !== 'usage') {
 							thinking = false;
@@ -1377,6 +1391,32 @@ export class SidexChatService extends Disposable implements ISidexChatService {
 			);
 		}
 		this.sendMessage(text);
+	}
+
+	answerConfirmation(promptId: string, button: number): void {
+		if (this._isStreaming) {
+			return;
+		}
+		const prompt = this._messages
+			.flatMap(m => m.prompts ?? [])
+			.find((p): p is IConfirmationPrompt => p.kind === 'confirmation' && p.id === promptId);
+		if (!prompt || prompt.answered !== undefined || !prompt.agentId) {
+			return;
+		}
+		const answer = confirmationAnswer(prompt, button);
+		if (!answer) {
+			return;
+		}
+		prompt.answered = button;
+		this._enqueueUserMessage(answer.message);
+		this._setStreaming(true);
+		void this._sendToParticipant(
+			prompt.agentId,
+			undefined,
+			answer.message,
+			parseParticipantModelId(this._serverModel),
+			{ accepted: answer.accepted, rejected: answer.rejected }
+		);
 	}
 
 	sendFollowup(followup: IFollowupInfo): void {
@@ -2780,6 +2820,22 @@ ${prompt}`,
 						this._currentAssistantMessage.references ?? [],
 						chunk.reference
 					);
+					this._onDidChangeMessages.fire(this._messages);
+				}
+				break;
+			}
+			case 'prompt': {
+				if (chunk.prompt) {
+					if (!this._currentAssistantMessage) {
+						this._currentAssistantMessage = {
+							role: 'assistant',
+							content: '',
+							toolCalls: [],
+							timestamp: Date.now()
+						};
+						this._messages.push(this._currentAssistantMessage);
+					}
+					this._currentAssistantMessage.prompts = [...(this._currentAssistantMessage.prompts ?? []), chunk.prompt];
 					this._onDidChangeMessages.fire(this._messages);
 				}
 				break;
