@@ -713,6 +713,15 @@ export class SidexChatViewPane extends ViewPane {
 					() => this.chatService.retryLastReply(),
 					vote => this.chatService.setReplyVote(i, vote),
 					href => {
+						// A folder (its link ends in a slash) is shown in the Explorer; an editor cannot open it.
+						if (/^file:\/\/[^#?]*\/$/.test(href)) {
+							void Promise.resolve(this.commandService.executeCommand('revealInExplorer', URI.parse(href))).catch(
+								() => {
+									/* ignore */
+								}
+							);
+							return;
+						}
 						// A `file:` link carries the line as #L12, which the editor opener understands.
 						this.openerService.open(URI.parse(href), { fromUserGesture: true }).then(undefined, () => {
 							/* ignore */
