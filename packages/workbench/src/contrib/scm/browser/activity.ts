@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '@sidex/base/nls.js';
-import { basename } from '@sidex/base/common/resources.js';
-import { Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
 import { Emitter, Event } from '@sidex/base/common/event.js';
-import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService, ISCMProvider } from '../common/scm.js';
-import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { Disposable, DisposableStore } from '@sidex/base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableFromEvent } from '@sidex/base/common/observable.js';
+import { basename } from '@sidex/base/common/resources.js';
+import { localize } from '@sidex/base/nls.js';
+import { Command } from '@sidex/editor/common/languages.js';
+import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '@sidex/platform/contextkey/common/contextkey.js';
+import { observableConfigValue } from '@sidex/platform/observable/common/platformObservableUtils.js';
+import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { EditorResourceAccessor } from '../../../common/editor.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import {
+	IEditorGroupContextKeyProvider,
+	IEditorGroupsService
+} from '../../../services/editor/common/editorGroupsService.js';
 import {
 	IStatusbarEntry,
 	IStatusbarService,
 	StatusbarAlignment as MainThreadStatusBarAlignment
 } from '../../../services/statusbar/browser/statusbar.js';
-import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
-import { EditorResourceAccessor } from '../../../common/editor.js';
-import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
-import {
-	IEditorGroupContextKeyProvider,
-	IEditorGroupsService
-} from '../../../services/editor/common/editorGroupsService.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, VIEW_PANE_ID } from '../common/scm.js';
 import { getRepositoryResourceCount, getSCMRepositoryIcon, getStatusBarCommandGenericName } from './util.js';
-import { autorun, derived, IObservable, observableFromEvent } from '@sidex/base/common/observable.js';
-import { observableConfigValue } from '@sidex/platform/observable/common/platformObservableUtils.js';
-import { Command } from '@sidex/editor/common/languages.js';
 
 const ActiveRepositoryContextKeys = {
 	ActiveRepositoryName: new RawContextKey<string>('scmActiveRepositoryName', ''),
@@ -179,7 +179,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		commands: readonly Command[],
 		store: DisposableStore
 	): void {
-		return;
+		if (!activeRepository) {
+			return;
+		}
 
 		const label = activeRepository.repository.provider.rootUri
 			? `${basename(activeRepository.repository.provider.rootUri)} (${activeRepository.repository.provider.label})`

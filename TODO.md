@@ -110,5 +110,6 @@ Legend:
 - [~] Clippy errors in the native crate tests (fixed in 27 files under `crates/`; CI still lints test targets for the `sidex` crate only)
 - [ ] Review and fix the open CodeQL code-scanning alerts (<https://github.com/arogl/sidex/security/code-scanning>; the session cannot read them, so the alerts still need listing here by rule and file)
 - [x] Install from VSIX ("Developer: Install from VSIX..." in the command palette picks a `.vsix`, installs it through the Rust backend, records it in the Extensions view's Installed list and offers a window reload; the built-in command is hidden because SideX reports no local extension server)
-- [ ] Git branch name does not show in the status bar, and the branch popup in the title bar needs checking on Windows (branch create/rename/delete is registered but the maintainer could not reach it)
-- [ ] A second window opens white (PR for window capabilities did not change it); needs the second window's devtools console to diagnose
+- [~] Git branch name and sync item in the status bar next to the remote indicator (`_updateStatusBar` in `scm/browser/activity.ts` had an early `return`); the branch popup in the title bar still needs checking on Windows
+- [~] A second window opens white and "Not Responding": `create_window` was a synchronous command, which deadlocks on Windows; now `async`
+- [ ] Source Control container `...` menu does not offer the Repositories / Changes / Graph view toggles (the views are registered; cause not yet found, needs a screenshot of the SideX view)
