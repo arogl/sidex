@@ -3,27 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IBuiltinExtensionsScannerService,
-	ExtensionType,
-	IExtensionIdentifier,
-	IExtension,
-	IExtensionManifest,
-	TargetPlatform,
-	IRelaxedExtensionManifest,
-	parseEnabledApiProposalNames
-} from '@sidex/platform/extensions/common/extensions.js';
-import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
-import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from '../common/extensionManagement.js';
-import { isWeb, Language } from '@sidex/base/common/platform.js';
-import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
-import { joinPath } from '@sidex/base/common/resources.js';
-import { URI, UriComponents } from '@sidex/base/common/uri.js';
-import { FileOperationError, FileOperationResult, IFileService } from '@sidex/platform/files/common/files.js';
+import { isNonEmptyArray } from '@sidex/base/common/arrays.js';
 import { Queue } from '@sidex/base/common/async.js';
 import { VSBuffer } from '@sidex/base/common/buffer.js';
-import { ILogService } from '@sidex/platform/log/common/log.js';
 import { CancellationToken } from '@sidex/base/common/cancellation.js';
+import { IStringDictionary } from '@sidex/base/common/collections.js';
+import { getErrorMessage } from '@sidex/base/common/errors.js';
+import { Disposable } from '@sidex/base/common/lifecycle.js';
+import { ResourceMap } from '@sidex/base/common/map.js';
+import { Schemas } from '@sidex/base/common/network.js';
+import { basename } from '@sidex/base/common/path.js';
+import { isWeb, Language } from '@sidex/base/common/platform.js';
+import { joinPath } from '@sidex/base/common/resources.js';
+import * as semver from '@sidex/base/common/semver/semver.js';
+import Severity from '@sidex/base/common/severity.js';
+import { isString, isUndefined } from '@sidex/base/common/types.js';
+import { URI, UriComponents } from '@sidex/base/common/uri.js';
+import { localize, localize2 } from '@sidex/base/nls.js';
+import { Categories } from '@sidex/platform/action/common/actionCommonCategories.js';
+import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions.js';
+import { IsWebContext } from '@sidex/platform/contextkey/common/contextkeys.js';
 import {
 	IExtensionGalleryService,
 	IExtensionInfo,
@@ -33,40 +32,41 @@ import {
 } from '@sidex/platform/extensionManagement/common/extensionManagement.js';
 import {
 	areSameExtensions,
-	getGalleryExtensionId,
 	getExtensionId,
+	getGalleryExtensionId,
 	isMalicious
 } from '@sidex/platform/extensionManagement/common/extensionManagementUtil.js';
-import { Disposable } from '@sidex/base/common/lifecycle.js';
 import { ITranslations, localizeManifest } from '@sidex/platform/extensionManagement/common/extensionNls.js';
-import { localize, localize2 } from '@sidex/base/nls.js';
-import * as semver from '@sidex/base/common/semver/semver.js';
-import { isString, isUndefined } from '@sidex/base/common/types.js';
-import { getErrorMessage } from '@sidex/base/common/errors.js';
-import { ResourceMap } from '@sidex/base/common/map.js';
-import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IExtensionStorageService } from '@sidex/platform/extensionManagement/common/extensionStorage.js';
 import {
 	IExtensionResourceLoaderService,
 	migratePlatformSpecificExtensionGalleryResourceURL
 } from '@sidex/platform/extensionResourceLoader/common/extensionResourceLoader.js';
-import { Action2, registerAction2 } from '@sidex/platform/actions/common/actions.js';
-import { Categories } from '@sidex/platform/action/common/actionCommonCategories.js';
-import { IsWebContext } from '@sidex/platform/contextkey/common/contextkeys.js';
-import { IEditorService } from '../../editor/common/editorService.js';
-import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
-import { basename } from '@sidex/base/common/path.js';
-import { IExtensionStorageService } from '@sidex/platform/extensionManagement/common/extensionStorage.js';
-import { isNonEmptyArray } from '@sidex/base/common/arrays.js';
-import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
-import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
-import { IProductService } from '@sidex/platform/product/common/productService.js';
+import {
+	ExtensionType,
+	IBuiltinExtensionsScannerService,
+	IExtension,
+	IExtensionIdentifier,
+	IExtensionManifest,
+	IRelaxedExtensionManifest,
+	parseEnabledApiProposalNames,
+	TargetPlatform
+} from '@sidex/platform/extensions/common/extensions.js';
 import { validateExtensionManifest } from '@sidex/platform/extensions/common/extensionValidator.js';
-import Severity from '@sidex/base/common/severity.js';
-import { IStringDictionary } from '@sidex/base/common/collections.js';
-import { Schemas } from '@sidex/base/common/network.js';
-import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
-import { IUserDataProfilesService } from '@sidex/platform/userDataProfile/common/userDataProfile.js';
+import { FileOperationError, FileOperationResult, IFileService } from '@sidex/platform/files/common/files.js';
+import { InstantiationType, registerSingleton } from '@sidex/platform/instantiation/common/extensions.js';
+import { ServicesAccessor } from '@sidex/platform/instantiation/common/instantiation.js';
+import { ILogService } from '@sidex/platform/log/common/log.js';
+import { IProductService } from '@sidex/platform/product/common/productService.js';
+import { IStorageService, StorageScope, StorageTarget } from '@sidex/platform/storage/common/storage.js';
 import { IUriIdentityService } from '@sidex/platform/uriIdentity/common/uriIdentity.js';
+import { IUserDataProfilesService } from '@sidex/platform/userDataProfile/common/userDataProfile.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from '../common/extensionManagement.js';
 
 type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 type ExtensionInfo = { readonly id: string; preRelease: boolean };
@@ -910,11 +910,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				);
 				extensionLocation = localLocation;
 			} catch (error) {
-				this.logService.warn(
-					`Failed to install ${galleryExtension.identifier.id} locally, falling back to the gallery location`,
-					getErrorMessage(error)
-				);
-				manifest = undefined;
+				// Falling back to the gallery location used to hide this: the extension was recorded as installed
+				// with an https location, and the extension host then failed to start it with "Cannot load URI ...
+				// must be of file-scheme". Fail the install, with the reason, instead.
+				throw new Error(`Could not install ${galleryExtension.identifier.id}: ${getErrorMessage(error)}`);
 			}
 		}
 
