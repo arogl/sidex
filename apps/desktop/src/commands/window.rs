@@ -14,9 +14,11 @@ pub struct MonitorInfo {
     pub scale_factor: f64,
 }
 
+// Async on purpose: on Windows, building a window from a synchronous command
+// runs on the main thread and deadlocks the event loop (white, "Not Responding").
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
-pub fn create_window(
+pub async fn create_window(
     app: AppHandle,
     label: String,
     title: String,
