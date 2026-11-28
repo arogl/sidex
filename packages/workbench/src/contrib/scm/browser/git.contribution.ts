@@ -2250,6 +2250,29 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, {
 	order: 1
 });
 
+// The Git commands in the command palette ("Git: Create Branch..."), and in the "..." menu of the Source Control view.
+const GIT_PALETTE_COMMANDS: { id: string; title: string }[] = [
+	{ id: 'git.createBranch', title: 'Create Branch...' },
+	{ id: 'git.checkoutTo', title: 'Checkout to...' },
+	{ id: 'git.renameBranch', title: 'Rename Branch...' },
+	{ id: 'git.deleteBranch', title: 'Delete Branch...' },
+	{ id: 'git.fetchAll', title: 'Fetch From All Remotes' },
+	{ id: 'git.pull', title: 'Pull' },
+	{ id: 'git.push', title: 'Push' },
+	{ id: 'git.commit', title: 'Commit' },
+	{ id: 'git.refresh', title: 'Refresh' }
+];
+GIT_PALETTE_COMMANDS.forEach(({ id, title }, index) => {
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id, title, category: 'Git' } });
+	if (id !== 'git.commit' && id !== 'git.refresh') {
+		MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
+			command: { id, title: `${title}` },
+			group: '1_git',
+			order: index
+		});
+	}
+});
+
 // Navigation toolbar buttons (SCM title bar)
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	command: { id: 'git.commit', title: 'Commit', icon: ThemeIcon.fromId('check') },
