@@ -110,3 +110,5 @@ Legend:
 - [~] Clippy errors in the native crate tests (fixed in 27 files under `crates/`; CI still lints test targets for the `sidex` crate only)
 - [ ] Review and fix the open CodeQL code-scanning alerts (<https://github.com/arogl/sidex/security/code-scanning>; the session cannot read them, so the alerts still need listing here by rule and file)
 - [x] Install from VSIX ("Developer: Install from VSIX..." in the command palette picks a `.vsix`, installs it through the Rust backend, records it in the Extensions view's Installed list and offers a window reload; the built-in command is hidden because SideX reports no local extension server)
+- [ ] Git branch name does not show in the status bar, and the branch popup in the title bar needs checking on Windows (branch create/rename/delete is registered but the maintainer could not reach it)
+- [ ] A second window opens white (PR for window capabilities did not change it); needs the second window's devtools console to diagnose
