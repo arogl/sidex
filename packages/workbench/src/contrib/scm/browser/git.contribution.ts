@@ -84,6 +84,7 @@ import {
 	ISCMResourceGroup,
 	ISCMService
 } from '../common/scm.js';
+import { registerGitBranchCommands } from './gitBranchCommands.js';
 import { historyItemRefColor, historyItemRemoteRefColor } from './scmHistory.js';
 
 // ─── Tauri invoke() bridge ──────────────────────────────────────────────────
@@ -1880,21 +1881,9 @@ CommandsRegistry.registerCommand('git.checkoutTo', async () => {
 	}
 });
 
-CommandsRegistry.registerCommand('git.createBranch', async () => {
-	const path = getWorkspacePath();
-	if (!path) {
-		return;
-	}
-	const name = window.prompt('New branch name:');
-	if (!name) {
-		return;
-	}
-	try {
-		await invokeGit('git_create_branch', { path, name });
-		console.log('[TauriGit] created branch', name);
-	} catch (err) {
-		console.error('[TauriGit] create branch failed:', err);
-	}
+registerGitBranchCommands(getWorkspacePath, async (path, args) => {
+	const out = await invokeGit<string>('git_run', { path, args });
+	return out ?? '';
 });
 
 CommandsRegistry.registerCommand('git.sync', async () => {
