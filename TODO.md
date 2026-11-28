@@ -56,7 +56,7 @@ Legend:
 - [x] `usage` drives the context ring in the chat input from the prompt size (token and quota text, credits and the per-category breakdown are not shown)
 - [~] `beginToolInvocation` / `updateToolInvocation` (while the model writes a tool call's input the reply shows "Preparing <tool>", replaced by the tool row when the call runs; the streamed input itself is not shown)
 - [~] `confirmation` prompts and `command` buttons (a confirmation shows its title, message and buttons under the reply; the first button accepts and the others reject, and the answer goes back to the participant as the next turn; a command button runs its command)
-- [~] `treeData` (a folder or file tree shows as a collapsible "Files in <name>" list; names open the file or Explorer folder)
+- [x] `treeData` (a folder or file tree shows as a collapsible "Files in <name>" list; names open the file or Explorer folder)
 - [ ] `multiDiffData`, `codeCitation`, `task` and `warning` styling
 - [ ] `notebookEdit` and `externalEdits`
 - [x] File deletes in an agent's patch are performed and reported (permanent: see trash below)
@@ -109,4 +109,4 @@ Legend:
 - [x] Recently Opened remembering files as well as folders (File > Open File went through the Tauri dialog without recording the file; it now does, and the menu already listed files)
 - [~] Clippy errors in the native crate tests (fixed in 27 files under `crates/`; CI still lints test targets for the `sidex` crate only)
 - [ ] Review and fix the open CodeQL code-scanning alerts (<https://github.com/arogl/sidex/security/code-scanning>; the session cannot read them, so the alerts still need listing here by rule and file)
-- [~] Install from VSIX ("Developer: Install from VSIX..." in the command palette picks a `.vsix`, installs it through the Rust backend, records it in the Extensions view's Installed list and offers a window reload; the built-in command is hidden because SideX reports no local extension server)
+- [x] Install from VSIX ("Developer: Install from VSIX..." in the command palette picks a `.vsix`, installs it through the Rust backend, records it in the Extensions view's Installed list and offers a window reload; the built-in command is hidden because SideX reports no local extension server)

@@ -5,18 +5,18 @@
 
 import * as dom from '@sidex/base/browser/dom.js';
 import { IKeyboardEvent } from '@sidex/base/browser/keyboardEvent.js';
-import { Toggle } from '@sidex/base/browser/ui/toggle/toggle.js';
 import { IContextViewProvider } from '@sidex/base/browser/ui/contextview/contextview.js';
 import { HistoryInputBox, IInputBoxStyles } from '@sidex/base/browser/ui/inputbox/inputBox.js';
+import { Toggle } from '@sidex/base/browser/ui/toggle/toggle.js';
 import { Widget } from '@sidex/base/browser/ui/widget.js';
 import { Codicon } from '@sidex/base/common/codicons.js';
-import { Emitter, Event as CommonEvent } from '@sidex/base/common/event.js';
+import { Event as CommonEvent, Emitter } from '@sidex/base/common/event.js';
 import { KeyCode } from '@sidex/base/common/keyCodes.js';
 import * as nls from '@sidex/base/nls.js';
-import { ContextScopedHistoryInputBox } from '@sidex/platform/history/browser/contextScopedHistoryWidget.js';
-import { showHistoryKeybindingHint } from '@sidex/platform/history/browser/historyWidgetKeybindingHint.js';
 import { IConfigurationService } from '@sidex/platform/configuration/common/configuration.js';
 import { IContextKeyService } from '@sidex/platform/contextkey/common/contextkey.js';
+import { ContextScopedHistoryInputBox } from '@sidex/platform/history/browser/contextScopedHistoryWidget.js';
+import { showHistoryKeybindingHint } from '@sidex/platform/history/browser/historyWidgetKeybindingHint.js';
 import { IKeybindingService } from '@sidex/platform/keybinding/common/keybinding.js';
 import { defaultToggleStyles } from '@sidex/platform/theme/browser/defaultStyles.js';
 
@@ -207,8 +207,10 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		super(parent, contextViewProvider, options, contextKeyService, configurationService, keybindingService);
 	}
 
-	private useSearchInEditorsBox!: Toggle;
-	private useSearchInChangedFilesBox!: Toggle;
+	// `declare`: these are assigned by renderSubcontrols(), which the base constructor calls. A plain field
+	// declaration would be initialised again after super() returns and wipe them (class fields use define semantics).
+	declare private useSearchInEditorsBox: Toggle;
+	declare private useSearchInChangedFilesBox: Toggle;
 
 	override dispose(): void {
 		super.dispose();
@@ -313,7 +315,9 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 		super(parent, contextViewProvider, options, contextKeyService, configurationService, keybindingService);
 	}
 
-	private useExcludesAndIgnoreFilesBox!: Toggle;
+	// `declare`: these are assigned by renderSubcontrols(), which the base constructor calls. A plain field
+	// declaration would be initialised again after super() returns and wipe them (class fields use define semantics).
+	declare private useExcludesAndIgnoreFilesBox: Toggle;
 
 	override dispose(): void {
 		super.dispose();
