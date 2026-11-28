@@ -50,7 +50,7 @@ const HANDSHAKE_TIMEOUT_MS = 60_000;
  * Handshake progress goes to the Rust log as well, so it shows in the `tauri dev` terminal even when the
  * webview's log level hides it.
  */
-function trace(level: 'info' | 'warn' | 'error', message: string): void {
+function trace(level: 'debug' | 'info' | 'warn' | 'error', message: string): void {
 	void invoke('ext_host_real_log', { level, message }).catch(() => undefined);
 }
 
@@ -120,7 +120,7 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 	}
 
 	/**
-	 * Report the busiest RPC methods in each direction to the Rust log every 10 seconds, so a runaway
+	 * Report the busiest RPC methods in each direction to the Rust log (at debug level) every 10 seconds, so a runaway
 	 * exchange between the workbench and the host shows up by method name. Reads message headers only.
 	 */
 	private _traceRpcTraffic(protocol: PersistentProtocol): IMessagePassingProtocol {
@@ -128,7 +128,7 @@ export class RealExtensionHost extends Disposable implements IExtensionHost {
 		const timer = setInterval(() => {
 			const lines = tracer.flush();
 			if (lines.length) {
-				trace('info', `rpc traffic in the last 10s:\n${lines.join('\n')}`);
+				trace('debug', `rpc traffic in the last 10s:\n${lines.join('\n')}`);
 			}
 			const errors = tracer.flushErrors();
 			if (errors.length) {

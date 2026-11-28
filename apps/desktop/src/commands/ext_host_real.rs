@@ -170,7 +170,7 @@ async fn relay<S: AsyncRead + AsyncWrite + Unpin>(
             },
             _ = progress.tick() => {
                 if stats != reported {
-                    log::info!(
+                    log::debug!(
                         "[ext-host-real] {label}: {} bytes from the host, {} to the host so far",
                         stats.from_host,
                         stats.to_host
@@ -367,6 +367,7 @@ pub async fn ext_host_real_log(level: String, message: String) -> Result<(), Str
     match level.as_str() {
         "error" => log::error!("[ext-host-real] webview: {message}"),
         "warn" => log::warn!("[ext-host-real] webview: {message}"),
+        "debug" => log::debug!("[ext-host-real] webview: {message}"),
         _ => log::info!("[ext-host-real] webview: {message}"),
     }
     Ok(())
